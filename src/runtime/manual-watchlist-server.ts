@@ -76,7 +76,10 @@ import {
 import { createDiscordAlertRouter } from "./manual-watchlist-discord.js";
 import { createLiveWatchlistPublisherFromEnv } from "../lib/live-watchlist/live-watchlist-publisher.js";
 import { createEodhdExtendedQuoteProviderFromEnv } from "../lib/live-watchlist/eodhd-extended-quote-provider.js";
-import { createDailyWatchlistRecapServiceFromEnv } from "../lib/live-watchlist/daily-watchlist-recap.js";
+import {
+  createDailyWatchlistRecapServiceFromEnv,
+  createReviewedDailyWatchlistRecapPosterFromEnv,
+} from "../lib/live-watchlist/daily-watchlist-recap.js";
 import { resolveLiveWatchlistPullbackReadEnabled } from "../lib/live-watchlist/pullback-read.js";
 import type {
   LiveWatchlistPublisher,
@@ -772,6 +775,10 @@ async function main(): Promise<void> {
     : null;
   const liveWatchlistPublisher = createLiveWatchlistPublisherFromEnv();
   const dailyWatchlistRecapService = createDailyWatchlistRecapServiceFromEnv();
+  const reviewedDailyWatchlistRecapPoster = createReviewedDailyWatchlistRecapPosterFromEnv(
+    process.env,
+    join(durableDataDirectory, "reviewed-watchlist-daily-recap-receipts.json"),
+  );
   const tradersLinkAiReadService = createTradersLinkAiReadServiceFromEnv();
   const tradersLinkAiReadSettingsPersistence = new TradersLinkAiReadSettingsPersistence({
     ...(process.env.TRADERSLINK_AI_READ_SETTINGS_FILE?.trim()
@@ -1119,6 +1126,37 @@ async function main(): Promise<void> {
       } catch (error) {
         const message = error instanceof RequestBodyParseError ? "Invalid request body." : "Stock Levels is unavailable.";
         sendJson(response, 400, { error: message });
+      }
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/watchlist/daily-recaps/post-reviewed") {
+      if (!runtimeAccessToken || !requestHasRuntimeAccess(request, runtimeAccessToken)) {
+        sendJson(response, 401, { error: "Runtime access token required." });
+        return;
+      }
+      if (!reviewedDailyWatchlistRecapPoster) {
+        sendJson(response, 503, { error: "Reviewed Daily Recaps posting is unavailable." });
+        return;
+      }
+      try {
+        const body = await readJsonBody(request) as {
+          bodyText?: unknown;
+          idempotencyKey?: unknown;
+        };
+        const receipt = await reviewedDailyWatchlistRecapPoster.post(
+          body.bodyText,
+          body.idempotencyKey,
+        );
+        sendJson(response, 200, { posted: true, receipt });
+      } catch (error) {
+        const invalidRequest = error instanceof RequestBodyParseError
+          || (error instanceof Error && error.message.startsWith("Invalid reviewed recap"));
+        sendJson(response, invalidRequest ? 400 : 502, {
+          error: invalidRequest
+            ? "Invalid reviewed Daily Recap request."
+            : "Reviewed Daily Recap could not be posted.",
+        });
       }
       return;
     }

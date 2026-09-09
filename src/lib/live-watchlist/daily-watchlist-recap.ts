@@ -10,6 +10,11 @@ export const DEFAULT_DAILY_WATCHLIST_RECAP_RECEIPT_FILE = resolve(
   "artifacts",
   "watchlist-daily-recap-receipt.json",
 );
+export const DEFAULT_REVIEWED_DAILY_WATCHLIST_RECAP_RECEIPT_FILE = resolve(
+  process.cwd(),
+  "artifacts",
+  "reviewed-watchlist-daily-recap-receipts.json",
+);
 
 const DEFAULT_POST_MINUTES_EASTERN = 15 * 60 + 55;
 const DEFAULT_CATCH_UP_WINDOW_MINUTES = 20;
@@ -18,6 +23,26 @@ const MINIMUM_GAIN_PCT_EXCLUSIVE = 5;
 const MAX_RECAP_TICKERS = 3;
 const WATCHLIST_RECAP_SOURCE_TIMEOUT_MS = 15_000;
 const DISCORD_WEBHOOK_TIMEOUT_MS = 15_000;
+const MAX_REVIEWED_RECAP_BODY_LENGTH = 4_000;
+
+export type ReviewedDailyWatchlistRecapReceipt = {
+  idempotencyKey: string;
+  postedAt: number;
+  discordMessageId: string | null;
+  discordChannelId: string | null;
+};
+
+type ReviewedDailyWatchlistRecapReceiptStore = {
+  receipts: Record<string, ReviewedDailyWatchlistRecapReceipt>;
+};
+
+export type ReviewedDailyWatchlistRecapPosterOptions = {
+  webhookUrl: string;
+  premiumRoleId: string;
+  receiptPath?: string;
+  fetchImpl?: typeof fetch;
+  now?: () => number;
+};
 
 export type DailyWatchlistRecapTicker = {
   symbol: string;
@@ -196,6 +221,139 @@ function saveReceipt(path: string, receipt: DailyWatchlistRecapReceipt): void {
   const temporaryPath = `${path}.tmp`;
   writeFileSync(temporaryPath, `${JSON.stringify(receipt, null, 2)}\n`, "utf8");
   renameSync(temporaryPath, path);
+}
+
+function loadReviewedReceipts(path: string): ReviewedDailyWatchlistRecapReceiptStore {
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<ReviewedDailyWatchlistRecapReceiptStore>;
+    return parsed && typeof parsed.receipts === "object" && parsed.receipts !== null
+      ? { receipts: parsed.receipts as Record<string, ReviewedDailyWatchlistRecapReceipt> }
+      : { receipts: {} };
+  } catch {
+    return { receipts: {} };
+  }
+}
+
+function saveReviewedReceipts(
+  path: string,
+  store: ReviewedDailyWatchlistRecapReceiptStore,
+): void {
+  mkdirSync(dirname(path), { recursive: true });
+  const temporaryPath = `${path}.tmp`;
+  writeFileSync(temporaryPath, `${JSON.stringify(store, null, 2)}\n`, "utf8");
+  renameSync(temporaryPath, path);
+}
+
+function assertReviewedRecapInput(bodyText: string, idempotencyKey: string): void {
+  if (
+    !bodyText ||
+    bodyText.length > MAX_REVIEWED_RECAP_BODY_LENGTH ||
+    /@everyone|@here|<@/iu.test(bodyText)
+  ) {
+    throw new Error("Invalid reviewed recap body.");
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(idempotencyKey)) {
+    throw new Error("Invalid reviewed recap idempotency key.");
+  }
+}
+
+function splitReviewedRecapBody(bodyText: string, finalSuffix: string): string[] {
+  const maximumBodyLength = 2_000 - finalSuffix.length;
+  const paragraphs = bodyText.split(/\n{2,}/u);
+  const chunks: string[] = [];
+  let current = "";
+  for (const paragraph of paragraphs) {
+    if (paragraph.length > maximumBodyLength) {
+      throw new Error("A reviewed recap paragraph is too long for Discord.");
+    }
+    const candidate = current ? `${current}\n\n${paragraph}` : paragraph;
+    if (candidate.length > maximumBodyLength) {
+      chunks.push(current);
+      current = paragraph;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) chunks.push(current);
+  if (chunks.length === 0) throw new Error("Invalid reviewed recap body.");
+  chunks[chunks.length - 1] = `${chunks[chunks.length - 1]}${finalSuffix}`;
+  return chunks;
+}
+
+export class ReviewedDailyWatchlistRecapPoster {
+  private readonly fetchImpl: typeof fetch;
+  private readonly now: () => number;
+  private readonly receiptPath: string;
+  private readonly inFlight = new Map<string, Promise<ReviewedDailyWatchlistRecapReceipt>>();
+
+  constructor(private readonly options: ReviewedDailyWatchlistRecapPosterOptions) {
+    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.now = options.now ?? Date.now;
+    this.receiptPath = options.receiptPath ?? DEFAULT_REVIEWED_DAILY_WATCHLIST_RECAP_RECEIPT_FILE;
+  }
+
+  post(bodyTextValue: unknown, idempotencyKeyValue: unknown): Promise<ReviewedDailyWatchlistRecapReceipt> {
+    const bodyText = typeof bodyTextValue === "string" ? bodyTextValue.trim() : "";
+    const idempotencyKey = typeof idempotencyKeyValue === "string" ? idempotencyKeyValue.trim() : "";
+    assertReviewedRecapInput(bodyText, idempotencyKey);
+    const prior = loadReviewedReceipts(this.receiptPath).receipts[idempotencyKey];
+    if (prior) return Promise.resolve(prior);
+    const active = this.inFlight.get(idempotencyKey);
+    if (active) return active;
+    const promise = this.postOnce(bodyText, idempotencyKey).finally(() => {
+      this.inFlight.delete(idempotencyKey);
+    });
+    this.inFlight.set(idempotencyKey, promise);
+    return promise;
+  }
+
+  private async postOnce(
+    bodyText: string,
+    idempotencyKey: string,
+  ): Promise<ReviewedDailyWatchlistRecapReceipt> {
+    const suffix = `\n\n@everyone\n<@&${this.options.premiumRoleId}>`;
+    const messages = splitReviewedRecapBody(bodyText, suffix);
+    let lastMessage: { id?: unknown; channel_id?: unknown } = {};
+    for (const content of messages) {
+      const webhookUrl = new URL(this.options.webhookUrl);
+      webhookUrl.searchParams.set("wait", "true");
+      const response = await fetchWithTimeout(this.fetchImpl, webhookUrl.toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content,
+          allowed_mentions: { parse: ["everyone"], roles: [this.options.premiumRoleId] },
+        }),
+      }, DISCORD_WEBHOOK_TIMEOUT_MS);
+      if (!response.ok) throw new Error(`Discord reviewed recap webhook failed with ${response.status}.`);
+      lastMessage = await response.json() as { id?: unknown; channel_id?: unknown };
+    }
+    const receipt = Object.freeze({
+      idempotencyKey,
+      postedAt: this.now(),
+      discordMessageId: typeof lastMessage.id === "string" ? lastMessage.id : null,
+      discordChannelId: typeof lastMessage.channel_id === "string" ? lastMessage.channel_id : null,
+    });
+    const store = loadReviewedReceipts(this.receiptPath);
+    store.receipts[idempotencyKey] = receipt;
+    saveReviewedReceipts(this.receiptPath, store);
+    return receipt;
+  }
+}
+
+export function createReviewedDailyWatchlistRecapPosterFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+  defaultReceiptPath: string = DEFAULT_REVIEWED_DAILY_WATCHLIST_RECAP_RECEIPT_FILE,
+): ReviewedDailyWatchlistRecapPoster | null {
+  const webhookUrl = env[DAILY_WATCHLIST_RECAP_WEBHOOK_ENV]?.trim();
+  const premiumRoleId = env.DISCORD_PREMIUM_ROLE_ID?.trim();
+  if (!webhookUrl || !premiumRoleId || !/^\d{10,25}$/u.test(premiumRoleId)) return null;
+  return new ReviewedDailyWatchlistRecapPoster({
+    webhookUrl,
+    premiumRoleId,
+    receiptPath: env.WATCHLIST_REVIEWED_DAILY_RECAP_RECEIPT_PATH?.trim()
+      || defaultReceiptPath,
+  });
 }
 
 async function fetchWithTimeout(

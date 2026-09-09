@@ -6,6 +6,7 @@ import test from "node:test";
 
 import {
   DailyWatchlistRecapService,
+  ReviewedDailyWatchlistRecapPoster,
   buildDailyWatchlistRecapMessages,
   deriveDailyWatchlistRecapSourceUrl,
   type DailyWatchlistRecapTicker,
@@ -156,5 +157,53 @@ test("recap source URL is derived beside the existing ingest route", () => {
       "https://traderslink.pro/api/live-watchlist/ingest",
     ),
     "https://traderslink.pro/api/live-watchlist/recap",
+  );
+});
+
+test("reviewed recap poster appends configured mentions and is durably idempotent", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "reviewed-watchlist-recap-"));
+  const receiptPath = join(directory, "receipts.json");
+  const payloads: Array<{ content: string; allowed_mentions: unknown }> = [];
+  const poster = new ReviewedDailyWatchlistRecapPoster({
+    webhookUrl: "https://discord.com/api/webhooks/test/token",
+    premiumRoleId: "123456789012345678",
+    receiptPath,
+    now: () => 1_788_900_000_000,
+    fetchImpl: async (_input, init) => {
+      payloads.push(JSON.parse(String(init?.body)) as typeof payloads[number]);
+      return Response.json({ id: "message-1", channel_id: "channel-1" });
+    },
+  });
+  const idempotencyKey = "12345678-1234-4123-8123-123456789abc";
+
+  const first = await poster.post("PDSB made a 30.0% move.", idempotencyKey);
+  const repeated = await poster.post("PDSB made a 30.0% move.", idempotencyKey);
+
+  assert.deepEqual(repeated, first);
+  assert.equal(payloads.length, 1);
+  assert.equal(payloads[0]?.content, "PDSB made a 30.0% move.\n\n@everyone\n<@&123456789012345678>");
+  assert.deepEqual(payloads[0]?.allowed_mentions, {
+    parse: ["everyone"],
+    roles: ["123456789012345678"],
+  });
+  assert.deepEqual(first, {
+    idempotencyKey,
+    postedAt: 1_788_900_000_000,
+    discordMessageId: "message-1",
+    discordChannelId: "channel-1",
+  });
+});
+
+test("reviewed recap poster rejects owner-body mentions before Discord", () => {
+  const poster = new ReviewedDailyWatchlistRecapPoster({
+    webhookUrl: "https://discord.com/api/webhooks/test/token",
+    premiumRoleId: "123456789012345678",
+    fetchImpl: async () => {
+      throw new Error("must not post");
+    },
+  });
+  assert.throws(
+    () => poster.post("PDSB moved higher. @everyone", "12345678-1234-4123-8123-123456789abc"),
+    /Invalid reviewed recap body/u,
   );
 });

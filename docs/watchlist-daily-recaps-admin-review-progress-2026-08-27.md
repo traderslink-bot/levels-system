@@ -1,6 +1,6 @@
 # Watchlist Daily Recaps Admin Review Progress
 
-**Status:** Product plan owner-approved; runtime implementation not authorized
+**Status:** Owner-approved runtime source complete; release/configuration pending
 
 **Controlling alert plan:** [Alerting and Discord Expansion Plan](05_ALERTING_AND_DISCORD_EXPANSION_PLAN.md)
 
@@ -55,6 +55,22 @@ system label is added to Discord.
 Platform owns evidence, deterministic generation, review state, the correction
 queue and the final preview. Runtime does not recreate that UI or store a
 second mutable draft.
+
+## Runtime implementation checkpoint — 2026-09-08
+
+- [x] Added the authenticated `POST /api/watchlist/daily-recaps/post-reviewed`
+  private runtime endpoint.
+- [x] The endpoint accepts only an owner-reviewed body and canonical
+  idempotency key, rejects body-supplied mentions and posts only through the
+  existing server-configured Daily Recap webhook.
+- [x] Runtime appends `@everyone` and the server-configured Premium Members
+  role, splitting only between recap paragraphs when Discord's message limit
+  requires more than one message.
+- [x] Successful receipts are stored durably by idempotency key; a repeated
+  request returns the prior receipt without posting again.
+- [x] The focused Daily Recap test file passes 7/7 with no live Discord call.
+- [ ] Hosted destination configuration, deployment and a private-channel test
+  remain release-coordinator work after explicit owner handoff.
 
 ## Existing scheduler retirement boundary
 
