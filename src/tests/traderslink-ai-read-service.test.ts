@@ -1445,6 +1445,7 @@ describe("OpenAITradersLinkAiReadService", () => {
   });
 
   it("drops an unsupported optional checkpoint instead of rejecting the complete AI Read", async () => {
+    const auditEvents: Array<{ phase: string; payload: unknown }> = [];
     const draft = modelRead();
     draft.downsideCheckpoints = [{
       label: "Unsupported outer checkpoint",
@@ -1455,6 +1456,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     const service = new OpenAITradersLinkAiReadService({
       apiKey: "test-key",
       model: "test-model",
+      auditStore: { save: (event) => { auditEvents.push(event); return { saved: true }; } },
       fetchImpl: async () => {
         requestCount += 1;
         return new Response(JSON.stringify({
@@ -1474,6 +1476,12 @@ describe("OpenAITradersLinkAiReadService", () => {
 
     assert.equal(requestCount, 1);
     assert.deepEqual(read.downsideCheckpoints, []);
+    const normalization = auditEvents.find(event => event.phase === "validation" && (event.payload as any).stage === "observable_evidence_normalization")?.payload as any;
+    assert.ok(normalization);
+    assert.ok(normalization.changedPaths.includes("downsideCheckpoints"));
+    assert.equal(normalization.before.downsideCheckpoints[0].price, 0.7);
+    assert.deepEqual(normalization.after.downsideCheckpoints, []);
+    assert.equal(draft.downsideCheckpoints[0]?.price, 0.7);
   });
 
   it("drops duplicate scenario checkpoints instead of paying for a correction", async () => {

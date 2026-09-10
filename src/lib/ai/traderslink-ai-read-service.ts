@@ -2400,15 +2400,23 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       } catch {
         throw new Error("OpenAI returned invalid TradersLink AI Read JSON.");
       }
+      const modelRead = normalizeModelRead(parsed, availableSources);
+      const spacedRead = pruneRedundantScenarioCheckpoints(modelRead, referenceQuote.price, input.priceAction);
       const normalized = normalizeObservableTapeEvidence(
-        pruneRedundantScenarioCheckpoints(
-          normalizeModelRead(parsed, availableSources),
-          referenceQuote.price,
-          input.priceAction,
-        ),
+        spacedRead,
         referenceQuote.price,
         input.priceAction,
       );
+      for (const [stage, before, after] of [
+        ["checkpoint_spacing", modelRead, spacedRead],
+        ["observable_evidence_normalization", spacedRead, normalized],
+      ] as const) {
+        const changedPaths = (Object.keys(before) as Array<keyof ModelRead>).filter(key => JSON.stringify(before[key]) !== JSON.stringify(after[key]));
+        if (changedPaths.length) capture("validation", { stage, changedPaths,
+          before: Object.fromEntries(changedPaths.map(key => [key, before[key]])),
+          after: Object.fromEntries(changedPaths.map(key => [key, after[key]])),
+        });
+      }
       const sectionContext = {
         referencePrice: referenceQuote.price,
         momentumFailure: normalized.momentumFailure.price,
