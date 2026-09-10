@@ -27,6 +27,7 @@ import {
 import {
   DEFAULT_LIVE_WATCHLIST_PUBLISH_OUTBOX_FILE,
   DurableLiveWatchlistPublisher,
+  WatchlistPublicationHeldError,
 } from "./live-watchlist-publish-outbox.js";
 import type {
   LiveWatchlistExtendedQuote,
@@ -2164,6 +2165,9 @@ export class LiveWatchlistHttpPublisher implements LiveWatchlistPublisher {
   ): Promise<void> {
     let lastError: unknown = null;
     for (let attempt = 0; attempt <= this.retryAttempts; attempt += 1) {
+      let allowed = true;
+      try { allowed = this.options.authorizePublication?.(patch) ?? true; } catch { allowed = false; }
+      if (!allowed) throw new WatchlistPublicationHeldError();
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
       try {
@@ -2197,6 +2201,7 @@ export class LiveWatchlistHttpPublisher implements LiveWatchlistPublisher {
 
 export function createLiveWatchlistPublisherFromEnv(
   env: NodeJS.ProcessEnv = process.env,
+  controls: Pick<LiveWatchlistHttpPublisherOptions, "authorizePublication"> = {},
 ): LiveWatchlistPublisher | null {
   if (env.MANUAL_WATCHLIST_SHADOW_MODE?.trim() === "1") {
     console.log(
@@ -2211,6 +2216,7 @@ export function createLiveWatchlistPublisherFromEnv(
   }
 
   const httpPublisher = new LiveWatchlistHttpPublisher({
+    ...controls,
     ingestUrl,
     token,
     timeoutMs: Number(env.TRADERSLINK_WATCHLIST_PUBLISH_TIMEOUT_MS ?? "") || undefined,
@@ -2228,6 +2234,7 @@ export function createLiveWatchlistPublisherFromEnv(
     httpPublisher,
     env.LIVE_WATCHLIST_PUBLISH_OUTBOX_PATH?.trim() ||
       DEFAULT_LIVE_WATCHLIST_PUBLISH_OUTBOX_FILE,
+    controls.authorizePublication,
   );
 
   if (env.LIVE_WATCHLIST_AUDIT_ARCHIVE_DISABLED === "1") {

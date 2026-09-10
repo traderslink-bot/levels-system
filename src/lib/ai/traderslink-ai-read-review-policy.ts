@@ -1,4 +1,5 @@
 import type { ReviewState } from "./traderslink-ai-read-review-store.js";
+import type { LiveWatchlistPublishedPatch } from "../live-watchlist/live-watchlist-types.js";
 
 export type WatchlistPublicationReview = { cycleId: string; required: boolean };
 
@@ -42,5 +43,23 @@ export function hasWatchlistPublicationApproval(
     // A new draft does not remove the prior approved public analysis.
     return state.events.some((event) => event.revision === approved.draftRevision &&
       (event.body.kind === "original" || event.body.kind === "edit"));
+  } catch { return false; }
+}
+
+export function isWatchlistPatchApproved(patch: LiveWatchlistPublishedPatch, rawReview: unknown, load: (id: string) => ReviewState | null): boolean {
+  if (!("symbol" in patch)) return true;
+  const review = normalizePublicationReview(rawReview);
+  if (!review) return true;
+  try {
+    const state = load(review.cycleId);
+    if (!hasWatchlistPublicationApproval(patch.symbol, review, () => state)) return false;
+    const card = "cards" in patch ? patch.cards.tradersLinkAiRead : undefined;
+    if (!card) return true;
+    const approval = state?.approved?.body;
+    if (approval?.kind !== "approve") return false;
+    const draft = state!.events.find((event) => event.revision === approval.draftRevision)?.body;
+    if (draft?.kind !== "original" && draft?.kind !== "edit") return false;
+    // Generation ID alone is insufficient: an owner edit can share it.
+    return card.body === JSON.stringify(draft.payload);
   } catch { return false; }
 }

@@ -359,6 +359,7 @@ export type LiveWatchlistPublisher = {
 };
 
 export type LiveWatchlistHttpPublisherOptions = {
+  authorizePublication?: (patch: LiveWatchlistPublishedPatch) => boolean;
   ingestUrl: string;
   token: string;
   fetchImpl?: typeof fetch;

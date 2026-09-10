@@ -16,6 +16,10 @@ type PublishPayload =
   | LiveWatchlistHealthPatch
   | LiveWatchlistTickerDataPatch;
 
+export class WatchlistPublicationHeldError extends Error {
+  constructor() { super("Watchlist publication is awaiting owner approval."); this.name = "WatchlistPublicationHeldError"; }
+}
+
 type OutboxEntry = {
   id: string;
   queuedAt: number;
@@ -94,6 +98,7 @@ export class DurableLiveWatchlistPublisher implements LiveWatchlistPublisher {
   constructor(
     private readonly delegate: LiveWatchlistPublisher,
     private readonly filePath = DEFAULT_LIVE_WATCHLIST_PUBLISH_OUTBOX_FILE,
+    private readonly authorizePublication?: (payload: PublishPayload) => boolean,
   ) {}
 
   publish(patch: LiveWatchlistCardPatch): Promise<void> {
@@ -172,6 +177,7 @@ export class DurableLiveWatchlistPublisher implements LiveWatchlistPublisher {
   }
 
   private async persistAndFlush(payload: PublishPayload): Promise<void> {
+    if (!this.isAllowed(payload)) throw new WatchlistPublicationHeldError();
     const entries = this.load();
     const now = Date.now();
     if (!isTickerDataPayload(payload) || !coalesceQueuedTickerData(entries, payload)) {
@@ -181,8 +187,15 @@ export class DurableLiveWatchlistPublisher implements LiveWatchlistPublisher {
         payload,
       });
     }
+    const requestedEntry = entries.find((entry) => entry.payload === payload) ??
+      (isTickerDataPayload(payload) ? entries.findLast((entry) => isTickerDataPayload(entry.payload) && entry.payload.symbol === payload.symbol) : undefined);
     await this.save(entries);
     await this.flush(entries);
+    if (requestedEntry && entries.includes(requestedEntry)) throw new WatchlistPublicationHeldError();
+  }
+
+  private isAllowed(payload: PublishPayload): boolean {
+    try { return this.authorizePublication?.(payload) ?? true; } catch { return false; }
   }
 
   private serialize(operation: () => Promise<void>): Promise<void> {
@@ -193,10 +206,19 @@ export class DurableLiveWatchlistPublisher implements LiveWatchlistPublisher {
 
   private async flush(initialEntries?: OutboxEntry[]): Promise<void> {
     const entries = initialEntries ?? this.load();
-    while (entries.length > 0) {
-      const next = entries[0]!;
-      await this.publishPayload(next.payload);
-      entries.shift();
+    let index = 0;
+    while (index < entries.length) {
+      const next = entries[index]!;
+      if (!this.isAllowed(next.payload)) {
+        index += 1;
+        continue;
+      }
+      try { await this.publishPayload(next.payload); }
+      catch (error) {
+        if (error instanceof WatchlistPublicationHeldError) { index += 1; continue; }
+        throw error;
+      }
+      entries.splice(index, 1);
       await this.save(entries);
       for (const listener of this.publishedListeners) {
         try {

@@ -1,5 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import type { TradersLinkAiReadReviewStore } from "../ai/traderslink-ai-read-review-store.js";
+import { isWatchlistPatchApproved } from "../ai/traderslink-ai-read-review-policy.js";
 
 import { CandleFetchService, type HistoricalFetchRequest } from "../market-data/candle-fetch-service.js";
 import type { MoomooAiReadCandleLoader } from "../market-data/platform-moomoo-ai-read-candle-loader.js";
@@ -254,6 +256,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   marketStructureStandalonePostMode?: MarketStructureStandalonePostMode | string | null;
   liveWatchlistPublisher?: LiveWatchlistPublisher | null;
   tradersLinkAiReadService?: TradersLinkAiReadService | null;
+  tradersLinkAiReadReviewStore?: TradersLinkAiReadReviewStore;
   tradersLinkAiReadCostLedger?: TradersLinkAiReadCostLedger | null;
   tradersLinkAiReadRunLedger?: TradersLinkAiReadRunLedger | null;
   initialTradersLinkAiReadDailyCostBudget?: {
@@ -3245,7 +3248,9 @@ export class ManualWatchlistRuntimeManager {
     );
     this.liveWatchlistPublisher =
       options.liveWatchlistPublisher === undefined
-        ? createLiveWatchlistPublisherFromEnv()
+        ? createLiveWatchlistPublisherFromEnv(process.env, {
+            authorizePublication: (patch) => this.isWatchlistPublicationApproved(patch),
+          })
         : options.liveWatchlistPublisher;
     this.liveWatchlistPublisher?.onPublished?.((patch) => {
       this.acknowledgeTradersLinkAiReadPublication(patch);
@@ -3439,6 +3444,14 @@ export class ManualWatchlistRuntimeManager {
     return Boolean(
       this.options.tradersLinkAiReadService && this.liveWatchlistPublisher,
     );
+  }
+
+  isWatchlistPublicationApproved(patch: LiveWatchlistPublishedPatch): boolean {
+    if (!("symbol" in patch)) return true;
+    const entry = this.watchlistStore.getEntry(patch.symbol);
+    if (!entry) return false;
+    return isWatchlistPatchApproved(patch, entry.publicationReview,
+      (id) => this.options.tradersLinkAiReadReviewStore?.read(id) ?? null);
   }
 
   getTradersLinkAiReadGenerationSettings(): TradersLinkAiReadGenerationSettings {

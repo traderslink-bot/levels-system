@@ -75,6 +75,7 @@ import {
 } from "../scripts/shared/ibkr-runtime.js";
 import { createDiscordAlertRouter } from "./manual-watchlist-discord.js";
 import { createLiveWatchlistPublisherFromEnv } from "../lib/live-watchlist/live-watchlist-publisher.js";
+import { TradersLinkAiReadReviewStore } from "../lib/ai/traderslink-ai-read-review-store.js";
 import {
   createDailyWatchlistRecapServiceFromEnv,
   createReviewedDailyWatchlistRecapPosterFromEnv,
@@ -82,6 +83,7 @@ import {
 import { resolveLiveWatchlistPullbackReadEnabled } from "../lib/live-watchlist/pullback-read.js";
 import type {
   LiveWatchlistPublisher,
+  LiveWatchlistPublishedPatch,
   TradersLinkAiReadPayload,
 } from "../lib/live-watchlist/live-watchlist-types.js";
 import {
@@ -772,7 +774,10 @@ async function main(): Promise<void> {
   const aiCleanReadService = legacyOpenAiFeaturesEnabled
     ? createOpenAICleanReadServiceFromEnv()
     : null;
-  const liveWatchlistPublisher = createLiveWatchlistPublisherFromEnv();
+  let authorizeWatchlistPublication: (patch: LiveWatchlistPublishedPatch) => boolean = () => false;
+  const liveWatchlistPublisher = createLiveWatchlistPublisherFromEnv(process.env, {
+    authorizePublication: (patch) => authorizeWatchlistPublication(patch),
+  });
   const dailyWatchlistRecapService = createDailyWatchlistRecapServiceFromEnv();
   const reviewedDailyWatchlistRecapPoster = createReviewedDailyWatchlistRecapPosterFromEnv(
     process.env,
@@ -865,6 +870,7 @@ async function main(): Promise<void> {
         })
       : null;
   const manager = new ManualWatchlistRuntimeManager({
+    tradersLinkAiReadReviewStore: new TradersLinkAiReadReviewStore(join(durableDataDirectory, "ai-read-owner-reviews")),
     candleFetchService: candleService,
     startupCachedCandleFetchService,
     levelStore,
@@ -921,6 +927,7 @@ async function main(): Promise<void> {
         }
       : null,
   });
+  authorizeWatchlistPublication = (patch) => manager.isWatchlistPublicationApproved(patch);
   const stockLevelsGenerator = createStockLevelsGenerator({
     generateExistingWatchlistLevels: (request) => {
       if (!dashboardEodhdHistoricalCandleService) {
