@@ -78,3 +78,17 @@ test("pending review list is owner-only and read-only", async () => {
   assert.equal((await send("/queue", undefined, undefined, "GET")).status, 200);
   assert.deepEqual(calls.map((call) => call.method), ["queue"]);
 });
+
+test("export requires an explicit generation and the protected owner context", async () => {
+  const { manager } = setup();
+  const selections: string[] = [];
+  const controls = { get: () => ({ automaticUpdatesEnabled: false, reviewBeforePublishingEnabled: true }), save: () => ({}), exportAudit: (symbol: string, id: string) => { selections.push(symbol + ":" + id); return {}; } };
+  const input = { method: "GET", pathname: "/api/watchlist/analysis-review/export", actor: "platform-owner:test-owner", searchParams: new URLSearchParams("symbol=PDSB") };
+  assert.equal((await dispatchAnalysisReviewRequest(input, manager as any, controls)).status, 400);
+  input.searchParams.set("generationId", "g1");
+  assert.equal((await dispatchAnalysisReviewRequest({ ...input, actor: "" }, manager as any, controls)).status, 403);
+  assert.equal((await dispatchAnalysisReviewRequest({ ...input, method: "POST" }, manager as any, controls)).status, 405);
+  assert.equal(selections.length, 0);
+  assert.equal((await dispatchAnalysisReviewRequest(input, manager as any, controls)).status, 200);
+  assert.deepEqual(selections, ["PDSB:g1"]);
+});

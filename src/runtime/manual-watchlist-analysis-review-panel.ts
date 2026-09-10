@@ -26,6 +26,9 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     <button type="button" id="analysis-review-preview">Preview</button>
     <button type="button" id="analysis-review-approve" disabled>Approve and publish</button>
     <button type="button" id="analysis-review-retry" class="secondary">Retry Discord delivery</button>
+    <label for="analysis-review-export-generation">Audit generation</label>
+    <select id="analysis-review-export-generation"></select>
+    <button type="button" id="analysis-review-export" class="secondary">Export audit</button>
   </div>
   <div id="analysis-review-preview-content"></div>
 </div>
@@ -56,9 +59,9 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     result.ownerHiddenSections = payload.ownerHiddenSections || [];
     return result;
   }
-  async function request(action, body) {
+  async function request(action, body, query = {}) {
     const base = "/api/watchlist/analysis-review";
-    const response = await fetch(base + action + (body ? "" : "?symbol=" + encodeURIComponent(ticker.value.trim().toUpperCase())), {
+    const response = await fetch(base + action + (body ? "" : "?" + new URLSearchParams({ symbol: ticker.value.trim().toUpperCase(), ...query })), {
       method: body ? "POST" : "GET", cache: "no-store",
       headers: body ? { "Content-Type": "application/json", "x-traderlink-journal-admin-request": "1" } : {},
       body: body ? JSON.stringify(body) : undefined,
@@ -100,6 +103,11 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     const draft = review && review.draft;
     if (!draft || !draft.body.payload) { actions.hidden = true; message("No analysis draft is available yet. The ticker remains held if owner review is required."); return; }
     patch = editable(draft.body.payload); dirty = false; actions.hidden = false;
+    const generations = byId("export-generation"); generations.replaceChildren();
+    review.events.filter((event) => event.body.kind === "original").forEach((event, index) => {
+      const option = node("option", "Analysis " + (index + 1) + " · " + new Date(event.at).toLocaleString(), generations); option.value = event.body.generationId;
+    });
+    generations.value = draft.body.payload.generationId;
     node("p", review.symbol + " · Saved version " + draft.revision + " · Analysis price $" + draft.body.payload.currentPrice, editor);
     for (const key of ["bias", "confidence"]) {
       const label = node("label", key === "bias" ? "Bias" : "Confidence", editor);
@@ -162,6 +170,15 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     if (!review || !review.approved) throw new Error("There is no approved version to deliver.");
     const result = await request("/retry-discord", { symbol: review.symbol, cycleId: review.cycleId, approvalRevision: review.approved.revision });
     review = result.review; message("Discord delivery confirmed.");
+  });
+  byId("export").onclick = () => run(async () => {
+    const generationId = byId("export-generation").value;
+    if (!review || !generationId) throw new Error("Select a saved analysis to export.");
+    const result = await request("/export", undefined, { symbol: review.symbol, generationId });
+    const url = URL.createObjectURL(new Blob([JSON.stringify(result.audit, null, 2)], { type: "application/json" }));
+    const link = node("a"); link.href = url; link.download = review.symbol + "-analysis-audit.json"; document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    message("Selected audit exported. It has not been shared with anyone.");
   });
   const showSettings = (settings) => {
     byId("automatic").checked = settings.automaticUpdatesEnabled;

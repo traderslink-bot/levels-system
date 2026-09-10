@@ -1,5 +1,7 @@
 import "dotenv/config";
 import { ANALYSIS_REVIEW_PATHS, dispatchAnalysisReviewRequest } from "./manual-watchlist-analysis-review-api.js";
+import { TradersLinkAiReadAuditStore } from "../lib/ai/traderslink-ai-read-audit.js";
+import { exportAnalysisReview } from "../lib/ai/traderslink-ai-read-review-export.js";
 
 import { spawn } from "node:child_process";
 import { timingSafeEqual } from "node:crypto";
@@ -1138,6 +1140,14 @@ async function main(): Promise<void> {
           actor: typeof actorHeader === "string" ? actorHeader : undefined,
         }, manager, {
           get: () => manager.getTradersLinkAiReadReviewControls(),
+          exportAudit: (symbol, generationId) => {
+            const review = manager.getTradersLinkAiReadReview(symbol);
+            if (!review) throw new Error("Review history unavailable.");
+            return exportAnalysisReview({ review, generationId,
+              diagnostics: new TradersLinkAiReadAuditStore({ directory: join(durableDataDirectory, "ai-read-diagnostics") }),
+              secrets: [process.env.OPENAI_API_KEY, runtimeAccessToken, process.env.DISCORD_BOT_TOKEN, process.env.TRADERSLINK_WATCHLIST_PUBLISHER_TOKEN].filter((value): value is string => Boolean(value)),
+            });
+          },
           save: (settings) => {
             const saved = tradersLinkAiReadSettingsPersistence.load();
             if (!saved) throw new Error("Review settings storage is unavailable.");

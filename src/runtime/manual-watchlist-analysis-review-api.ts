@@ -6,6 +6,7 @@ type ReviewManager = Pick<ManualWatchlistRuntimeManager,
   "publishApprovedTradersLinkAiReadToDiscord">;
 
 export const ANALYSIS_REVIEW_PATHS = new Set([
+  "/api/watchlist/analysis-review/export",
   "/api/watchlist/analysis-review/queue",
   "/api/watchlist/analysis-review/settings",
   "/api/watchlist/analysis-review", "/api/watchlist/analysis-review/preview",
@@ -22,12 +23,14 @@ export async function dispatchAnalysisReviewRequest(input: {
 }, manager: ReviewManager, controls?: {
   get(): { automaticUpdatesEnabled: boolean; reviewBeforePublishingEnabled: boolean };
   save(input: { automaticUpdatesEnabled: boolean; reviewBeforePublishingEnabled: boolean }): unknown;
+  exportAudit?(symbol: string, generationId: string): unknown;
 }): Promise<{ status: number; body: unknown }> {
   if (!input.actor || !/^platform-owner:[A-Za-z0-9_-]{1,128}$/.test(input.actor)) return { status: 403, body: { error: "Owner review authorization is required." } };
   if (!ANALYSIS_REVIEW_PATHS.has(input.pathname)) return { status: 404, body: { error: "Not found." } };
   const settingsRequest = input.pathname.endsWith("/settings");
   const queueRequest = input.pathname.endsWith("/queue");
-  const readOnly = queueRequest || input.pathname === "/api/watchlist/analysis-review" || input.pathname.endsWith("/preview") || (settingsRequest && input.method === "GET");
+  const exportRequest = input.pathname.endsWith("/export");
+  const readOnly = exportRequest || queueRequest || input.pathname === "/api/watchlist/analysis-review" || input.pathname.endsWith("/preview") || (settingsRequest && input.method === "GET");
   if (input.method !== (readOnly ? "GET" : "POST")) return { status: 405, body: { error: "Method not allowed." } };
   try {
     if (queueRequest) return { status: 200, body: { tickers: manager.listTradersLinkAiReadReviews() } };
@@ -44,6 +47,12 @@ export async function dispatchAnalysisReviewRequest(input: {
     const fields = body as Record<string, unknown>;
     const symbol = typeof fields.symbol === "string" ? fields.symbol.trim().toUpperCase() : "";
     if (!/^[A-Z0-9][A-Z0-9.\-]{0,19}$/.test(symbol)) throw new Error("Invalid review request.");
+    if (exportRequest) {
+      const generationId = input.searchParams.get("generationId");
+      if (!generationId || generationId.length > 200) throw new Error("Invalid review request.");
+      if (!controls?.exportAudit) throw new Error("Audit export unavailable.");
+      return { status: 200, body: { audit: controls.exportAudit(symbol, generationId) } };
+    }
     if (readOnly) return { status: 200, body: input.pathname.endsWith("/preview")
       ? manager.getTradersLinkAiReadPublicationPreview(symbol)
       : { review: manager.getTradersLinkAiReadReview(symbol) } };
