@@ -7,6 +7,7 @@ function setup() {
   const call = (method: string) => (input: unknown) => { calls.push({ method, input }); return { saved: true }; };
   const manager = {
     getTradersLinkAiReadReview: call("read"), getTradersLinkAiReadPublicationPreview: call("preview"),
+    listTradersLinkAiReadReviews: call("queue"),
     saveTradersLinkAiReadOwnerEdit: call("save"), approveTradersLinkAiRead: call("approve"),
     publishApprovedTradersLinkAiReadToDiscord: call("retry"),
   };
@@ -67,4 +68,13 @@ test("owner review controls use a separate exact boolean contract", async () => 
   assert.equal((await dispatchAnalysisReviewRequest({ ...request, method: "POST", body: next }, manager as any, controls)).status, 200);
   assert.deepEqual(saved, next);
   assert.equal(calls.length, 0);
+});
+
+test("pending review list is owner-only and read-only", async () => {
+  const { calls, send } = setup();
+  assert.equal((await send("/queue", undefined, "", "GET")).status, 403);
+  assert.equal((await send("/queue", {}, undefined, "POST")).status, 405);
+  assert.equal(calls.length, 0);
+  assert.equal((await send("/queue", undefined, undefined, "GET")).status, 200);
+  assert.deepEqual(calls.map((call) => call.method), ["queue"]);
 });

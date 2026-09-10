@@ -11,6 +11,10 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     <button type="button" id="analysis-review-settings-load" class="secondary">Reload review controls</button>
   </div>
   <div class="inline-control">
+    <button type="button" id="analysis-review-queue-refresh" class="secondary">Refresh review list</button>
+  </div>
+  <div id="analysis-review-queue" aria-label="Ticker review status"></div>
+  <div class="inline-control">
     <label for="analysis-review-symbol">Ticker</label>
     <input id="analysis-review-symbol" maxlength="20" autocomplete="off" />
     <button type="button" id="analysis-review-load">Review ticker</button>
@@ -164,7 +168,21 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     byId("required").checked = settings.reviewBeforePublishingEnabled;
     controlsLoaded = true;
   };
-  const loadSettings = () => run(async () => { showSettings((await request("/settings")).settings); message("Review controls loaded."); });
+  const loadQueue = async () => {
+    const result = await request("/queue"), list = byId("queue");
+    list.replaceChildren();
+    if (!result.tickers.length) { node("p", "No active tickers require owner review.", list); return; }
+    result.tickers.forEach((item) => {
+      const row = node("div", undefined, list); row.className = "inline-control";
+      node("span", item.symbol + " · " + item.status, row);
+      if (item.canReview) {
+        const button = node("button", "Review " + item.symbol, row); button.type = "button";
+        button.onclick = () => { if (dirty && !window.confirm("Discard unsaved edits and load this ticker?")) return; run(async () => { ticker.value = item.symbol; review = (await request("")).review; renderEditor(); message("Saved analysis loaded."); }); };
+      }
+    });
+  };
+  byId("queue-refresh").onclick = () => run(loadQueue);
+  const loadSettings = () => run(async () => { showSettings((await request("/settings")).settings); await loadQueue(); message("Review controls and ticker list loaded."); });
   byId("settings-load").onclick = loadSettings;
   byId("settings-save").onclick = () => run(async () => {
     if (!controlsLoaded) throw new Error("Load the saved controls first.");

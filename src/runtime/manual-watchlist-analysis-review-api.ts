@@ -1,11 +1,12 @@
 import type { ManualWatchlistRuntimeManager } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
 
 type ReviewManager = Pick<ManualWatchlistRuntimeManager,
-  "getTradersLinkAiReadReview" | "getTradersLinkAiReadPublicationPreview" |
+  "getTradersLinkAiReadReview" | "getTradersLinkAiReadPublicationPreview" | "listTradersLinkAiReadReviews" |
   "saveTradersLinkAiReadOwnerEdit" | "approveTradersLinkAiRead" |
   "publishApprovedTradersLinkAiReadToDiscord">;
 
 export const ANALYSIS_REVIEW_PATHS = new Set([
+  "/api/watchlist/analysis-review/queue",
   "/api/watchlist/analysis-review/settings",
   "/api/watchlist/analysis-review", "/api/watchlist/analysis-review/preview",
   "/api/watchlist/analysis-review/save", "/api/watchlist/analysis-review/approve",
@@ -25,9 +26,11 @@ export async function dispatchAnalysisReviewRequest(input: {
   if (!input.actor || !/^platform-owner:[A-Za-z0-9_-]{1,128}$/.test(input.actor)) return { status: 403, body: { error: "Owner review authorization is required." } };
   if (!ANALYSIS_REVIEW_PATHS.has(input.pathname)) return { status: 404, body: { error: "Not found." } };
   const settingsRequest = input.pathname.endsWith("/settings");
-  const readOnly = input.pathname === "/api/watchlist/analysis-review" || input.pathname.endsWith("/preview") || (settingsRequest && input.method === "GET");
+  const queueRequest = input.pathname.endsWith("/queue");
+  const readOnly = queueRequest || input.pathname === "/api/watchlist/analysis-review" || input.pathname.endsWith("/preview") || (settingsRequest && input.method === "GET");
   if (input.method !== (readOnly ? "GET" : "POST")) return { status: 405, body: { error: "Method not allowed." } };
   try {
+    if (queueRequest) return { status: 200, body: { tickers: manager.listTradersLinkAiReadReviews() } };
     if (settingsRequest) {
       if (!controls) throw new Error("Review controls unavailable.");
       if (readOnly) return { status: 200, body: { settings: controls.get() } };

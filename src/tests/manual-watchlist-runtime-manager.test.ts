@@ -85,6 +85,7 @@ test("private activation saves an AI draft without website publication or Discor
     internal.aiReadResearchBySymbol.set("PDSB", { ticker: "PDSB", count: 0, articles: [] });
     const entry = await manager.activateSymbol({ symbol: "PDSB", source: "manual" });
     assert.equal(entry.publicationReview?.required, true);
+    assert.deepEqual(manager.listTradersLinkAiReadReviews(), [{ symbol: "PDSB", status: "Ready for review", canReview: true }]);
     assert.deepEqual(manager.getTradersLinkAiReadReviewControls(), { automaticUpdatesEnabled: false, reviewBeforePublishingEnabled: true });
     manager.setTradersLinkAiReadReviewBeforePublishing(false);
     assert.equal(watchlistStore.getEntry("PDSB")?.publicationReview?.required, true);
@@ -116,12 +117,14 @@ test("private activation saves an AI draft without website publication or Discor
     await manager.publishApprovedTradersLinkAiReadToDiscord(discordInput);
     await manager.publishApprovedTradersLinkAiReadToDiscord(discordInput);
     assert.equal(approvedDiscord.length, 1);
+    assert.deepEqual(manager.listTradersLinkAiReadReviews(), [{ symbol: "PDSB", status: "Published", canReview: true }]);
     assert.match(approvedDiscord[0]!, /Original/);
     assert.equal(aiCalls, 1);
     await manager.activateSymbol({ symbol: "PDSB", source: "manual" });
     assert.equal(aiCalls, 1);
     await manager.refreshTradersLinkAiRead("PDSB");
     assert.equal(aiCalls, 2);
+    assert.equal(manager.listTradersLinkAiReadReviews()[0]?.status, "New draft — awaiting review");
     assert.equal(reviewStore.read(entry.publicationReview!.cycleId)?.events.filter((event) => event.body.kind === "original").length, 2);
     assert.equal(publisher.cardPatches.length, 1);
     assert.equal(watchlistStore.getEntry("PDSB")?.pendingTradersLinkAiReadGeneration, undefined);

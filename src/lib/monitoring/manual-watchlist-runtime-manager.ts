@@ -4674,6 +4674,24 @@ export class ManualWatchlistRuntimeManager {
     return review;
   }
 
+  listTradersLinkAiReadReviews() {
+    return this.watchlistStore.getActiveEntries().filter((entry) => entry.publicationReview?.required).map((entry) => {
+      try {
+        const review = this.getTradersLinkAiReadReview(entry.symbol);
+        if (!review || review.cancelled) return { symbol: entry.symbol, status: "Review unavailable", canReview: false };
+        if (!review.draft) return { symbol: entry.symbol, status: entry.tradersLinkAiReadFailure ? "Analysis failed — held for review" : "Preparing analysis", canReview: false };
+        const approved = review.approved;
+        let status = "Ready for review";
+        if (approved?.body.kind === "approve") {
+          const confirmed = (channel: "website" | "discord") => review.events.some((event) => event.body.kind === "delivery" && event.body.approvalRevision === approved.revision && event.body.channel === channel && event.body.status === "acknowledged");
+          if (approved.body.draftRevision !== review.draft.revision) status = "New draft — awaiting review";
+          else status = confirmed("website") && confirmed("discord") ? "Published" : "Approved — delivery needs attention";
+        }
+        return { symbol: entry.symbol, status, canReview: true };
+      } catch { return { symbol: entry.symbol, status: "Review storage unavailable", canReview: false }; }
+    });
+  }
+
   saveTradersLinkAiReadOwnerEdit(input: { symbol: string; cycleId: string; expectedHead: number; patch: unknown; actor: string }) {
     const symbol = normalizeSymbol(input.symbol);
     const entry = this.watchlistStore.getEntry(symbol);
