@@ -1,3 +1,5 @@
+import { ANALYSIS_REVIEW_PANEL } from "./manual-watchlist-analysis-review-panel.js";
+
 export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -494,6 +496,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         <div class="health-grid" id="ai-read-cost-grid"></div>
         <div class="ai-read-table-wrap" id="ai-read-cost-list"></div>
       </div>
+      ${ANALYSIS_REVIEW_PANEL}
       <div class="ai-read-console" id="ai-read-audit-console">
         <div class="ai-read-console-toolbar">
           <div>
