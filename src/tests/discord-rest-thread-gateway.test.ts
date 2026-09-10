@@ -80,6 +80,7 @@ test("DiscordRestThreadGateway announces a ticker without creating a thread", as
   const gateway = new DiscordRestThreadGateway({
     botToken: "token",
     watchlistChannelId: "watchlist-1",
+    premiumRoleId: "12345678901234567",
     fetchImpl,
   });
 
@@ -90,6 +91,9 @@ test("DiscordRestThreadGateway announces a ticker without creating a thread", as
   assert.doesNotMatch(calls[0]?.input ?? "", /threads/);
   assert.match(String(calls[0]?.init?.body), /View the live watchlist/);
   assert.match(String(calls[0]?.init?.body), /View ALBT ticker page/);
+  assert.deepEqual(JSON.parse(String(calls[0]?.init?.body)).allowed_mentions, {
+    parse: ["everyone"], roles: ["12345678901234567"],
+  });
   restoreEnv("TRADERSLINK_WATCHLIST_PUBLIC_URL", originalPublicUrl);
 });
 

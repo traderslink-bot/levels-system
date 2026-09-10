@@ -5,7 +5,7 @@ import type {
   LevelExtensionPayload,
   LevelSnapshotPayload,
 } from "../alerts/alert-types.js";
-import type { DiscordThreadGateway } from "../alerts/alert-router.js";
+import type { ApprovedAnalysisDiscordChunk, ApprovedAnalysisDiscordReceipt, DiscordThreadGateway } from "../alerts/alert-router.js";
 import {
   buildLiveWatchlistAlertPatch,
   buildLiveWatchlistExtensionPatch,
@@ -91,6 +91,12 @@ export class WebsitePublishingDiscordGateway implements DiscordThreadGateway {
   async sendMessage(threadId: string, payload: AlertPayload): Promise<void> {
     void threadId;
     await this.publishBeforeDiscord(buildLiveWatchlistAlertPatch(payload));
+  }
+
+  async sendApprovedAnalysisChunk(chunk: ApprovedAnalysisDiscordChunk): Promise<ApprovedAnalysisDiscordReceipt> {
+    if (!this.gateway.sendApprovedAnalysisChunk) throw new Error("Approved analysis Discord delivery is unavailable.");
+    // Website approval has its own durable receipt; do not publish it again.
+    return this.gateway.sendApprovedAnalysisChunk(chunk);
   }
 
   async sendLevelSnapshot(threadId: string, payload: LevelSnapshotPayload): Promise<void> {

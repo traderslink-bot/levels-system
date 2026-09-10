@@ -15,8 +15,10 @@ import {
   type DiscordThreadGateway,
 } from "./alert-router.js";
 import { classifyLiveThreadMessage } from "../monitoring/live-thread-post-policy.js";
+import type { ApprovedAnalysisDiscordChunk, ApprovedAnalysisDiscordReceipt } from "./alert-router.js";
 
 export type DiscordDeliveryAuditOperation =
+  | "post_approved_analysis"
   | "announce_ticker_added"
   | "create_thread"
   | "post_alert"
@@ -37,6 +39,8 @@ export type DiscordDeliveryAuditEntry = {
   sendStartedAt?: number;
   sendDurationMs?: number;
   threadId?: string;
+  messageId?: string;
+  deliveryKey?: string;
   symbol?: string;
   title?: string;
   bodyPreview?: string;
@@ -567,6 +571,18 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
       }
       throw lastError;
     }
+  }
+
+  async sendApprovedAnalysisChunk(chunk: ApprovedAnalysisDiscordChunk): Promise<ApprovedAnalysisDiscordReceipt> {
+    if (!this.inner.sendApprovedAnalysisChunk) throw new Error("Approved analysis Discord delivery is unavailable.");
+    const sendStartedAt = Date.now();
+    // Deliberately no alert retry loop. The review ledger owns uncertain sends.
+    const receipt = await this.inner.sendApprovedAnalysisChunk(chunk);
+    this.recordPosted("post_approved_analysis", {
+      symbol: chunk.symbol, body: chunk.content, deliveryKey: chunk.deliveryKey,
+      threadId: receipt.channelId, messageId: receipt.messageId,
+    }, { sendStartedAt, sendDurationMs: Date.now() - sendStartedAt });
+    return receipt;
   }
 
   async sendLevelSnapshot(threadId: string, payload: LevelSnapshotPayload): Promise<void> {

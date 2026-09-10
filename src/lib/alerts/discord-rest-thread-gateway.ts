@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import type { ApprovedAnalysisDiscordChunk, ApprovedAnalysisDiscordReceipt } from "./alert-router.js";
 import type {
   AlertPayload,
   DiscordThread,
@@ -207,9 +209,9 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
     this.requestTimeoutMs = Math.max(0, Math.floor(options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS));
   }
 
-  private async request<T>(path: string, init?: RequestInit): Promise<T> {
+  private async request<T>(path: string, init?: RequestInit, retryAttempts = this.transientRetryAttempts): Promise<T> {
     let lastError: Error | null = null;
-    for (let attempt = 0; attempt <= this.transientRetryAttempts; attempt += 1) {
+    for (let attempt = 0; attempt <= retryAttempts; attempt += 1) {
       const controller = this.requestTimeoutMs > 0 ? new AbortController() : null;
       const timeout = controller
         ? setTimeout(() => controller.abort(), this.requestTimeoutMs)
@@ -233,7 +235,7 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
             ? `Discord API request timed out after ${this.requestTimeoutMs}ms for ${path}.`
             : `Discord API request failed for ${path}: ${message}`,
         );
-        if (attempt < this.transientRetryAttempts) {
+        if (attempt < retryAttempts) {
           await delay(this.transientRetryDelayMs);
           continue;
         }
@@ -253,7 +255,7 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
       lastError = new Error(
         `Discord API request failed (${response.status}) for ${path}: ${body || response.statusText}`,
       );
-      if (attempt < this.transientRetryAttempts && isTransientDiscordStatus(response.status)) {
+      if (attempt < retryAttempts && isTransientDiscordStatus(response.status)) {
         const retryDelayMs = parseRetryAfterMs(response, this.transientRetryDelayMs);
         if (retryDelayMs > this.maxTransientRetryDelayMs) {
           throw new Error(
@@ -510,6 +512,27 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
   async sendMessage(threadId: string, payload: AlertPayload): Promise<void> {
     const flags = payload.metadata?.suppressEmbeds ? DISCORD_FLAG_SUPPRESS_EMBEDS : undefined;
     await this.postMessage(threadId, buildAlertMessageContent(payload), flags);
+  }
+
+  /** A single already-previewed chunk. Durable review delivery owns recovery;
+   * an uncertain response must never trigger a blind transport resend.
+   */
+  async sendApprovedAnalysisChunk(chunk: ApprovedAnalysisDiscordChunk): Promise<ApprovedAnalysisDiscordReceipt> {
+    if (!chunk.deliveryKey.trim() || chunk.deliveryKey.length > 512 || !chunk.symbol.trim()) throw new Error("Approved Discord chunk identity is required.");
+    if (!chunk.content.trim() || chunk.content.length > DISCORD_MESSAGE_MAX_LENGTH) throw new Error("Approved Discord chunks must contain 1–2000 characters.");
+    const nonce = createHash("sha256").update(chunk.deliveryKey).digest("hex").slice(0, 25);
+    const message = await this.request<DiscordMessageResponse>(`/channels/${this.watchlistChannelId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({
+        content: chunk.content,
+        allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
+        flags: DISCORD_FLAG_SUPPRESS_EMBEDS,
+        nonce,
+        enforce_nonce: true,
+      }),
+    }, 0);
+    if (!message || !/^\d{17,20}$/.test(message.id)) throw new Error("Discord did not return an approved-message receipt; delivery is uncertain.");
+    return { messageId: message.id, channelId: this.watchlistChannelId };
   }
 
   async sendLevelSnapshot(threadId: string, payload: LevelSnapshotPayload): Promise<void> {

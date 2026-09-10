@@ -1706,7 +1706,16 @@ function normalizeSymbol(symbol: string): string {
   return symbol.trim().toUpperCase();
 }
 
+export type ApprovedAnalysisDiscordChunk = {
+  symbol: string;
+  /** Durable approval/channel/chunk identity, never generated at send time. */
+  deliveryKey: string;
+  content: string;
+};
+export type ApprovedAnalysisDiscordReceipt = { messageId: string; channelId: string };
+
 export interface DiscordThreadGateway {
+  sendApprovedAnalysisChunk?(chunk: ApprovedAnalysisDiscordChunk): Promise<ApprovedAnalysisDiscordReceipt>;
   ensureSymbolRoute?(
     symbol: string,
     storedRouteId?: string | null,
@@ -2959,6 +2968,12 @@ export class DiscordAlertRouter {
   async routeAlert(threadId: string, payload: AlertPayload): Promise<void> {
     this.assertPublicationAllowed(payload.symbol ?? payload.event?.symbol);
     await this.gateway.sendMessage(threadId, payload);
+  }
+
+  async routeApprovedAnalysisChunk(chunk: ApprovedAnalysisDiscordChunk): Promise<ApprovedAnalysisDiscordReceipt> {
+    this.assertPublicationAllowed(chunk.symbol);
+    if (!this.gateway.sendApprovedAnalysisChunk) throw new Error("Approved analysis Discord delivery is unavailable.");
+    return this.gateway.sendApprovedAnalysisChunk(chunk);
   }
 
   async routeLevelSnapshot(threadId: string, payload: LevelSnapshotPayload): Promise<void> {
