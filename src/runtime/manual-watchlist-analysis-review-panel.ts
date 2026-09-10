@@ -26,6 +26,8 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     <button type="button" id="analysis-review-preview">Preview</button>
     <button type="button" id="analysis-review-approve" disabled>Approve and publish</button>
     <button type="button" id="analysis-review-retry" class="secondary">Retry Discord delivery</button>
+  </div>
+  <div class="inline-control" id="analysis-review-export-area" hidden>
     <label for="analysis-review-export-generation">Audit generation</label>
     <select id="analysis-review-export-generation"></select>
     <button type="button" id="analysis-review-export" class="secondary">Export audit</button>
@@ -101,13 +103,17 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   function renderEditor() {
     editor.replaceChildren(); previewContent.replaceChildren(); preview = null;
     const draft = review && review.draft;
+    const generations = byId("export-generation"); generations.replaceChildren();
+    const generationIds = new Set();
+    (review ? review.events : []).filter((event) => event.body.kind === "original" || event.body.kind === "generation").forEach((event) => {
+      if (generationIds.has(event.body.generationId)) return;
+      generationIds.add(event.body.generationId);
+      const option = node("option", "Request " + generationIds.size + " · " + new Date(event.at).toLocaleString(), generations); option.value = event.body.generationId;
+    });
+    byId("export-area").hidden = generationIds.size === 0;
+    if (generationIds.size) generations.value = Array.from(generationIds).at(-1);
     if (!draft || !draft.body.payload) { actions.hidden = true; message("No analysis draft is available yet. The ticker remains held if owner review is required."); return; }
     patch = editable(draft.body.payload); dirty = false; actions.hidden = false;
-    const generations = byId("export-generation"); generations.replaceChildren();
-    review.events.filter((event) => event.body.kind === "original").forEach((event, index) => {
-      const option = node("option", "Analysis " + (index + 1) + " · " + new Date(event.at).toLocaleString(), generations); option.value = event.body.generationId;
-    });
-    generations.value = draft.body.payload.generationId;
     node("p", review.symbol + " · Saved version " + draft.revision + " · Analysis price $" + draft.body.payload.currentPrice, editor);
     for (const key of ["bias", "confidence"]) {
       const label = node("label", key === "bias" ? "Bias" : "Confidence", editor);
@@ -144,7 +150,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     }
     for (const key of ["catalystRealityCheck", "dilutionRisk", "listingStatus"]) fields(section(key), patch[key], ["summary", "dayTradeRelevance"]);
     const history = node("details", undefined, editor); node("summary", "Saved version history", history);
-    review.events.filter((event) => ["original", "edit", "approve", "delivery", "discord_chunk"].includes(event.body.kind)).forEach((event) => {
+    review.events.filter((event) => ["generation", "original", "edit", "approve", "delivery", "discord_chunk"].includes(event.body.kind)).forEach((event) => {
       node("p", "Version " + event.revision + " · " + event.body.kind + " · " + new Date(event.at).toLocaleString() + (event.body.channel ? " · " + event.body.channel : "") + (event.body.status ? " · " + event.body.status : ""), history);
     });
   }
@@ -192,10 +198,8 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     result.tickers.forEach((item) => {
       const row = node("div", undefined, list); row.className = "inline-control";
       node("span", item.symbol + " · " + item.status, row);
-      if (item.canReview) {
-        const button = node("button", "Review " + item.symbol, row); button.type = "button";
-        button.onclick = () => { if (dirty && !window.confirm("Discard unsaved edits and load this ticker?")) return; run(async () => { ticker.value = item.symbol; review = (await request("")).review; renderEditor(); message("Saved analysis loaded."); }); };
-      }
+      const button = node("button", (item.canReview ? "Review " : "Inspect ") + item.symbol, row); button.type = "button";
+      button.onclick = () => { if (dirty && !window.confirm("Discard unsaved edits and load this ticker?")) return; run(async () => { ticker.value = item.symbol; review = (await request("")).review; renderEditor(); if (review && review.draft) message("Saved analysis loaded."); }); };
     });
   };
   byId("queue-refresh").onclick = () => run(loadQueue);

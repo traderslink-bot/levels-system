@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { ReviewPublication } from "./traderslink-ai-read-publication-preview.js";
 
 type ReviewBody =
+  | { kind: "generation"; generationId: string; status: "started" | "completed" | "failed"; runId: string; trigger: string; model: string; dataAsOf: number }
   | { kind: "begin"; symbol: string; reviewRequired: boolean }
   | { kind: "original"; generationId: string; payload: Record<string, unknown> }
   | { kind: "edit"; parentDraft: number; payload: Record<string, unknown> }
@@ -88,7 +89,8 @@ export class TradersLinkAiReadReviewStore {
     if ((state?.head ?? 0) !== expectedHead) throw new Error("Review changed. Reload before saving.");
     // A receipt can arrive after removal; retain that historical outcome,
     // without allowing any new publication or edits on the cancelled cycle.
-    if (state?.cancelled && !(body.kind === "discord_chunk" && body.status === "acknowledged")) throw new Error("Review cycle is cancelled.");
+    const cancelledOriginal = body.kind === "original" && state?.events.some((event) => event.body.kind === "generation" && event.body.generationId === body.generationId && event.body.status === "completed");
+    if (state?.cancelled && !cancelledOriginal && !(body.kind === "discord_chunk" && body.status === "acknowledged") && !(body.kind === "generation" && body.status !== "started")) throw new Error("Review cycle is cancelled.");
     if (!state && body.kind !== "begin") throw new Error("Review cycle does not exist.");
     if (state && body.kind === "begin") throw new Error("Review cycle already exists.");
     const unsigned = {
@@ -112,6 +114,19 @@ export class TradersLinkAiReadReviewStore {
   begin(cycleId: string, symbol: string, reviewRequired: boolean, actor: string): ReviewEvent {
     if (!/^[A-Z0-9][A-Z0-9.\-]{0,19}$/.test(symbol)) throw new Error("Invalid review symbol.");
     return this.append(cycleId, 0, actor, { kind: "begin", symbol, reviewRequired });
+  }
+
+  recordGeneration(cycleId: string, input: { generationId: string; status: "started" | "completed" | "failed"; runId: string; trigger: string; model: string; dataAsOf: number }): ReviewEvent {
+    const state = this.read(cycleId);
+    if (!state || !input.generationId || input.generationId.length > 200 || !Number.isFinite(input.dataAsOf)) throw new Error("Invalid generation audit identity.");
+    const prior = state.events.findLast((event) => event.body.kind === "generation" && event.body.generationId === input.generationId);
+    if (!prior && input.status !== "started") throw new Error("Generation audit was not started.");
+    if (prior?.body.kind === "generation") {
+      if (prior.body.runId !== input.runId || prior.body.trigger !== input.trigger || prior.body.model !== input.model || prior.body.dataAsOf !== input.dataAsOf) throw new Error("Generation audit identity changed.");
+      if (prior.body.status === input.status) return prior;
+      if (prior.body.status !== "started" || input.status === "started") throw new Error("Generation audit is already complete.");
+    }
+    return this.append(cycleId, state.head, "runtime:generator", { kind: "generation", ...input });
   }
 
   saveDraft(input: { cycleId: string; expectedHead: number; actor: string; payload: Record<string, unknown>; generationId?: string }): ReviewEvent {

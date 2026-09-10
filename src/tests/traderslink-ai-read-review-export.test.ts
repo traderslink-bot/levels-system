@@ -37,3 +37,27 @@ test("audit export selects one generation, retains its edits/approval and redact
     assert.equal(exportAnalysisReview({ review, generationId: "g1", diagnostics: { read: () => { throw new Error("private path"); } } }).diagnosticStatus, "unavailable");
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
+
+test("a rejected attempt without any draft remains exportable", () => {
+  const directory = mkdtempSync(join(tmpdir(), "failed-review-export-"));
+  try {
+    const store = new TradersLinkAiReadReviewStore(directory);
+    store.begin("cycle", "FTFT", true, "owner");
+    const generation = { generationId: "rejected", runId: "run", trigger: "activation", model: "test", dataAsOf: 1 };
+    store.recordGeneration("cycle", { ...generation, status: "started" });
+    store.recordGeneration("cycle", { ...generation, status: "failed" });
+    const review = store.read("cycle")!;
+    assert.equal(review.draft, null);
+    const result = exportAnalysisReview({ review, generationId: "rejected", diagnostics: { read: () => null } });
+    assert.equal((result.selectedEvents as any[]).length, 2);
+    assert.equal((result.selectedEvents as any[])[1].body.status, "failed");
+    assert.throws(() => store.recordGeneration("cycle", { ...generation, status: "started" }), /already complete/);
+    assert.throws(() => store.approve("cycle", 3, 2, "owner"), /Draft changed/);
+    store.recordGeneration("cycle", { ...generation, generationId: "late", status: "started" });
+    store.cancel("cycle", 4, "owner");
+    store.recordGeneration("cycle", { ...generation, generationId: "late", status: "completed" });
+    store.saveDraft({ cycleId: "cycle", expectedHead: 6, actor: "generator", generationId: "late", payload: { symbol: "FTFT", currentRead: "late original" } });
+    assert.equal(store.read("cycle")?.cancelled, true);
+    assert.throws(() => store.approve("cycle", 7, 7, "owner"), /Draft changed/);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});

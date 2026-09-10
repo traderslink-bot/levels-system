@@ -4310,6 +4310,12 @@ export class ManualWatchlistRuntimeManager {
         return null;
       }
       const generationId = `${symbol}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const reviewCycleId = entry.publicationReview?.required ? entry.publicationReview.cycleId : undefined;
+      const generationAudit = { generationId, runId, trigger: requestedTrigger, model: service.getConfiguredModel(), dataAsOf };
+      if (reviewCycleId) {
+        if (!this.options.tradersLinkAiReadReviewStore) throw new Error("Owner review storage is unavailable.");
+        this.options.tradersLinkAiReadReviewStore.recordGeneration(reviewCycleId, { ...generationAudit, status: "started" });
+      }
       let read: TradersLinkAiReadPayload;
       try {
         this.recordTradersLinkAiReadRunOutcome({
@@ -4363,6 +4369,10 @@ export class ManualWatchlistRuntimeManager {
           },
         });
       } catch (error) {
+        if (reviewCycleId) {
+          try { this.options.tradersLinkAiReadReviewStore!.recordGeneration(reviewCycleId, { ...generationAudit, status: "failed" }); }
+          catch { console.warn("[TradersLinkAiRead] Generation audit outcome could not be saved."); }
+        }
         if (!this.aiReadState.has(symbol)) {
           this.aiReadInitialGenerationSuppressedSymbols.add(symbol);
         }
@@ -4379,6 +4389,7 @@ export class ManualWatchlistRuntimeManager {
         });
         throw error;
       }
+      if (reviewCycleId) this.options.tradersLinkAiReadReviewStore!.recordGeneration(reviewCycleId, { ...generationAudit, status: "completed" });
       if (recordedAttemptCount === 0) {
         this.options.tradersLinkAiReadCostLedger?.record({
           read,

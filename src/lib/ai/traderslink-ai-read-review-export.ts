@@ -10,11 +10,12 @@ export function exportAnalysisReview(input: {
   secrets?: readonly string[];
 }) {
   const { review, generationId } = input;
-  if (!review.events.some((event) => event.body.kind === "original" && event.body.generationId === generationId)) throw new Error("Selected generation is not part of this ticker review.");
+  if (!review.events.some((event) => (event.body.kind === "original" || event.body.kind === "generation") && event.body.generationId === generationId)) throw new Error("Selected generation is not part of this ticker review.");
   const drafts = new Set<number>(), approvals = new Set<number>();
   let selected = false;
   const selectedEvents = review.events.filter((event) => {
     const body = event.body;
+    if (body.kind === "generation") return body.generationId === generationId;
     if (body.kind === "original") selected = body.generationId === generationId;
     if (body.kind === "original" || body.kind === "edit") {
       if (selected) drafts.add(event.revision);

@@ -51,6 +51,7 @@ test("private activation saves an AI draft without website publication or Discor
     };
     const publisher = new FakeLiveWatchlistPublisher();
     let aiCalls = 0;
+    let rejectNextRead = false;
     const manager = new ManualWatchlistRuntimeManager({
       candleFetchService: {} as any, levelStore: new LevelStore(), monitor: new FakeMonitor() as any,
       discordAlertRouter: discord as any, opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
@@ -58,7 +59,7 @@ test("private activation saves an AI draft without website publication or Discor
       liveWatchlistPublisher: publisher, tradersLinkAiReadReviewStore: reviewStore, now: () => now,
       tradersLinkAiReadService: {
         getConfiguredModel: () => "test", getReasoningEffort: () => "medium",
-        generate: async ({ generationId }: any) => { aiCalls += 1; return {
+        generate: async ({ generationId }: any) => { aiCalls += 1; if (rejectNextRead) throw new Error("Mock rejected analysis"); return {
           symbol: "PDSB", generationId, currentPrice: 0.5, generatedAt: now, model: "test", currentRead: "Original",
           bias: "bullish", confidence: "medium", failureRecovery: null, riskSummary: [],
           catalystRealityCheck: { summary: "", dayTradeRelevance: "" },
@@ -150,6 +151,15 @@ test("private activation saves an AI draft without website publication or Discor
     assert.equal(publisher.cardPatches.length, 2);
     assert.equal(JSON.parse(publisher.cardPatches[1]!.cards.tradersLinkAiRead!.body).currentRead, "Owner analysis");
     assert.equal(aiCalls, 2);
+    rejectNextRead = true;
+    await assert.rejects(manager.refreshTradersLinkAiRead("PDSB"), /Mock rejected analysis/);
+    const rejected = manager.getTradersLinkAiReadReview("PDSB")!;
+    const attempt = rejected.events.filter((event) => event.body.kind === "generation").at(-1)!;
+    assert.equal(attempt.body.kind, "generation");
+    assert.equal((attempt.body as any).status, "failed");
+    assert.equal(rejected.events.filter((event) => event.body.kind === "original").length, 2);
+    assert.equal(publisher.cardPatches.length, 2);
+    assert.equal(aiCalls, 3);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
