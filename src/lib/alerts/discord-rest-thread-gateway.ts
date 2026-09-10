@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { DiscordConfirmedRejection, isConfirmedDiscordRejectionStatus } from "./discord-confirmed-rejection.js";
 import type { ApprovedAnalysisDiscordChunk, ApprovedAnalysisDiscordReceipt } from "./alert-router.js";
 import type {
   AlertPayload,
@@ -209,7 +210,7 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
     this.requestTimeoutMs = Math.max(0, Math.floor(options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS));
   }
 
-  private async request<T>(path: string, init?: RequestInit, retryAttempts = this.transientRetryAttempts): Promise<T> {
+  private async request<T>(path: string, init?: RequestInit, retryAttempts = this.transientRetryAttempts, approvedChunk = false): Promise<T> {
     let lastError: Error | null = null;
     for (let attempt = 0; attempt <= retryAttempts; attempt += 1) {
       const controller = this.requestTimeoutMs > 0 ? new AbortController() : null;
@@ -251,6 +252,7 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
         return (await parseDiscordJson<T>(response)) as T;
       }
 
+      if (approvedChunk && isConfirmedDiscordRejectionStatus(response.status)) throw new DiscordConfirmedRejection(response.status);
       const body = await response.text();
       lastError = new Error(
         `Discord API request failed (${response.status}) for ${path}: ${body || response.statusText}`,
@@ -530,7 +532,7 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
         nonce,
         enforce_nonce: true,
       }),
-    }, 0);
+    }, 0, true);
     if (!message || !/^\d{17,20}$/.test(message.id)) throw new Error("Discord did not return an approved-message receipt; delivery is uncertain.");
     return { messageId: message.id, channelId: this.watchlistChannelId };
   }

@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
+import { DiscordConfirmedRejection } from "../alerts/discord-confirmed-rejection.js";
 import { applyOwnerAnalysisEdit } from "../ai/traderslink-ai-read-owner-edit.js";
 import { publicationPreviewHash, renderApprovedAnalysisDiscord, type ReviewPublication } from "../ai/traderslink-ai-read-publication-preview.js";
 import type { TradersLinkAiReadReviewStore } from "../ai/traderslink-ai-read-review-store.js";
@@ -4792,7 +4793,15 @@ export class ManualWatchlistRuntimeManager {
       const claim = store.claimDiscordChunk(input.cycleId, store.read(input.cycleId)!.head, approval.revision, index);
       if (claim.reason === "acknowledged") continue;
       if (!claim.shouldSend) throw new Error("Discord delivery is awaiting confirmation. It has not been sent again.");
-      const receipt = await this.options.discordAlertRouter.routeApprovedAnalysisChunk({ symbol, deliveryKey: claim.deliveryKey, content: claim.content });
+      let receipt;
+      try {
+        receipt = await this.options.discordAlertRouter.routeApprovedAnalysisChunk({ symbol, deliveryKey: claim.deliveryKey, content: claim.content });
+      } catch (error) {
+        if (error instanceof DiscordConfirmedRejection) {
+          store.rejectDiscordChunk(input.cycleId, store.read(input.cycleId)!.head, approval.revision, index, error.status);
+        }
+        throw error;
+      }
       store.acknowledgeDiscordChunk(input.cycleId, store.read(input.cycleId)!.head, approval.revision, index, receipt);
     }
     store.recordDelivery(input.cycleId, store.read(input.cycleId)!.head, approval.revision, "discord", "acknowledged", channelClaim.deliveryKey);

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ReviewPublication } from "./traderslink-ai-read-publication-preview.js";
+import { isConfirmedDiscordRejectionStatus } from "../alerts/discord-confirmed-rejection.js";
 
 type ReviewBody =
   | { kind: "generation"; generationId: string; status: "started" | "completed" | "failed"; runId: string; trigger: string; model: string; dataAsOf: number }
@@ -9,7 +10,7 @@ type ReviewBody =
   | { kind: "original"; generationId: string; payload: Record<string, unknown> }
   | { kind: "edit"; parentDraft: number; payload: Record<string, unknown> }
   | { kind: "approve"; draftRevision: number; publication?: ReviewPublication }
-  | { kind: "discord_chunk"; approvalRevision: number; index: number; status: "started" | "acknowledged"; deliveryKey: string; receipt?: { messageId: string; channelId: string } }
+  | { kind: "discord_chunk"; approvalRevision: number; index: number; status: "started" | "acknowledged" | "rejected"; deliveryKey: string; httpStatus?: number; receipt?: { messageId: string; channelId: string } }
   | { kind: "delivery"; approvalRevision: number; channel: "website" | "discord"; status: "started" | "acknowledged" | "failed"; deliveryId: string | null }
   | { kind: "cancel" };
 
@@ -165,10 +166,18 @@ export class TradersLinkAiReadReviewStore {
     if (!Number.isInteger(index) || index < 0 || !chunks?.[index]) throw new Error("Approved Discord chunk is unavailable.");
     const prior = state.events.findLast((event) => event.body.kind === "discord_chunk" && event.body.approvalRevision === approvalRevision && event.body.index === index);
     const deliveryKey = digest(`${cycleId}:${approvalRevision}:discord:${index}`);
-    if (prior?.body.kind === "discord_chunk") return { shouldSend: false, deliveryKey, content: chunks[index]!, reason: prior.body.status === "acknowledged" ? "acknowledged" as const : "uncertain" as const };
+    if (prior?.body.kind === "discord_chunk" && prior.body.status !== "rejected") return { shouldSend: false, deliveryKey, content: chunks[index]!, reason: prior.body.status === "acknowledged" ? "acknowledged" as const : "uncertain" as const };
     if (index > 0 && !state.events.some((event) => event.body.kind === "discord_chunk" && event.body.approvalRevision === approvalRevision && event.body.index === index - 1 && event.body.status === "acknowledged")) throw new Error("Previous Discord chunk is not acknowledged.");
     this.append(cycleId, expectedHead, "delivery", { kind: "discord_chunk", approvalRevision, index, status: "started", deliveryKey });
     return { shouldSend: true, deliveryKey, content: chunks[index]!, reason: "claimed" as const };
+  }
+
+  rejectDiscordChunk(cycleId: string, expectedHead: number, approvalRevision: number, index: number, httpStatus: number) {
+    if (!isConfirmedDiscordRejectionStatus(httpStatus)) throw new Error("Discord delivery is not a confirmed rejection.");
+    const state = this.read(cycleId);
+    const prior = state?.events.findLast((event) => event.body.kind === "discord_chunk" && event.body.approvalRevision === approvalRevision && event.body.index === index);
+    if (!prior || prior.body.kind !== "discord_chunk" || prior.body.status !== "started") throw new Error("Discord delivery is not awaiting an outcome.");
+    return this.append(cycleId, expectedHead, "delivery", { kind: "discord_chunk", approvalRevision, index, status: "rejected", deliveryKey: prior.body.deliveryKey, httpStatus });
   }
 
   acknowledgeDiscordChunk(cycleId: string, expectedHead: number, approvalRevision: number, index: number, receipt: { messageId: string; channelId: string }) {

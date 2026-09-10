@@ -141,3 +141,21 @@ test("pins exact preview and resumes multipart delivery only after each receipt"
   assert.equal(restored.read("cycle")?.cancelled, true);
   assert.equal(restored.read("cycle")?.head, 8);
 });
+
+test("only confirmed rejections unlock a chunk retry with the same delivery identity", () => {
+  const { store, directory } = setup();
+  store.begin("cycle", "PDSB", true, "owner");
+  store.saveDraft({ cycleId: "cycle", expectedHead: 1, actor: "generator", generationId: "g", payload });
+  store.approve("cycle", 2, 2, "owner", { website: {}, discordChunks: ["approved"] });
+  const first = store.claimDiscordChunk("cycle", 3, 3, 0);
+  for (const status of [408, 500, 502, 0]) assert.throws(() => store.rejectDiscordChunk("cycle", 4, 3, 0, status), /not a confirmed/);
+  assert.equal(store.claimDiscordChunk("cycle", 4, 3, 0).reason, "uncertain");
+  store.rejectDiscordChunk("cycle", 4, 3, 0, 403);
+  const restarted = new TradersLinkAiReadReviewStore(directory);
+  const retry = restarted.claimDiscordChunk("cycle", 5, 3, 0);
+  assert.equal(retry.shouldSend, true);
+  assert.equal(retry.deliveryKey, first.deliveryKey);
+  assert.equal(retry.content, "approved");
+  restarted.acknowledgeDiscordChunk("cycle", 6, 3, 0, { messageId: "12345678901234567", channelId: "23456789012345678" });
+  assert.throws(() => restarted.rejectDiscordChunk("cycle", 7, 3, 0, 403), /not awaiting/);
+});

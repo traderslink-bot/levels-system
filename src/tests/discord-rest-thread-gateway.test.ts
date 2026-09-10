@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { DiscordRestThreadGateway } from "../lib/alerts/discord-rest-thread-gateway.js";
+import { DiscordConfirmedRejection } from "../lib/alerts/discord-confirmed-rejection.js";
 import { buildWatchlistDiscordLinkMessage } from "../lib/alerts/watchlist-discord-link-message.js";
 
 type MockResponseInit = {
@@ -9,6 +10,22 @@ type MockResponseInit = {
   body?: unknown;
   headers?: Record<string, string>;
 };
+
+test("approved chunks distinguish confirmed rejections from uncertain responses without retrying", async () => {
+  for (const status of [400, 401, 403, 404, 429, 408, 500, 502]) {
+    let calls = 0;
+    const gateway = new DiscordRestThreadGateway({ botToken: "test-token", watchlistChannelId: "12345678901234567", transientRetryAttempts: 3,
+      fetchImpl: async () => { calls++; return new Response("private response body", { status }); },
+    });
+    await assert.rejects(gateway.sendApprovedAnalysisChunk({ symbol: "TEST", deliveryKey: "key", content: "approved" }), (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.equal(error instanceof DiscordConfirmedRejection, [400, 401, 403, 404, 429].includes(status));
+      if (error instanceof DiscordConfirmedRejection) assert.ok(!error.message.includes("private response body"));
+      return true;
+    });
+    assert.equal(calls, 1);
+  }
+});
 
 function jsonResponse(init: MockResponseInit = {}): Response {
   return new Response(init.body === undefined ? "" : JSON.stringify(init.body), {

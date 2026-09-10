@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TradersLinkAiReadReviewStore } from "../lib/ai/traderslink-ai-read-review-store.js";
+import { DiscordConfirmedRejection } from "../lib/alerts/discord-confirmed-rejection.js";
 import test from "node:test";
 
 import type { DiscordThreadRoutingResult } from "../lib/alerts/alert-types.js";
@@ -45,7 +46,11 @@ test("private activation saves an AI draft without website publication or Discor
     const reviewStore = new TradersLinkAiReadReviewStore(directory);
     const discord = new FakeDiscordAlertRouter();
     const approvedDiscord: string[] = [];
+    const discordAttempts: Array<{ content: string; deliveryKey: string }> = [];
+    let discordError: Error | null = new DiscordConfirmedRejection(403);
     (discord as any).routeApprovedAnalysisChunk = async (chunk: any) => {
+      discordAttempts.push({ content: chunk.content, deliveryKey: chunk.deliveryKey });
+      if (discordError) throw discordError;
       approvedDiscord.push(chunk.content);
       return { messageId: String(12345678901234567n + BigInt(approvedDiscord.length)), channelId: "23456789012345678" };
     };
@@ -115,9 +120,16 @@ test("private activation saves an AI draft without website publication or Discor
     await manager.approveTradersLinkAiReadForWebsite(approvalInput);
     assert.equal(publisher.cardPatches.length, 1);
     const discordInput = { symbol: "PDSB", cycleId: ready.cycleId, approvalRevision: delivered!.approved!.revision };
+    await assert.rejects(manager.publishApprovedTradersLinkAiReadToDiscord(discordInput), /rejected/);
+    assert.equal(approvedDiscord.length, 0);
+    assert.equal(aiCalls, 1);
+    assert.ok(reviewStore.read(ready.cycleId)?.events.some(event => event.body.kind === "discord_chunk" && event.body.status === "rejected"));
+    discordError = null;
     await manager.publishApprovedTradersLinkAiReadToDiscord(discordInput);
     await manager.publishApprovedTradersLinkAiReadToDiscord(discordInput);
     assert.equal(approvedDiscord.length, 1);
+    assert.equal(discordAttempts.length, 2);
+    assert.deepEqual(discordAttempts[0], discordAttempts[1]);
     assert.deepEqual(manager.listTradersLinkAiReadReviews(), [{ symbol: "PDSB", status: "Published", canReview: true }]);
     assert.match(approvedDiscord[0]!, /Original/);
     assert.equal(aiCalls, 1);
@@ -150,6 +162,14 @@ test("private activation saves an AI draft without website publication or Discor
     await manager.approveTradersLinkAiReadForWebsite(editedApproval);
     assert.equal(publisher.cardPatches.length, 2);
     assert.equal(JSON.parse(publisher.cardPatches[1]!.cards.tradersLinkAiRead!.body).currentRead, "Owner analysis");
+    assert.equal(aiCalls, 2);
+    discordError = new Error("Mock transport timeout");
+    const editedDiscordInput = { symbol: "PDSB", cycleId: latestReview.cycleId, approvalRevision: manager.getTradersLinkAiReadReview("PDSB")!.approved!.revision };
+    await assert.rejects(manager.publishApprovedTradersLinkAiReadToDiscord(editedDiscordInput), /timeout/);
+    const attemptsAfterTimeout = discordAttempts.length;
+    discordError = null;
+    await assert.rejects(manager.publishApprovedTradersLinkAiReadToDiscord(editedDiscordInput), /awaiting confirmation/);
+    assert.equal(discordAttempts.length, attemptsAfterTimeout);
     assert.equal(aiCalls, 2);
     rejectNextRead = true;
     await assert.rejects(manager.refreshTradersLinkAiRead("PDSB"), /Mock rejected analysis/);
