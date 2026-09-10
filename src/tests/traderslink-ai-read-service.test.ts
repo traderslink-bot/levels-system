@@ -739,6 +739,9 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(read.failureRecovery?.firstReclaimPrice, 1.1);
 
     const invalidCases: Array<[string, (value: Record<string, any>) => void, RegExp]> = [
+      ["shallow above reference", (value) => {
+        value.pullbackPlans.shallow.zoneHigh = currentPrice + 0.1;
+      }, /generation reference/i],
       ["invented candidate", (value) => {
         value.pullbackPlans.shallow.evidenceIds = ["invented-zone"];
       }, /invented candidate ID/i],
@@ -763,7 +766,25 @@ describe("OpenAITradersLinkAiReadService", () => {
     for (const [label, mutate, errorPattern] of invalidCases) {
       const invalid = structuredClone(draft) as Record<string, any>;
       mutate(invalid);
-      await assert.rejects(generate(invalid), errorPattern, label);
+      if (label === "overlapping zones") {
+        await assert.rejects(generate(invalid), errorPattern, label);
+        continue;
+      }
+      const partial = await generate(invalid);
+      assert.ok(partial.needsToHold.price !== null, label);
+      assert.equal(partial.pullbackPlans.deep?.evidenceIds[0], deepCandidate.id, label);
+      if (label === "invented candidate" || label === "reversed zone" || label === "shallow above reference") {
+        assert.equal(partial.pullbackPlans.shallow, null, label);
+        assert.equal(partial.currentRead, "", label);
+      } else if (label === "objective below entry") {
+        assert.ok(partial.pullbackPlans.shallow, label);
+        assert.equal(partial.pullbackPlans.shallow.firstObjectivePrice, null, label);
+      } else if (label === "recovery without reclaim") {
+        assert.equal(partial.failureRecovery, null, label);
+      } else {
+        assert.ok(partial.failureRecovery, label);
+        assert.equal(partial.failureRecovery.firstObjectivePrice, null, label);
+      }
     }
 
     const originRecovery = structuredClone(draft) as Record<string, any>;

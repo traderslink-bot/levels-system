@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { TradersLinkAiReadAuditStore, type AiReadAuditEvent, type AiReadAuditResult } from "./traderslink-ai-read-audit.js";
 import { resolveManualWatchlistDurableDirectory } from "../monitoring/manual-watchlist-durable-storage.js";
+import { validatePullbackSection, validateRecoverySection } from "./traderslink-ai-read-section-validation.js";
 import type { LevelSnapshotPayload } from "../alerts/alert-types.js";
 import type { RecentWebsiteArticleLookupResult } from "../live-watchlist/recent-website-articles.js";
 import {
@@ -31,8 +32,7 @@ import type {
 } from "../live-watchlist/live-watchlist-types.js";
 import { classifyUsEquityMarketSession } from "../market-data/us-equity-exchange-calendar.js";
 
-// Terra is the verified primary for production tactical reads. Luna remains the
-// compatibility fallback, but semantic guards prevent a weaker draft from publishing.
+// Preserve both selectable models. A generation never sends a paid fallback.
 const DEFAULT_MODEL = "gpt-5.6-terra";
 const DEFAULT_FALLBACK_MODEL = "gpt-5.6-luna";
 const DEFAULT_TIMEOUT_MS = 90_000;
@@ -2408,6 +2408,29 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         referenceQuote.price,
         input.priceAction,
       );
+      const sectionContext = {
+        referencePrice: referenceQuote.price,
+        momentumFailure: normalized.momentumFailure.price,
+        confidence: normalized.confidence,
+        candidates: availablePullbackCandidates(input.priceAction, referenceQuote.price, dataAsOf),
+      };
+      const shallow = validatePullbackSection("shallow", normalized.pullbackPlans.shallow, sectionContext);
+      const deep = validatePullbackSection("deep", normalized.pullbackPlans.deep, sectionContext);
+      const recovery = validateRecoverySection(normalized.failureRecovery, sectionContext);
+      normalized.pullbackPlans = { shallow: shallow.value, deep: deep.value };
+      normalized.failureRecovery = recovery.value;
+      const sectionIssues = [...shallow.issues, ...deep.issues, ...recovery.issues];
+      if (sectionIssues.length) {
+        // These legacy whole-card paragraphs have no dependency declarations.
+        // Omit them intact rather than leave a reference to a removed setup.
+        normalized.currentRead = "";
+        normalized.riskSummary = [];
+        capture("validation", {
+          stage: "optional_sections", issues: sectionIssues,
+          changedPaths: [...shallow.changedPaths, ...deep.changedPaths, ...recovery.changedPaths,
+            "currentRead", "riskSummary"],
+        });
+      }
       assertTradersLinkAiTradeMap(normalized, referenceQuote.price, input.priceAction, dataAsOf);
       const withFactualOuterTarget = appendFactualOuterDailyResistanceTarget(
         normalized,
