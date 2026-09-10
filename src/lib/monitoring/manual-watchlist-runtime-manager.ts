@@ -320,6 +320,7 @@ export type TradersLinkAiReadRequestedTrigger = TradersLinkAiReadCostTrigger | "
 
 export type TradersLinkAiReadGenerationSettings = {
   enabled: boolean;
+  automaticUpdatesEnabled: boolean;
   premarketEnabled: boolean;
   regularEnabled: boolean;
   postmarketEnabled: boolean;
@@ -3090,6 +3091,7 @@ export class ManualWatchlistRuntimeManager {
   };
   private tradersLinkAiReadGenerationSettings: TradersLinkAiReadGenerationSettings = {
     enabled: true,
+    automaticUpdatesEnabled: false,
     premarketEnabled: true,
     regularEnabled: true,
     postmarketEnabled: true,
@@ -3212,6 +3214,8 @@ export class ManualWatchlistRuntimeManager {
     this.topRegularWatchlistVisible = options.initialTopRegularWatchlistVisible ?? true;
     this.tradersLinkAiReadGenerationSettings = {
       enabled: options.initialTradersLinkAiReadGenerationSettings?.enabled ?? true,
+      automaticUpdatesEnabled:
+        options.initialTradersLinkAiReadGenerationSettings?.automaticUpdatesEnabled ?? false,
       premarketEnabled:
         options.initialTradersLinkAiReadGenerationSettings?.premarketEnabled ?? true,
       regularEnabled:
@@ -3442,10 +3446,13 @@ export class ManualWatchlistRuntimeManager {
   }
 
   setTradersLinkAiReadGenerationSettings(
-    input: TradersLinkAiReadGenerationSettings,
+    input: Omit<TradersLinkAiReadGenerationSettings, "automaticUpdatesEnabled"> &
+      Partial<Pick<TradersLinkAiReadGenerationSettings, "automaticUpdatesEnabled">>,
   ): TradersLinkAiReadGenerationSettings {
     this.tradersLinkAiReadGenerationSettings = {
       enabled: input.enabled === true,
+      automaticUpdatesEnabled:
+        input.automaticUpdatesEnabled ?? this.tradersLinkAiReadGenerationSettings.automaticUpdatesEnabled,
       premarketEnabled: input.premarketEnabled === true,
       regularEnabled: input.regularEnabled === true,
       postmarketEnabled: input.postmarketEnabled === true,
@@ -3531,18 +3538,24 @@ export class ManualWatchlistRuntimeManager {
     }
     const symbol = context.symbol ? normalizeSymbol(context.symbol) : "";
     const entry = symbol ? this.watchlistStore.getEntry(symbol) : undefined;
-    const topRegularActivationOverrideApplied =
-      entry !== undefined &&
-      getWatchlistEntrySessionGroup(entry) === "top_regular" &&
-      this.tradersLinkAiReadGenerationSettings.topRegularActivationEnabled;
-    if (topRegularActivationOverrideApplied) {
+    if (
+      context.requestedTrigger &&
+      context.requestedTrigger !== "manual" &&
+      !this.tradersLinkAiReadGenerationSettings.automaticUpdatesEnabled &&
+      !(context.requestedTrigger === "activation" && entry &&
+        !entry.tradersLinkAiReadBoundaryState &&
+        !entry.pendingTradersLinkAiReadGeneration &&
+        !entry.tradersLinkAiReadFailure)
+    ) {
       return {
-        allowed: true,
+        allowed: false,
         session,
-        reason: null,
-        topRegularActivationOverrideApplied: true,
+        reason: "Automatic AI updates are disabled. Use manual refresh for another analysis.",
+        topRegularActivationOverrideApplied: false,
       };
     }
+    // Preserve the legacy Top Regular setting, but it must not bypass the
+    // owner's master/session controls in the review-before-publication flow.
     if (session === "closed") {
       return {
         allowed: false,
@@ -4235,6 +4248,18 @@ export class ManualWatchlistRuntimeManager {
         throw error;
       }
       let recordedAttemptCount = 0;
+      // Preparation can await market/news data. Recheck switches immediately
+      // before the paid request so a queued follow-up cannot bypass OFF.
+      const requestAvailability = this.getTradersLinkAiReadGenerationAvailability(
+        this.options.now?.() ?? Date.now(), { symbol, requestedTrigger },
+      );
+      if (!requestAvailability.allowed) {
+        this.recordTradersLinkAiReadRunOutcome({
+          symbol, trigger: requestedTrigger, stage: "preflight", outcome: "skipped",
+          runId, reason: requestAvailability.reason ?? "AI Read generation is unavailable.",
+        });
+        return null;
+      }
       const generationId = `${symbol}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       let read: TradersLinkAiReadPayload;
       try {

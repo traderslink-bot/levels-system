@@ -39,7 +39,9 @@ describe("TradersLinkAiReadSettingsPersistence", () => {
       dailyCostBudgetUsd: 1,
     });
     assert.deepEqual(persistence.load(), {
-      version: 8,
+      version: 9,
+      automaticUpdatesEnabled: false,
+      reviewBeforePublishingEnabled: true,
       lastUpdated: persistence.load()?.lastUpdated,
       model: "gpt-5.6-luna",
       reasoningEffort: "high",
@@ -75,7 +77,9 @@ describe("TradersLinkAiReadSettingsPersistence", () => {
 
     const loaded = new TradersLinkAiReadSettingsPersistence({ filePath }).load();
     assert.deepEqual(loaded, {
-      version: 8,
+      version: 9,
+      automaticUpdatesEnabled: false,
+      reviewBeforePublishingEnabled: true,
       lastUpdated: 123,
       model: "gpt-5.6-terra",
       reasoningEffort: "medium",
@@ -106,5 +110,28 @@ describe("TradersLinkAiReadSettingsPersistence", () => {
 
     assert.equal(persistence.load(), null);
     assert.match(readFileSync(filePath, "utf8"), /externalResearchEnabled/);
+  });
+
+  it("upgrades version 8 without losing boundary controls and preserves owner switches on other saves", () => {
+    const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-settings-v9-"));
+    tempDirectories.push(directory);
+    const filePath = join(directory, "settings.json");
+    writeFileSync(filePath, JSON.stringify({
+      version: 8, lastUpdated: 123, externalResearchEnabled: false,
+      automaticBoundaryRefreshesEnabled: true, automaticBoundaryRefreshesPerTicker: 7,
+    }));
+    const persistence = new TradersLinkAiReadSettingsPersistence({ filePath });
+    const loaded = persistence.load()!;
+    assert.equal(loaded.automaticUpdatesEnabled, false);
+    assert.equal(loaded.reviewBeforePublishingEnabled, true);
+    assert.equal(loaded.automaticBoundaryRefreshesPerTicker, 7);
+    persistence.save({ ...loaded, automaticUpdatesEnabled: true, reviewBeforePublishingEnabled: false });
+    const { automaticUpdatesEnabled, reviewBeforePublishingEnabled, ...otherSettings } = loaded;
+    persistence.save(otherSettings);
+    assert.equal(persistence.load()?.automaticUpdatesEnabled, true);
+    assert.equal(persistence.load()?.reviewBeforePublishingEnabled, false);
+    persistence.save(false);
+    assert.equal(persistence.load()?.automaticUpdatesEnabled, true);
+    assert.equal(persistence.load()?.reviewBeforePublishingEnabled, false);
   });
 });

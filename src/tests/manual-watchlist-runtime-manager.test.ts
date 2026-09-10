@@ -4705,30 +4705,20 @@ test("ManualWatchlistRuntimeManager blocks disabled AI Read sessions before requ
     topRegularActivationEnabled: true,
   });
   const premarketTimestamp = Date.parse("2026-07-23T12:00:00Z");
-  assert.deepEqual(
+  assert.equal(
     manager.getTradersLinkAiReadGenerationAvailability(
       premarketTimestamp,
       { symbol: "GATE", requestedTrigger: "activation" },
-    ),
-    {
-      allowed: true,
-      session: "premarket",
-      reason: null,
-      topRegularActivationOverrideApplied: true,
-    },
+    ).allowed,
+    false,
   );
   for (const requestedTrigger of ["activation", "manual", "automatic", "visibility_enabled"] as const) {
-    assert.deepEqual(
+    assert.equal(
       manager.getTradersLinkAiReadGenerationAvailability(
         premarketTimestamp,
         { symbol: "GATE", requestedTrigger },
-      ),
-      {
-        allowed: true,
-        session: "premarket",
-        reason: null,
-        topRegularActivationOverrideApplied: true,
-      },
+      ).allowed,
+      false,
     );
   }
   manager.setTradersLinkAiReadGenerationSettings({
@@ -4745,6 +4735,36 @@ test("ManualWatchlistRuntimeManager blocks disabled AI Read sessions before requ
     ).allowed,
     false,
   );
+});
+
+test("Automatic AI updates OFF blocks every follow-up trigger but preserves initial and manual generation", async () => {
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.upsertManualEntry({ symbol: "GATE", active: true, lifecycle: "active", tags: ["manual"], lastPrice: 2 });
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any, levelStore: new LevelStore(),
+    monitor: new FakeMonitor() as any, discordAlertRouter: new FakeDiscordAlertRouter() as any,
+    opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore, watchlistStatePersistence: new FakeWatchlistStatePersistence() as any,
+    now: () => Date.parse("2026-07-23T15:00:00Z"),
+  });
+  const availability = (requestedTrigger: any) => manager.getTradersLinkAiReadGenerationAvailability(
+    undefined, { symbol: "GATE", requestedTrigger },
+  );
+  assert.equal(manager.getTradersLinkAiReadGenerationSettings().automaticUpdatesEnabled, false);
+  assert.equal(availability("activation").allowed, true);
+  assert.equal(availability("manual").allowed, true);
+  for (const trigger of ["automatic", "startup", "scheduled", "price_move", "range_edge", "boundary_cross", "visibility_enabled"] as const) {
+    assert.equal(availability(trigger).allowed, false, trigger);
+    assert.equal(await (manager as any).generateTradersLinkAiRead("GATE", true, trigger), null);
+  }
+  watchlistStore.patchEntry("GATE", {
+    tradersLinkAiReadFailure: { stage: "generation", reason: "previous request failed", trigger: "activation", failedAt: 123 },
+  });
+  assert.equal(availability("activation").allowed, false);
+  assert.equal(availability("manual").allowed, true);
+  manager.setTradersLinkAiReadGenerationSettings({ ...manager.getTradersLinkAiReadGenerationSettings(), automaticUpdatesEnabled: true });
+  assert.equal(availability("automatic").allowed, true);
+  assert.equal(availability("startup").allowed, true);
 });
 
 test("ManualWatchlistRuntimeManager posts stock context into a newly created thread before the level snapshot", async () => {

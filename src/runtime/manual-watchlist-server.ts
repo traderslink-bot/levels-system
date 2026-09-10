@@ -812,6 +812,7 @@ async function main(): Promise<void> {
   };
   let aiReadGenerationSettings = {
     enabled: persistedTradersLinkAiReadSettings?.generationEnabled ?? true,
+    automaticUpdatesEnabled: persistedTradersLinkAiReadSettings?.automaticUpdatesEnabled ?? false,
     premarketEnabled:
       persistedTradersLinkAiReadSettings?.premarketGenerationEnabled ?? true,
     regularEnabled:
@@ -1518,6 +1519,7 @@ async function main(): Promise<void> {
           typeof body.regularEnabled !== "boolean" ||
           typeof body.postmarketEnabled !== "boolean" ||
           typeof body.topRegularActivationEnabled !== "boolean"
+          || (body.automaticUpdatesEnabled !== undefined && typeof body.automaticUpdatesEnabled !== "boolean")
         ) {
           sendJson(response, 400, {
             error:
@@ -1525,22 +1527,24 @@ async function main(): Promise<void> {
           });
           return;
         }
-        aiReadGenerationSettings = manager.setTradersLinkAiReadGenerationSettings({
+        const nextGenerationSettings = {
           enabled: body.enabled,
+          automaticUpdatesEnabled: body.automaticUpdatesEnabled ?? aiReadGenerationSettings.automaticUpdatesEnabled,
           premarketEnabled: body.premarketEnabled,
           regularEnabled: body.regularEnabled,
           postmarketEnabled: body.postmarketEnabled,
           topRegularActivationEnabled: body.topRegularActivationEnabled,
-        });
+        };
         const visibility = manager.getRuntimeHealth();
         tradersLinkAiReadSettingsPersistence.save({
           externalResearchEnabled: aiReadExternalResearchEnabled,
-          generationEnabled: aiReadGenerationSettings.enabled,
-          premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
-          regularGenerationEnabled: aiReadGenerationSettings.regularEnabled,
-          postmarketGenerationEnabled: aiReadGenerationSettings.postmarketEnabled,
+          generationEnabled: nextGenerationSettings.enabled,
+          automaticUpdatesEnabled: nextGenerationSettings.automaticUpdatesEnabled,
+          premarketGenerationEnabled: nextGenerationSettings.premarketEnabled,
+          regularGenerationEnabled: nextGenerationSettings.regularEnabled,
+          postmarketGenerationEnabled: nextGenerationSettings.postmarketEnabled,
           topRegularActivationGenerationEnabled:
-            aiReadGenerationSettings.topRegularActivationEnabled,
+            nextGenerationSettings.topRegularActivationEnabled,
           liveTraderReadCardVisible: visibility.liveTraderReadCardVisible,
           potentialGainCardVisible: visibility.potentialGainCardVisible,
           watchlistLifecycleLabelsVisible: visibility.watchlistLifecycleLabelsVisible,
@@ -1549,6 +1553,7 @@ async function main(): Promise<void> {
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
+        aiReadGenerationSettings = manager.setTradersLinkAiReadGenerationSettings(nextGenerationSettings);
         sendJson(response, 200, {
           ok: true,
           settings: aiReadGenerationSettings,

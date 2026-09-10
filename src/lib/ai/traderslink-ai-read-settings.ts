@@ -2,12 +2,14 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 export type TradersLinkAiReadSettings = {
-  version: 8;
+  version: 9;
   lastUpdated: number;
   model: "gpt-5.6-luna" | "gpt-5.6-terra";
   reasoningEffort: "low" | "medium" | "high" | "xhigh";
   externalResearchEnabled: boolean;
   generationEnabled: boolean;
+  automaticUpdatesEnabled: boolean;
+  reviewBeforePublishingEnabled: boolean;
   premarketGenerationEnabled: boolean;
   regularGenerationEnabled: boolean;
   postmarketGenerationEnabled: boolean;
@@ -27,7 +29,7 @@ export type TradersLinkAiReadSettingsPersistenceOptions = {
   filePath?: string;
 };
 
-const SETTINGS_VERSION = 8;
+const SETTINGS_VERSION = 9;
 export const DEFAULT_TRADERSLINK_AI_READ_MODEL = "gpt-5.6-terra" as const;
 export const DEFAULT_TRADERSLINK_AI_READ_REASONING_EFFORT = "medium" as const;
 export const DEFAULT_TRADERSLINK_AI_READ_DAILY_COST_BUDGET_USD = 1;
@@ -70,7 +72,7 @@ export function normalizeTradersLinkAiReadAutomaticBoundaryRefreshesPerTicker(
 function validateSettings(value: unknown): TradersLinkAiReadSettings | null {
   if (
     !isRecord(value) ||
-    ![1, 2, 3, 4, 5, 6, 7, SETTINGS_VERSION].includes(value.version as number) ||
+    ![1, 2, 3, 4, 5, 6, 7, 8, SETTINGS_VERSION].includes(value.version as number) ||
     typeof value.lastUpdated !== "number" ||
     !Number.isFinite(value.lastUpdated) ||
     typeof value.externalResearchEnabled !== "boolean"
@@ -93,6 +95,8 @@ function validateSettings(value: unknown): TradersLinkAiReadSettings | null {
         ? value.reasoningEffort
         : DEFAULT_TRADERSLINK_AI_READ_REASONING_EFFORT,
     externalResearchEnabled: value.externalResearchEnabled,
+    automaticUpdatesEnabled: value.automaticUpdatesEnabled === true,
+    reviewBeforePublishingEnabled: value.reviewBeforePublishingEnabled !== false,
     generationEnabled:
       typeof value.generationEnabled === "boolean" ? value.generationEnabled : true,
     premarketGenerationEnabled:
@@ -186,6 +190,8 @@ export class TradersLinkAiReadSettingsPersistence {
     reasoningEffort?: "low" | "medium" | "high" | "xhigh";
     externalResearchEnabled: boolean;
     generationEnabled?: boolean;
+    automaticUpdatesEnabled?: boolean;
+    reviewBeforePublishingEnabled?: boolean;
     premarketGenerationEnabled?: boolean;
     regularGenerationEnabled?: boolean;
     postmarketGenerationEnabled?: boolean;
@@ -232,6 +238,12 @@ export class TradersLinkAiReadSettingsPersistence {
         existing?.reasoningEffort ??
         DEFAULT_TRADERSLINK_AI_READ_REASONING_EFFORT,
       generationEnabled: rawValues.generationEnabled ?? true,
+      automaticUpdatesEnabled:
+        (typeof input === "object" ? input.automaticUpdatesEnabled : undefined) ??
+        existing?.automaticUpdatesEnabled ?? false,
+      reviewBeforePublishingEnabled:
+        (typeof input === "object" ? input.reviewBeforePublishingEnabled : undefined) ??
+        existing?.reviewBeforePublishingEnabled ?? true,
       premarketGenerationEnabled: rawValues.premarketGenerationEnabled ?? true,
       regularGenerationEnabled: rawValues.regularGenerationEnabled ?? true,
       postmarketGenerationEnabled: rawValues.postmarketGenerationEnabled ?? true,
