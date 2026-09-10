@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { ANALYSIS_REVIEW_PATHS, dispatchAnalysisReviewRequest } from "./manual-watchlist-analysis-review-api.js";
 
 import { spawn } from "node:child_process";
 import { timingSafeEqual } from "node:crypto";
@@ -1118,6 +1119,28 @@ async function main(): Promise<void> {
 
     if (isRailwayRuntime && !requestHasRuntimeAccess(request, runtimeAccessToken!)) {
       sendJson(response, 401, { error: "Runtime access token required." });
+      return;
+    }
+
+    if (ANALYSIS_REVIEW_PATHS.has(url.pathname)) {
+      // Reviews and private originals require the authenticated owner proxy,
+      // including when this runtime is started outside Railway.
+      if (!runtimeAccessToken || !requestHasRuntimeAccess(request, runtimeAccessToken)) {
+        sendJson(response, 401, { error: "Runtime access token required." });
+        return;
+      }
+      response.setHeader("Cache-Control", "private, no-store, max-age=0");
+      const actorHeader = request.headers["x-traderslink-review-actor"];
+      try {
+        const result = await dispatchAnalysisReviewRequest({
+          method: request.method ?? "", pathname: url.pathname, searchParams: url.searchParams,
+          body: request.method === "POST" ? await readJsonBody(request) : undefined,
+          actor: typeof actorHeader === "string" ? actorHeader : undefined,
+        }, manager);
+        sendJson(response, result.status, result.body);
+      } catch {
+        sendJson(response, 400, { error: "Invalid review request body." });
+      }
       return;
     }
 
