@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { TradersLinkAiReadReviewStore } from "../lib/ai/traderslink-ai-read-review-store.js";
 import test from "node:test";
 
 import type { DiscordThreadRoutingResult } from "../lib/alerts/alert-types.js";
@@ -32,6 +36,54 @@ import type { TechnicalContext } from "../lib/technical-context/technical-contex
 function waitForAsyncWork(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
+
+test("private activation saves an AI draft without website publication or Discord thread creation", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "private-activation-"));
+  try {
+    const now = Date.parse("2026-07-23T15:00:00Z");
+    const watchlistStore = new WatchlistStore();
+    const reviewStore = new TradersLinkAiReadReviewStore(directory);
+    const discord = new FakeDiscordAlertRouter();
+    const publisher = new FakeLiveWatchlistPublisher();
+    let aiCalls = 0;
+    const manager = new ManualWatchlistRuntimeManager({
+      candleFetchService: {} as any, levelStore: new LevelStore(), monitor: new FakeMonitor() as any,
+      discordAlertRouter: discord as any, opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+      watchlistStore, watchlistStatePersistence: new FakeWatchlistStatePersistence() as any,
+      liveWatchlistPublisher: publisher, tradersLinkAiReadReviewStore: reviewStore, now: () => now,
+      tradersLinkAiReadService: {
+        getConfiguredModel: () => "test", getReasoningEffort: () => "medium",
+        generate: async ({ generationId }: any) => { aiCalls += 1; return { symbol: "PDSB", generationId, currentPrice: 0.5, generatedAt: now, model: "test" }; },
+      } as any,
+    });
+    const internal = manager as any;
+    internal.seedLevelsForSymbol = async () => undefined;
+    internal.restartMonitoringForPreparedActivation = async () => undefined;
+    internal.buildTradersLinkAiReadPriceActionContext = async () => ({
+      source: "test", fetchedAt: now, oneMinuteCandles: [{ timestamp: now, open: 0.5, high: 0.51, low: 0.49, close: 0.5, volume: 100 }],
+      intradayCandles: [], dailyCandles: [],
+    });
+    internal.buildLevelSnapshotPayload = () => ({ symbol: "PDSB", currentPrice: 0.5 });
+    internal.aiReadResearchBySymbol.set("PDSB", { ticker: "PDSB", count: 0, articles: [] });
+    const entry = await manager.activateSymbol({ symbol: "PDSB", source: "manual" });
+    assert.equal(entry.publicationReview?.required, true);
+    assert.equal(aiCalls, 1);
+    assert.equal(discord.ensured.length, 0);
+    assert.equal(discord.announcements.length, 0);
+    assert.equal(entry.pendingTradersLinkAiReadGeneration, undefined);
+    assert.equal(entry.tradersLinkAiReadBoundaryState, undefined);
+    assert.equal(reviewStore.read(entry.publicationReview!.cycleId)?.draft?.body.kind, "original");
+    assert.equal(manager.isWatchlistPublicationApproved({ symbol: "PDSB", cards: {} }), false);
+    assert.equal(publisher.cardPatches.length, 0);
+    await manager.activateSymbol({ symbol: "PDSB", source: "manual" });
+    assert.equal(aiCalls, 1);
+    await manager.refreshTradersLinkAiRead("PDSB");
+    assert.equal(aiCalls, 2);
+    assert.equal(reviewStore.read(entry.publicationReview!.cycleId)?.events.filter((event) => event.body.kind === "original").length, 2);
+    assert.equal(publisher.cardPatches.length, 0);
+    assert.equal(watchlistStore.getEntry("PDSB")?.pendingTradersLinkAiReadGeneration, undefined);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
 
 test("automatic AI Read refreshes are capped per ticker and reset on a new New York date", () => {
   const state = {

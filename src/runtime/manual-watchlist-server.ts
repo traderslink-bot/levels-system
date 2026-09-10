@@ -871,6 +871,7 @@ async function main(): Promise<void> {
       : null;
   const manager = new ManualWatchlistRuntimeManager({
     tradersLinkAiReadReviewStore: new TradersLinkAiReadReviewStore(join(durableDataDirectory, "ai-read-owner-reviews")),
+    initialReviewBeforePublishingEnabled: persistedTradersLinkAiReadSettings?.reviewBeforePublishingEnabled ?? true,
     candleFetchService: candleService,
     startupCachedCandleFetchService,
     levelStore,

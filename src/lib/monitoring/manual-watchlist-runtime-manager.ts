@@ -1,7 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { randomUUID } from "node:crypto";
 import type { TradersLinkAiReadReviewStore } from "../ai/traderslink-ai-read-review-store.js";
-import { isWatchlistPatchApproved } from "../ai/traderslink-ai-read-review-policy.js";
+import { isWatchlistPatchApproved, requiresInitialWatchlistReview } from "../ai/traderslink-ai-read-review-policy.js";
+import { resolveTradersLinkAiReadReferenceQuote } from "../ai/traderslink-ai-read-price-action.js";
 
 import { CandleFetchService, type HistoricalFetchRequest } from "../market-data/candle-fetch-service.js";
 import type { MoomooAiReadCandleLoader } from "../market-data/platform-moomoo-ai-read-candle-loader.js";
@@ -257,6 +259,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   liveWatchlistPublisher?: LiveWatchlistPublisher | null;
   tradersLinkAiReadService?: TradersLinkAiReadService | null;
   tradersLinkAiReadReviewStore?: TradersLinkAiReadReviewStore;
+  initialReviewBeforePublishingEnabled?: boolean;
   tradersLinkAiReadCostLedger?: TradersLinkAiReadCostLedger | null;
   tradersLinkAiReadRunLedger?: TradersLinkAiReadRunLedger | null;
   initialTradersLinkAiReadDailyCostBudget?: {
@@ -3100,6 +3103,7 @@ export class ManualWatchlistRuntimeManager {
     postmarketEnabled: true,
     topRegularActivationEnabled: true,
   };
+  private reviewBeforePublishingEnabled = true;
   private tradersLinkAiReadBoundaryRefreshSettings: TradersLinkAiReadBoundaryRefreshSettings = {
     enabled: true,
     maxPerTickerPerNewYorkDate: MAX_AUTOMATIC_AI_READS_PER_SYMBOL_PER_NEW_YORK_DATE,
@@ -3206,6 +3210,7 @@ export class ManualWatchlistRuntimeManager {
   private isStarted = false;
 
   constructor(private readonly options: ManualWatchlistRuntimeManagerOptions) {
+    this.reviewBeforePublishingEnabled = options.initialReviewBeforePublishingEnabled ?? Boolean(options.tradersLinkAiReadReviewStore);
     const haltService = new NasdaqTradingHaltService();
     this.tradingHaltLookup = options.tradingHaltLookup ?? haltService.lookup.bind(haltService);
     this.liveTraderReadCardVisible =
@@ -3558,6 +3563,11 @@ export class ManualWatchlistRuntimeManager {
     }
     const symbol = context.symbol ? normalizeSymbol(context.symbol) : "";
     const entry = symbol ? this.watchlistStore.getEntry(symbol) : undefined;
+    if (entry?.publicationReview?.required && context.requestedTrigger &&
+      context.requestedTrigger !== "manual" && context.requestedTrigger !== "activation" &&
+      !this.isWatchlistPublicationApproved({ symbol, cards: {} })) {
+      return { allowed: false, session, reason: "Ticker is awaiting owner review.", topRegularActivationOverrideApplied: false };
+    }
     if (
       context.requestedTrigger &&
       context.requestedTrigger !== "manual" &&
@@ -3965,6 +3975,7 @@ export class ManualWatchlistRuntimeManager {
     symbolInput: string,
     force: boolean,
     requestedTrigger: TradersLinkAiReadRequestedTrigger,
+    preparedPriceAction?: TradersLinkAiReadPriceActionContext,
   ): Promise<TradersLinkAiReadPayload | null> {
     const symbol = normalizeSymbol(symbolInput);
     const runId = `${symbol}-run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -3982,7 +3993,7 @@ export class ManualWatchlistRuntimeManager {
         : {}),
     });
     try {
-      return await this.generateTradersLinkAiReadInternal(symbol, force, requestedTrigger, runId);
+      return await this.generateTradersLinkAiReadInternal(symbol, force, requestedTrigger, runId, preparedPriceAction);
     } catch (error) {
       this.recordTradersLinkAiReadRunOutcome({
         symbol,
@@ -4001,6 +4012,7 @@ export class ManualWatchlistRuntimeManager {
     force: boolean,
     requestedTrigger: TradersLinkAiReadRequestedTrigger,
     runId: string,
+    preparedPriceAction?: TradersLinkAiReadPriceActionContext,
   ): Promise<TradersLinkAiReadPayload | null> {
     const generationAvailability = this.getTradersLinkAiReadGenerationAvailability(
       this.options.now?.() ?? Date.now(),
@@ -4023,7 +4035,7 @@ export class ManualWatchlistRuntimeManager {
     const service = this.options.tradersLinkAiReadService;
     const publisher = this.liveWatchlistPublisher;
     const entry = this.watchlistStore.getEntry(symbol);
-    if (!service || !publisher || !entry?.active || entry.tradersLinkAiReadCardVisible === false) {
+    if (!service || !publisher || !entry?.active || (entry.tradersLinkAiReadCardVisible === false && !entry.publicationReview?.required)) {
       this.recordTradersLinkAiReadRunOutcome({
         symbol,
         trigger: requestedTrigger,
@@ -4215,7 +4227,7 @@ export class ManualWatchlistRuntimeManager {
     });
     this.aiReadInFlight.add(symbol);
     try {
-      const priceActionPromise = this.buildTradersLinkAiReadPriceActionContext(symbol, dataAsOf);
+      const priceActionPromise = preparedPriceAction ? Promise.resolve(preparedPriceAction) : this.buildTradersLinkAiReadPriceActionContext(symbol, dataAsOf);
       let research = this.aiReadResearchBySymbol.get(symbol);
       if (!research) {
         try {
@@ -4357,6 +4369,24 @@ export class ManualWatchlistRuntimeManager {
         });
       }
       const latestEntry = this.watchlistStore.getEntry(symbol);
+      if (entry.publicationReview?.required) {
+        const reviewStore = this.options.tradersLinkAiReadReviewStore;
+        const cycle = reviewStore?.read(entry.publicationReview.cycleId);
+        if (!reviewStore || !cycle) throw new Error("Owner review storage is unavailable.");
+        reviewStore.saveDraft({
+          cycleId: cycle.cycleId, expectedHead: cycle.head, actor: "runtime:generator",
+          generationId: read.generationId, payload: read as unknown as Record<string, unknown>,
+        });
+        if (latestEntry?.publicationReview?.cycleId === cycle.cycleId && latestEntry.active) {
+          this.watchlistStore.patchEntry(symbol, { tradersLinkAiReadFailure: null, operationStatus: "analysis awaiting owner review" });
+          this.persistWatchlist();
+        }
+        this.recordTradersLinkAiReadRunOutcome({
+          symbol, trigger: requestedTrigger, stage: "validation", outcome: "success", runId,
+          generationId: read.generationId, dataAsOf, reason: "Analysis saved privately for owner review.",
+        });
+        return read;
+      }
       if (!latestEntry?.active || latestEntry.tradersLinkAiReadCardVisible === false) {
         this.recordTradersLinkAiReadRunOutcome({
           symbol,
@@ -10980,6 +11010,11 @@ export class ManualWatchlistRuntimeManager {
       }
     }
     for (const entry of activeEntries) {
+      if (entry.publicationReview?.required && !this.isWatchlistPublicationApproved({ symbol: entry.symbol, cards: {} })) {
+        this.aiReadInitialGenerationSuppressedSymbols.add(entry.symbol);
+        this.watchlistStore.patchEntry(entry.symbol, { operationStatus: "private analysis awaiting owner review" });
+        continue;
+      }
       const thread = await this.options.discordAlertRouter.ensureThread(
         entry.symbol,
         entry.discordThreadId,
@@ -11021,6 +11056,12 @@ export class ManualWatchlistRuntimeManager {
 
     for (const entry of this.watchlistStore.getActiveEntries()) {
       if (entry.lifecycle === "activation_failed") {
+        continue;
+      }
+
+      if (entry.publicationReview?.required && !this.isWatchlistPublicationApproved({ symbol: entry.symbol, cards: {} })) {
+        try { await this.seedLevelsForSymbol(entry.symbol); }
+        catch (error) { this.recordTradersLinkAiReadFailure(entry.symbol, "preparation", "startup", error); }
         continue;
       }
 
@@ -11116,6 +11157,7 @@ export class ManualWatchlistRuntimeManager {
     this.startHaltConfirmationPolling();
     if (this.isTradersLinkAiReadConfigured() && this.liveWatchlistPublisher) {
       for (const entry of this.watchlistStore.getActiveEntries()) {
+        if (entry.publicationReview?.required && !this.isWatchlistPublicationApproved({ symbol: entry.symbol, cards: {} })) continue;
         await this.liveWatchlistPublisher.publish(
           buildTradersLinkAiReadVisibilityPatch({
             symbol: entry.symbol,
@@ -12856,7 +12898,73 @@ export class ManualWatchlistRuntimeManager {
   }
 
   async activateSymbol(input: ManualWatchlistActivationInput): Promise<WatchlistEntry> {
+    if (this.shouldPreparePrivateActivation(input)) return this.preparePrivateActivation(input);
     return this.performActivation(input, this.watchlistStore.getEntries());
+  }
+
+  private shouldPreparePrivateActivation(input: ManualWatchlistActivationInput): boolean {
+    if (this.watchlistStore.getEntry(normalizeSymbol(input.symbol))?.active) return false;
+    const settings = this.tradersLinkAiReadGenerationSettings;
+    return requiresInitialWatchlistReview({
+      reviewEnabled: this.reviewBeforePublishingEnabled, generationEnabled: settings.enabled,
+      session: classifyUsEquityMarketSession(this.options.now?.() ?? Date.now()).session,
+      premarketEnabled: settings.premarketEnabled, regularEnabled: settings.regularEnabled,
+      postmarketEnabled: settings.postmarketEnabled,
+    });
+  }
+
+  private async preparePrivateActivation(input: ManualWatchlistActivationInput): Promise<WatchlistEntry> {
+    const symbol = normalizeSymbol(input.symbol);
+    const reviewStore = this.options.tradersLinkAiReadReviewStore;
+    if (!reviewStore) throw new Error("Owner review storage is unavailable.");
+    const now = this.options.now?.() ?? Date.now();
+    const existing = this.watchlistStore.getEntry(symbol);
+    if (input.source === "auto" && getManualWatchlistAutoReadmissionBlockedUntil(existing, now) !== null) {
+      throw new Error(`${symbol} is still in its manual-deactivation cooldown.`);
+    }
+    const cycleId = randomUUID();
+    reviewStore.begin(cycleId, symbol, true, "runtime:activation");
+    this.watchlistStore.upsertManualEntry({
+      symbol, tags: watchlistTagsForActivation(input), watchlistGroup: watchlistGroupForActivation(input),
+      note: input.note, active: true, lifecycle: "active", activatedAt: now, discordThreadId: null,
+      lastError: null,
+      publicationReview: { cycleId, required: true }, refreshPending: false,
+      pendingTradersLinkAiReadGeneration: null, operationStatus: "preparing private analysis",
+    });
+    this.watchlistStore.patchEntry(symbol, { tradersLinkAiReadBoundaryState: undefined, tradersLinkAiReadFailure: null });
+    this.aiReadState.delete(symbol);
+    this.aiReadInitialGenerationSuppressedSymbols.delete(symbol);
+    this.persistWatchlist();
+    const assertCurrent = () => {
+      const current = this.watchlistStore.getEntry(symbol);
+      if (!current?.active || current.publicationReview?.cycleId !== cycleId) throw new ActivationCancelledError(symbol);
+      return current;
+    };
+    try {
+      await this.seedLevelsForSymbol(symbol);
+      await this.restartMonitoringForPreparedActivation(assertCurrent());
+      const priceAction = await this.buildTradersLinkAiReadPriceActionContext(symbol, now);
+      assertCurrent();
+      const reference = resolveTradersLinkAiReadReferenceQuote(priceAction, 0, now);
+      if (!(reference.price > 0)) throw new Error("No current price is available for private analysis.");
+      const current = assertCurrent();
+      if (!current.lastPriceUpdateAt || current.lastPriceUpdateAt <= reference.dataAsOf) {
+        this.watchlistStore.patchEntry(symbol, { lastPrice: reference.price, lastPriceUpdateAt: reference.dataAsOf });
+      }
+      this.persistWatchlist();
+      const read = await this.generateTradersLinkAiRead(symbol, true, "activation", priceAction);
+      assertCurrent();
+      if (!read) throw new Error("Analysis could not be prepared. Review settings and refresh manually.");
+    } catch (error) {
+      const current = this.watchlistStore.getEntry(symbol);
+      if (current?.publicationReview?.cycleId === cycleId && current.active) {
+        if (!current.tradersLinkAiReadFailure) this.recordTradersLinkAiReadFailure(symbol, "preparation", "activation", error);
+        this.watchlistStore.patchEntry(symbol, { operationStatus: "private analysis needs attention" });
+        this.persistWatchlist();
+      }
+      throw error;
+    }
+    return assertCurrent();
   }
 
   async queueActivation(input: ManualWatchlistActivationInput): Promise<WatchlistEntry> {
@@ -12864,6 +12972,7 @@ export class ManualWatchlistRuntimeManager {
     if (input.source === "auto" && input.watchlistGroup === "top_regular") {
       throw new Error("Top Regular Hour Watches is manual-only.");
     }
+    if (this.shouldPreparePrivateActivation(input)) return this.preparePrivateActivation(input);
     const existing = this.watchlistStore.getEntry(symbol);
     const pending = this.pendingActivations.get(symbol);
     const queuedAt = Date.now();
