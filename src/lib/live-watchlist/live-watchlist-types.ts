@@ -308,6 +308,7 @@ export type TradersLinkAiReadListingContext = {
 };
 
 export type TradersLinkAiReadPayload = {
+  ownerHiddenSections?: string[];
   version: 3;
   /** Immutable id assigned before the first provider attempt for this read. */
   generationId: string;

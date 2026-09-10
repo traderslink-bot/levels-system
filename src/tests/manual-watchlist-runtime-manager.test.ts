@@ -53,7 +53,12 @@ test("private activation saves an AI draft without website publication or Discor
       liveWatchlistPublisher: publisher, tradersLinkAiReadReviewStore: reviewStore, now: () => now,
       tradersLinkAiReadService: {
         getConfiguredModel: () => "test", getReasoningEffort: () => "medium",
-        generate: async ({ generationId }: any) => { aiCalls += 1; return { symbol: "PDSB", generationId, currentPrice: 0.5, generatedAt: now, model: "test" }; },
+        generate: async ({ generationId }: any) => { aiCalls += 1; return {
+          symbol: "PDSB", generationId, currentPrice: 0.5, generatedAt: now, model: "test", currentRead: "Original",
+          pullbackPlans: { shallow: null, deep: null },
+          needsToHold: { label: "Hold", price: 0.45, rationale: "Base" },
+          momentumFailure: { label: "Failure", price: 0.4, rationale: "Base failed" },
+        }; },
       } as any,
     });
     const internal = manager as any;
@@ -82,6 +87,15 @@ test("private activation saves an AI draft without website publication or Discor
     assert.equal(reviewStore.read(entry.publicationReview!.cycleId)?.events.filter((event) => event.body.kind === "original").length, 2);
     assert.equal(publisher.cardPatches.length, 0);
     assert.equal(watchlistStore.getEntry("PDSB")?.pendingTradersLinkAiReadGeneration, undefined);
+    const beforeEdit = manager.getTradersLinkAiReadReview("PDSB")!;
+    const edited = manager.saveTradersLinkAiReadOwnerEdit({ symbol: "PDSB", cycleId: beforeEdit.cycleId,
+      expectedHead: beforeEdit.head, patch: { currentRead: "Owner analysis" }, actor: "test-owner" });
+    assert.equal((edited.review?.draft?.body as any).payload.currentRead, "Owner analysis");
+    assert.equal(edited.review?.draft?.actor, "test-owner");
+    assert.equal(aiCalls, 2);
+    assert.equal(publisher.cardPatches.length, 0);
+    assert.throws(() => manager.saveTradersLinkAiReadOwnerEdit({ symbol: "PDSB", cycleId: beforeEdit.cycleId,
+      expectedHead: beforeEdit.head, patch: { currentRead: "Stale" }, actor: "test-owner" }), /Draft changed/);
     internal.seedLevelsForSymbol = async () => { watchlistStore.patchEntry("FTFT", { active: false }); };
     await assert.rejects(manager.activateSymbol({ symbol: "FTFT", source: "manual" }), /cancel/i);
     assert.equal(aiCalls, 2);

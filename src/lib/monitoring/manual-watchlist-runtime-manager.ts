@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
+import { applyOwnerAnalysisEdit } from "../ai/traderslink-ai-read-owner-edit.js";
 import type { TradersLinkAiReadReviewStore } from "../ai/traderslink-ai-read-review-store.js";
 import { isWatchlistPatchApproved, requiresInitialWatchlistReview } from "../ai/traderslink-ai-read-review-policy.js";
 import { resolveTradersLinkAiReadReferenceQuote } from "../ai/traderslink-ai-read-price-action.js";
@@ -4639,6 +4640,29 @@ export class ManualWatchlistRuntimeManager {
       throw new Error(generationAvailability.reason ?? "AI Read generation is disabled.");
     }
     return this.generateTradersLinkAiRead(symbol, true, "manual");
+  }
+
+  getTradersLinkAiReadReview(symbolInput: string) {
+    const entry = this.watchlistStore.getEntry(normalizeSymbol(symbolInput));
+    if (!entry?.publicationReview) return null;
+    const review = this.options.tradersLinkAiReadReviewStore?.read(entry.publicationReview.cycleId);
+    if (!review || review.symbol !== entry.symbol) throw new Error("Owner review storage is unavailable.");
+    return review;
+  }
+
+  saveTradersLinkAiReadOwnerEdit(input: { symbol: string; cycleId: string; expectedHead: number; patch: unknown; actor: string }) {
+    const symbol = normalizeSymbol(input.symbol);
+    const entry = this.watchlistStore.getEntry(symbol);
+    const store = this.options.tradersLinkAiReadReviewStore;
+    if (!entry?.active || entry.publicationReview?.cycleId !== input.cycleId || !store) throw new Error("Ticker review changed. Reload before saving.");
+    const review = this.getTradersLinkAiReadReview(symbol);
+    if (!review || review.cancelled || review.head !== input.expectedHead) throw new Error("Draft changed. Reload before saving.");
+    const draft = review.draft?.body;
+    if (draft?.kind !== "original" && draft?.kind !== "edit") throw new Error("No analysis draft is available to edit.");
+    const edited = applyOwnerAnalysisEdit(draft.payload as unknown as TradersLinkAiReadPayload, input.patch);
+    store.saveDraft({ cycleId: input.cycleId, expectedHead: input.expectedHead, actor: input.actor,
+      payload: edited.payload as unknown as Record<string, unknown> });
+    return { review: this.getTradersLinkAiReadReview(symbol), warnings: edited.warnings, changedPaths: edited.changedPaths };
   }
 
   /**
