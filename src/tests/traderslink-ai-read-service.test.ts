@@ -1147,7 +1147,6 @@ describe("OpenAITradersLinkAiReadService", () => {
     );
     assert.deepEqual(attempts, [
       { attemptType: "primary", status: "invalid_output" },
-      { attemptType: "correction", status: "invalid_output" },
     ]);
   });
 
@@ -1264,7 +1263,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     );
   });
 
-  it("automatically requests one corrected draft after tactical validation fails", async () => {
+  it("does not buy a corrected draft after tactical validation fails", async () => {
     const requestBodies: Record<string, unknown>[] = [];
     const invalidRead = modelRead();
     invalidRead.needsToHold = {
@@ -1304,7 +1303,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     });
 
     const attempts: Array<{ attemptType: string; status: string; totalTokens: number }> = [];
-    const read = await service.generate({
+    await assert.rejects(service.generate({
       snapshot: snapshot(),
       priceAction: priceAction(),
       research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
@@ -1313,22 +1312,12 @@ describe("OpenAITradersLinkAiReadService", () => {
         status: attempt.status,
         totalTokens: attempt.usage.totalTokens,
       }),
-    });
+    }), /cautionBelow must not be above needsToHold/);
 
-    assert.equal(requestBodies.length, 2);
+    assert.equal(requestBodies.length, 1);
     assert.deepEqual(requestBodies[0]!.tools, [{ type: "web_search" }]);
-    assert.equal(requestBodies[1]!.tools, undefined);
-    assert.equal(
-      (requestBodies[1]!.input as unknown[]).length,
-      3,
-    );
-    assert.equal(read.cautionBelow.price, 1.25);
-    assert.equal(read.usage.inputTokens, 300);
-    assert.equal(read.usage.outputTokens, 50);
-    assert.equal(read.usage.totalTokens, 350);
     assert.deepEqual(attempts, [
       { attemptType: "primary", status: "invalid_output", totalTokens: 120 },
-      { attemptType: "correction", status: "success", totalTokens: 230 },
     ]);
   });
 
@@ -1352,14 +1341,13 @@ describe("OpenAITradersLinkAiReadService", () => {
       },
     });
 
-    const read = await service.generate({
+    await assert.rejects(service.generate({
       snapshot: snapshot(),
       priceAction: priceAction(),
       research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
-    });
+    }), /operational volume availability/);
 
-    assert.equal(requestNumber, 2);
-    assert.doesNotMatch(read.currentRead, /no premarket volume/i);
+    assert.equal(requestNumber, 1);
   });
 
   it("grounds a candle-matched checkpoint deterministically instead of buying a correction", async () => {
@@ -1500,7 +1488,50 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.deepEqual(read.downsideCheckpoints.map((checkpoint) => checkpoint.price), [1.05]);
   });
 
-  it("records an unavailable primary model and successful fallback as separate attempts", async () => {
+  it("captures the exact request and full response without transport credentials", async () => {
+    const events: Array<{ phase: string; payload: unknown }> = [];
+    let sentBody = "";
+    const responseBody = JSON.stringify({ output: [{ type: "message",
+      content: [{ type: "output_text", text: JSON.stringify(modelRead()) }] }] });
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "private-test-credential",
+      model: "test-model",
+      auditStore: { save: (event) => { events.push(event); return { saved: true }; } },
+      fetchImpl: async (_url, init) => {
+        sentBody = String(init?.body);
+        return new Response(responseBody, { status: 200 });
+      },
+    });
+    await service.generate({ snapshot: snapshot(), priceAction: priceAction(),
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
+    assert.deepEqual(events.map((event) => event.phase), ["request", "response", "validation", "prepared_payload"]);
+    assert.deepEqual((events[0]!.payload as { body: unknown }).body, JSON.parse(sentBody));
+    assert.equal((events[1]!.payload as { body: string }).body, responseBody);
+    assert.doesNotMatch(JSON.stringify(events), /private-test-credential|Authorization/);
+  });
+
+  it("audit storage failure cannot trigger another provider request", async () => {
+    let requests = 0;
+    const captures: Array<{ saved: boolean }> = [];
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key", model: "test-model",
+      auditStore: { save: () => { throw new Error("disk failed"); } },
+      fetchImpl: async () => {
+        requests += 1;
+        return new Response(JSON.stringify({ output: [{ type: "message",
+          content: [{ type: "output_text", text: JSON.stringify(modelRead()) }] }] }), { status: 200 });
+      },
+    });
+    const read = await service.generate({ snapshot: snapshot(), priceAction: priceAction(),
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+      onAuditCapture: (result) => captures.push(result) });
+    assert.equal(read.symbol, "TGHL");
+    assert.equal(requests, 1);
+    assert.equal(captures.length, 4);
+    assert.ok(captures.every((result) => !result.saved));
+  });
+
+  it("records model-access failure without making a fallback request", async () => {
     const requestedModels: string[] = [];
     const service = new OpenAITradersLinkAiReadService({
       apiKey: "test-key",
@@ -1531,7 +1562,7 @@ describe("OpenAITradersLinkAiReadService", () => {
       model: string;
       totalTokens: number;
     }> = [];
-    const generated = await service.generate({
+    await assert.rejects(service.generate({
       snapshot: snapshot(),
       priceAction: priceAction(),
       research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
@@ -1541,22 +1572,15 @@ describe("OpenAITradersLinkAiReadService", () => {
         model: attempt.model,
         totalTokens: attempt.usage.totalTokens,
       }),
-    });
+    }), /not found or is not accessible/);
 
-    assert.deepEqual(requestedModels, ["unavailable-model", "test-fallback-model"]);
-    assert.equal(generated.model, "test-fallback-model");
+    assert.deepEqual(requestedModels, ["unavailable-model"]);
     assert.deepEqual(attempts, [
       {
         attemptType: "primary",
         status: "transport_error",
         model: "unavailable-model",
         totalTokens: 0,
-      },
-      {
-        attemptType: "fallback",
-        status: "success",
-        model: "test-fallback-model",
-        totalTokens: 230,
       },
     ]);
   });

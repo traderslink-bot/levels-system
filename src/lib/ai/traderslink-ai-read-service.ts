@@ -1,4 +1,7 @@
 import { createHash } from "node:crypto";
+import { join } from "node:path";
+import { TradersLinkAiReadAuditStore, type AiReadAuditEvent, type AiReadAuditResult } from "./traderslink-ai-read-audit.js";
+import { resolveManualWatchlistDurableDirectory } from "../monitoring/manual-watchlist-durable-storage.js";
 import type { LevelSnapshotPayload } from "../alerts/alert-types.js";
 import type { RecentWebsiteArticleLookupResult } from "../live-watchlist/recent-website-articles.js";
 import {
@@ -122,6 +125,7 @@ export type TradersLinkAiReadGenerationInput = {
   dataAsOf?: number;
   generationId?: string;
   onAttempt?: (attempt: TradersLinkAiReadAttempt) => void;
+  onAuditCapture?: (result: AiReadAuditResult) => void;
 };
 
 export type TradersLinkAiReadAttempt = {
@@ -220,6 +224,7 @@ export type OpenAITradersLinkAiReadServiceOptions = {
   maxOutputTokens?: number;
   fetchImpl?: FetchLike;
   pricing?: Partial<ModelTokenPricing> & { webSearchPer1KCalls?: number };
+  auditStore?: Pick<TradersLinkAiReadAuditStore, "save">;
 };
 
 const LEVEL_SCHEMA = {
@@ -2198,6 +2203,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     input: TradersLinkAiReadGenerationInput,
     dataAsOf: number,
     clientRequestId: string,
+    capture: (phase: AiReadAuditEvent["phase"], payload: unknown) => void,
     correction?: {
       validationError: string;
       rejectedDraft: string | null;
@@ -2207,6 +2213,18 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     const startedAt = Date.now();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
+      const requestBody = buildRequestBody({
+        model,
+        reasoningEffort: this.reasoningEffort,
+        webSearchEnabled: this.webSearchEnabled && !correction,
+        maxOutputTokens: this.maxOutputTokens,
+        input,
+        dataAsOf,
+        correction,
+      });
+      capture("request", { body: requestBody, bodySha256: createHash("sha256").update(JSON.stringify(requestBody)).digest("hex"),
+        promptSha256: createHash("sha256").update(DEVELOPER_PROMPT).digest("hex"),
+        schemaSha256: createHash("sha256").update(JSON.stringify(AI_READ_SCHEMA)).digest("hex") });
       const response = await this.fetchImpl("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: {
@@ -2214,18 +2232,12 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
           Authorization: `Bearer ${this.options.apiKey}`,
           "X-Client-Request-Id": clientRequestId,
         },
-        body: JSON.stringify(buildRequestBody({
-          model,
-          reasoningEffort: this.reasoningEffort,
-          webSearchEnabled: this.webSearchEnabled && !correction,
-          maxOutputTokens: this.maxOutputTokens,
-          input,
-          dataAsOf,
-          correction,
-        })),
+        body: JSON.stringify(requestBody),
         signal: controller.signal,
       });
-      const payload = await response.json() as ResponsesApiResponse;
+      const responseText = await response.text();
+      capture("response", { status: response.status, body: responseText });
+      const payload = JSON.parse(responseText) as ResponsesApiResponse;
       if (!response.ok) {
         const error = new Error(payload.error?.message ?? response.statusText);
         (error as Error & { status?: number }).status = response.status;
@@ -2282,9 +2294,22 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     const symbol = normalizeSymbol(input.snapshot.symbol);
     const generationId = input.generationId?.trim() ||
       `${symbol}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const clientRequestId = `${generationId}-request-1`;
+    const capture = (phase: AiReadAuditEvent["phase"], payload: unknown): void => {
+      if (!this.options.auditStore) return;
+      let result: AiReadAuditResult;
+      try {
+        // Transport headers are never captured. Remove a configured credential
+        // even if a provider error happens to echo it in its response text.
+        const json = JSON.stringify(payload);
+        const sanitized = this.options.apiKey ? json.split(this.options.apiKey).join("[redacted]") : json;
+        result = this.options.auditStore.save({ generationId, requestId: clientRequestId,
+          symbol, phase, at: Date.now(), payload: JSON.parse(sanitized) });
+      } catch { result = { saved: false, reason: "storage_error" }; }
+      try { input.onAuditCapture?.(result); } catch { /* diagnostic observer cannot retry generation */ }
+      if (!result.saved) console.warn(`[TradersLinkAiRead] Audit capture unavailable: ${result.reason}`);
+    };
     let attemptSequence = 0;
-    let requestSequence = 0;
-    const nextClientRequestId = (): string => `${generationId}-request-${++requestSequence}`;
     const recordAttempt = (
       attemptType: TradersLinkAiReadAttempt["attemptType"],
       status: TradersLinkAiReadAttempt["status"],
@@ -2333,17 +2358,14 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         "TradersLink AI Read generation stopped because recent full-session price action was unavailable.",
       );
     }
-    let model = this.model;
+    const model = this.model;
     let response: ResponsesApiResponse;
     try {
-      response = await this.request(model, input, dataAsOf, nextClientRequestId());
+      response = await this.request(model, input, dataAsOf, clientRequestId, capture);
     } catch (error) {
-      const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-      const status = (error as Error & { status?: number })?.status;
-      const canFallback =
-        this.fallbackModel !== this.model &&
-        (status === 400 || status === 404) &&
-        (message.includes("model") || message.includes("not found") || message.includes("access"));
+      capture("transport_error", { message: error instanceof Error ? error.message : String(error) });
+      // One generation is one provider request. Preserve the configured model
+      // choices, but never start an unrequested paid fallback for this draft.
       recordAttempt(
         "primary",
         "transport_error",
@@ -2352,27 +2374,10 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         error,
         { failureStage: "transport" },
       );
-      if (!canFallback) {
-        throw error;
-      }
-      model = this.fallbackModel;
-      try {
-        response = await this.request(model, input, dataAsOf, nextClientRequestId());
-      } catch (fallbackError) {
-        recordAttempt(
-          "fallback",
-          "transport_error",
-          model,
-          (fallbackError as Error & { responsePayload?: ResponsesApiResponse }).responsePayload ?? null,
-          fallbackError,
-          { failureStage: "transport" },
-        );
-        throw fallbackError;
-      }
+      throw error;
     }
 
-    const initialAttemptType: TradersLinkAiReadAttempt["attemptType"] =
-      model === this.model ? "primary" : "fallback";
+    const initialAttemptType: TradersLinkAiReadAttempt["attemptType"] = "primary";
 
     const responses = [response];
     let text = extractResponseText(response);
@@ -2428,60 +2433,19 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         input.snapshot.currentPrice,
         referenceQuote.price,
       );
+      capture("validation", { valid: true, normalized: read });
       recordAttempt(initialAttemptType, "success", model, response);
     } catch (error) {
       validationError = error instanceof Error ? error : new Error(String(error));
+      capture("validation", { valid: false, error: validationError.message });
       recordAttempt(initialAttemptType, "invalid_output", model, response, validationError, {
         failureStage: failureStageFor(validationError, text),
         rejectedDraft: text,
       });
     }
 
-    if (!read && validationError) {
-      try {
-        response = await this.request(model, input, dataAsOf, nextClientRequestId(), {
-          validationError: validationError.message,
-          rejectedDraft: text,
-        });
-      } catch (correctionError) {
-        recordAttempt(
-          "correction",
-          "transport_error",
-          model,
-          (correctionError as Error & { responsePayload?: ResponsesApiResponse }).responsePayload ?? null,
-          correctionError,
-          { failureStage: "transport" },
-        );
-        throw correctionError;
-      }
-      responses.push(response);
-      text = extractResponseText(response);
-      availableSources = dedupeSources([
-        ...availableSources,
-        ...extractWebSources(response, new Date().toISOString()),
-      ]);
-      try {
-        read = applyQuoteDisagreementGuard(
-          parseAndValidate(text, availableSources),
-          input.snapshot.currentPrice,
-          referenceQuote.price,
-        );
-        recordAttempt("correction", "success", model, response);
-      } catch (correctionValidationError) {
-        recordAttempt(
-          "correction",
-          "invalid_output",
-          model,
-          response,
-          correctionValidationError,
-          {
-            failureStage: failureStageFor(correctionValidationError, text),
-            rejectedDraft: text,
-          },
-        );
-        throw correctionValidationError;
-      }
-    }
+    // Optional-section recovery is local validation work, never a second paid
+    // generation. A failed core remains available to the owner's manual flow.
 
     if (!read) {
       throw validationError ?? new Error("OpenAI returned no valid TradersLink AI Read.");
@@ -2510,7 +2474,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       },
     };
     const usage = buildUsage(combinedUsageResponse, model, this.options.pricing);
-    return {
+    const result: TradersLinkAiReadPayload = {
       version: 3,
       generationId,
       symbol,
@@ -2525,6 +2489,8 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       usedWebSearch: usage.webSearchCallCount > 0,
       usage,
     };
+    capture("prepared_payload", result);
+    return result;
   }
 }
 
@@ -2546,6 +2512,7 @@ export function createTradersLinkAiReadServiceFromEnv(
       : "medium";
   return new OpenAITradersLinkAiReadService({
     apiKey,
+    auditStore: new TradersLinkAiReadAuditStore({ directory: join(resolveManualWatchlistDurableDirectory(env), "ai-read-diagnostics") }),
     model: env.TRADERSLINK_AI_READ_MODEL?.trim() || DEFAULT_MODEL,
     fallbackModel: env.TRADERSLINK_AI_READ_FALLBACK_MODEL?.trim() || DEFAULT_FALLBACK_MODEL,
     reasoningEffort,
