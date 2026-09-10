@@ -22,6 +22,19 @@ test("overlapping valid branches omit shallow without changing the deep setup", 
   assert.equal(validatePullbackPair(shallow, deep, 4, 1).value, null);
 });
 
+test("conflicting branches retain the stronger matching candidate rather than always deep", () => {
+  const ranked = context.candidates;
+  const result = validatePullbackPair(shallow, deep, 4, 1, ranked);
+  assert.equal(result.value, shallow);
+  assert.equal(result.deepValue, null);
+  assert.deepEqual(result.changedPaths, ["pullbackPlans.deep"]);
+  const reversed = validatePullbackPair(shallow, deep, 4, 1, [...ranked].reverse());
+  assert.equal(reversed.value, null);
+  assert.equal(reversed.deepValue, deep);
+  const padded = validatePullbackPair(shallow, { ...deep, evidenceIds: ["shallow-base", "deep-base"] }, 4, 1, ranked);
+  assert.equal(padded.value, shallow, "an unrelated high-ranked citation must not boost the deep branch");
+});
+
 test("invalid shallow does not remove or relabel an independently valid deep zone", () => {
   const result = validatePullbackSection("shallow", { ...shallow, zoneHigh: 4.1 }, context);
   assert.equal(result.value, null);

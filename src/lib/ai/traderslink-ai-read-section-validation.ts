@@ -97,14 +97,24 @@ export function validatePullbackPair(
   deep: TradersLinkAiReadPullbackScenario | null,
   referencePrice: number,
   meanCandleRange: number,
-): SectionValidationResult<TradersLinkAiReadPullbackScenario> {
+  rankedCandidates: ScenarioValidationContext["candidates"] = [],
+): SectionValidationResult<TradersLinkAiReadPullbackScenario> & { deepValue: TradersLinkAiReadPullbackScenario | null } {
   const separation = Math.max(referencePrice * 0.005, 0.0001, meanCandleRange * 0.25);
   if (shallow && deep && shallow.zoneLow - deep.zoneHigh < separation) {
-    // Both branches must already have passed independent validation. Retain
-    // the deeper setup rather than inventing separation or rejecting the card.
-    return { value: null, issues: [{ path: "pullbackPlans.shallow", code: "zone_overlap", action: "omit_section" }], changedPaths: ["pullbackPlans.shallow"] };
+    // The packet orders candidates by measured structural support. Only a
+    // cited candidate matching the actual zone can give that branch its rank.
+    const tolerance = Math.max(referencePrice * 0.005, 0.0001);
+    const rank = (scenario: TradersLinkAiReadPullbackScenario) => {
+      const index = rankedCandidates.findIndex(candidate => scenario.evidenceIds.includes(candidate.id) &&
+        Math.abs(candidate.zoneLow - scenario.zoneLow) <= tolerance && Math.abs(candidate.zoneHigh - scenario.zoneHigh) <= tolerance);
+      return index < 0 ? Number.POSITIVE_INFINITY : index;
+    };
+    const retainShallow = rank(shallow) < rank(deep);
+    const path = retainShallow ? "pullbackPlans.deep" : "pullbackPlans.shallow";
+    return { value: retainShallow ? shallow : null, deepValue: retainShallow ? null : deep,
+      issues: [{ path, code: "zone_overlap", action: "omit_section" }], changedPaths: [path] };
   }
-  return { value: shallow, issues: [], changedPaths: [] };
+  return { value: shallow, deepValue: deep, issues: [], changedPaths: [] };
 }
 
 export function validateRecoverySection(

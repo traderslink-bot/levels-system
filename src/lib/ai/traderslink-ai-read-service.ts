@@ -2421,8 +2421,8 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       const recentPullbackBars = input.priceAction.intradayCandles.slice(-24);
       const meanPullbackRange = recentPullbackBars.length
         ? recentPullbackBars.reduce((sum, candle) => sum + Math.max(0, candle.high - candle.low), 0) / recentPullbackBars.length : 0;
-      const pair = validatePullbackPair(shallow.value, deep.value, referenceQuote.price, meanPullbackRange);
-      normalized.pullbackPlans = { shallow: pair.value, deep: deep.value };
+      const pair = validatePullbackPair(shallow.value, deep.value, referenceQuote.price, meanPullbackRange, sectionContext.candidates);
+      normalized.pullbackPlans = { shallow: pair.value, deep: pair.deepValue };
       normalized.failureRecovery = recovery.value;
       const sectionIssues = [...shallow.issues, ...deep.issues, ...pair.issues, ...recovery.issues];
       if (sectionIssues.length) {
