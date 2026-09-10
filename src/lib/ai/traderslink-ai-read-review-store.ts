@@ -142,6 +142,19 @@ export class TradersLinkAiReadReviewStore {
     return this.append(cycleId, expectedHead, "delivery", { kind: "delivery", approvalRevision, channel, status, deliveryId });
   }
 
+  claimDelivery(cycleId: string, expectedHead: number, approvalRevision: number, channel: "website" | "discord"):
+    { shouldSend: boolean; deliveryKey: string; event: ReviewEvent; reason: "claimed" | "acknowledged" | "uncertain" } {
+    const state = this.read(cycleId);
+    if (!state || state.cancelled || state.approved?.revision !== approvalRevision) throw new Error("Publication approval changed.");
+    const deliveryKey = digest(`${cycleId}:${approvalRevision}:${channel}`);
+    const prior = state.events.findLast((event) => event.body.kind === "delivery" && event.body.approvalRevision === approvalRevision && event.body.channel === channel);
+    if (prior?.body.kind === "delivery" && prior.body.status !== "failed") {
+      return { shouldSend: false, deliveryKey, event: prior, reason: prior.body.status === "acknowledged" ? "acknowledged" : "uncertain" };
+    }
+    const event = this.append(cycleId, expectedHead, "delivery", { kind: "delivery", approvalRevision, channel, status: "started", deliveryId: deliveryKey });
+    return { shouldSend: true, deliveryKey, event, reason: "claimed" };
+  }
+
   cancel(cycleId: string, expectedHead: number, actor: string): ReviewEvent {
     return this.append(cycleId, expectedHead, actor, { kind: "cancel" });
   }

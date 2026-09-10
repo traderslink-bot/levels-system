@@ -93,3 +93,24 @@ test("rejects mismatched ticker and non-finite owner values without changing his
   assert.throws(() => store.saveDraft({ cycleId: "cycle", expectedHead: 1, actor: "generator", generationId: "g", payload: { ...payload, price: Infinity } }), /Non-finite/);
   assert.equal(store.read("cycle")?.head, 1);
 });
+
+test("durable delivery claims do not resend uncertain or acknowledged attempts after restart", () => {
+  const { store, directory } = setup();
+  store.begin("cycle", "PDSB", true, "owner");
+  store.saveDraft({ cycleId: "cycle", expectedHead: 1, actor: "generator", generationId: "g", payload });
+  store.approve("cycle", 2, 2, "owner");
+  const first = store.claimDelivery("cycle", 3, 3, "website");
+  assert.equal(first.shouldSend, true);
+  const restored = new TradersLinkAiReadReviewStore(directory);
+  const uncertain = restored.claimDelivery("cycle", 3, 3, "website");
+  assert.equal(uncertain.shouldSend, false);
+  assert.equal(uncertain.reason, "uncertain");
+  assert.equal(uncertain.deliveryKey, first.deliveryKey);
+  restored.recordDelivery("cycle", 4, 3, "website", "acknowledged", "receipt");
+  assert.equal(restored.claimDelivery("cycle", 3, 3, "website").reason, "acknowledged");
+  const discord = restored.claimDelivery("cycle", 5, 3, "discord");
+  assert.equal(discord.shouldSend, true);
+  assert.notEqual(discord.deliveryKey, first.deliveryKey);
+  restored.recordDelivery("cycle", 6, 3, "discord", "failed", null);
+  assert.equal(restored.claimDelivery("cycle", 7, 3, "discord").deliveryKey, discord.deliveryKey);
+});
