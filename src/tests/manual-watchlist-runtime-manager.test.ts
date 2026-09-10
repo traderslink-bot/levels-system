@@ -85,6 +85,11 @@ test("private activation saves an AI draft without website publication or Discor
     internal.aiReadResearchBySymbol.set("PDSB", { ticker: "PDSB", count: 0, articles: [] });
     const entry = await manager.activateSymbol({ symbol: "PDSB", source: "manual" });
     assert.equal(entry.publicationReview?.required, true);
+    assert.deepEqual(manager.getTradersLinkAiReadReviewControls(), { automaticUpdatesEnabled: false, reviewBeforePublishingEnabled: true });
+    manager.setTradersLinkAiReadReviewBeforePublishing(false);
+    assert.equal(watchlistStore.getEntry("PDSB")?.publicationReview?.required, true);
+    assert.equal(manager.isWatchlistPublicationApproved({ symbol: "PDSB", cards: {} }), false);
+    manager.setTradersLinkAiReadReviewBeforePublishing(true);
     assert.equal(aiCalls, 1);
     assert.equal(discord.ensured.length, 0);
     assert.equal(discord.announcements.length, 0);

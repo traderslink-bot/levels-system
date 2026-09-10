@@ -2,6 +2,14 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
 <style>#analysis-review-panel [hidden] { display: none !important; } #analysis-review-panel details { margin: 12px 0; } #analysis-review-panel summary { cursor: pointer; font-weight: 700; margin-bottom: 10px; } #analysis-review-panel fieldset { min-width: 0; margin: 8px 0; } #analysis-review-actions { flex-wrap: wrap; }</style>
 <div class="ai-read-console" id="analysis-review-panel">
   <h3>Analysis Review</h3>
+  <div class="provider-control">
+    <label><input type="checkbox" id="analysis-review-automatic" style="width:auto" disabled /> Automatic AI updates</label>
+    <p>When off, automatic follow-up AI requests stop. Manual refresh and live price/data updates remain available.</p>
+    <label><input type="checkbox" id="analysis-review-required" style="width:auto" disabled /> Review before publishing</label>
+    <p>When on, new tickers wait for your approval when AI generation and the current session are enabled. Existing drafts stay held until approved.</p>
+    <button type="button" id="analysis-review-settings-save" disabled>Save review controls</button>
+    <button type="button" id="analysis-review-settings-load" class="secondary">Reload review controls</button>
+  </div>
   <div class="inline-control">
     <label for="analysis-review-symbol">Ticker</label>
     <input id="analysis-review-symbol" maxlength="20" autocomplete="off" />
@@ -28,7 +36,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   const levelFields = ["label", "price", "rationale"];
   const pullbackFields = ["zoneLow", "zoneHigh", "confirmationPrice", "confirmation", "invalidationPrice", "firstObjectivePrice", "rationale"];
   const recoveryFields = ["recoveryZoneLow", "recoveryZoneHigh", "firstReclaimPrice", "setupRestorePrice", "firstObjectivePrice", "rationale"];
-  let review = null, patch = null, preview = null, dirty = false, busy = false;
+  let review = null, patch = null, preview = null, dirty = false, busy = false, controlsLoaded = false;
   const node = (tag, text, parent) => { const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (parent) parent.append(el); return el; };
   const message = (text) => { status.textContent = text; };
   const changed = () => { dirty = true; preview = null; previewContent.replaceChildren(); byId("approve").disabled = true; };
@@ -61,7 +69,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     const controls = Array.from(document.querySelectorAll("#analysis-review-panel button, #analysis-review-panel input, #analysis-review-panel textarea, #analysis-review-panel select"));
     controls.forEach((control) => { control.disabled = true; });
     try { await operation(); } catch (error) { message(error.message || "Review could not complete."); }
-    finally { busy = false; controls.forEach((control) => { control.disabled = false; }); byId("approve").disabled = !preview || dirty; }
+    finally { busy = false; controls.forEach((control) => { control.disabled = false; }); byId("approve").disabled = !preview || dirty; ["automatic", "required", "settings-save"].forEach((id) => { byId(id).disabled = !controlsLoaded; }); }
   }
   function input(parent, label, object, key, numeric) {
     const wrapper = node("label", label, parent);
@@ -151,6 +159,19 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     const result = await request("/retry-discord", { symbol: review.symbol, cycleId: review.cycleId, approvalRevision: review.approved.revision });
     review = result.review; message("Discord delivery confirmed.");
   });
+  const showSettings = (settings) => {
+    byId("automatic").checked = settings.automaticUpdatesEnabled;
+    byId("required").checked = settings.reviewBeforePublishingEnabled;
+    controlsLoaded = true;
+  };
+  const loadSettings = () => run(async () => { showSettings((await request("/settings")).settings); message("Review controls loaded."); });
+  byId("settings-load").onclick = loadSettings;
+  byId("settings-save").onclick = () => run(async () => {
+    if (!controlsLoaded) throw new Error("Load the saved controls first.");
+    const result = await request("/settings", { automaticUpdatesEnabled: byId("automatic").checked, reviewBeforePublishingEnabled: byId("required").checked });
+    showSettings(result.settings); message("Review controls saved. Session settings and existing pending drafts are unchanged.");
+  });
+  void loadSettings();
   window.addEventListener("beforeunload", (event) => { if (dirty) { event.preventDefault(); event.returnValue = ""; } });
 })();
 </script>`;

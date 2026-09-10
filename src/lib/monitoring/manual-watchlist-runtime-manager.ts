@@ -3472,6 +3472,16 @@ export class ManualWatchlistRuntimeManager {
     return { ...this.tradersLinkAiReadGenerationSettings };
   }
 
+  getTradersLinkAiReadReviewControls() {
+    return { automaticUpdatesEnabled: this.tradersLinkAiReadGenerationSettings.automaticUpdatesEnabled,
+      reviewBeforePublishingEnabled: this.reviewBeforePublishingEnabled };
+  }
+
+  setTradersLinkAiReadReviewBeforePublishing(enabled: boolean): void {
+    // Applies to future activations only. Existing review cycles remain frozen.
+    this.reviewBeforePublishingEnabled = enabled;
+  }
+
   setTradersLinkAiReadGenerationSettings(
     input: Omit<TradersLinkAiReadGenerationSettings, "automaticUpdatesEnabled"> &
       Partial<Pick<TradersLinkAiReadGenerationSettings, "automaticUpdatesEnabled">>,

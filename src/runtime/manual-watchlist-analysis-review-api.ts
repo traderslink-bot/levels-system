@@ -6,6 +6,7 @@ type ReviewManager = Pick<ManualWatchlistRuntimeManager,
   "publishApprovedTradersLinkAiReadToDiscord">;
 
 export const ANALYSIS_REVIEW_PATHS = new Set([
+  "/api/watchlist/analysis-review/settings",
   "/api/watchlist/analysis-review", "/api/watchlist/analysis-review/preview",
   "/api/watchlist/analysis-review/save", "/api/watchlist/analysis-review/approve",
   "/api/watchlist/analysis-review/retry-discord",
@@ -17,12 +18,24 @@ export const ANALYSIS_REVIEW_PATHS = new Set([
 export async function dispatchAnalysisReviewRequest(input: {
   method: string; pathname: string; searchParams: URLSearchParams;
   body?: unknown; actor: string | undefined;
-}, manager: ReviewManager): Promise<{ status: number; body: unknown }> {
+}, manager: ReviewManager, controls?: {
+  get(): { automaticUpdatesEnabled: boolean; reviewBeforePublishingEnabled: boolean };
+  save(input: { automaticUpdatesEnabled: boolean; reviewBeforePublishingEnabled: boolean }): unknown;
+}): Promise<{ status: number; body: unknown }> {
   if (!input.actor || !/^platform-owner:[A-Za-z0-9_-]{1,128}$/.test(input.actor)) return { status: 403, body: { error: "Owner review authorization is required." } };
   if (!ANALYSIS_REVIEW_PATHS.has(input.pathname)) return { status: 404, body: { error: "Not found." } };
-  const readOnly = input.pathname === "/api/watchlist/analysis-review" || input.pathname.endsWith("/preview");
+  const settingsRequest = input.pathname.endsWith("/settings");
+  const readOnly = input.pathname === "/api/watchlist/analysis-review" || input.pathname.endsWith("/preview") || (settingsRequest && input.method === "GET");
   if (input.method !== (readOnly ? "GET" : "POST")) return { status: 405, body: { error: "Method not allowed." } };
   try {
+    if (settingsRequest) {
+      if (!controls) throw new Error("Review controls unavailable.");
+      if (readOnly) return { status: 200, body: { settings: controls.get() } };
+      const settings = input.body as Record<string, unknown> | undefined;
+      if (!settings || Array.isArray(settings) || typeof settings.automaticUpdatesEnabled !== "boolean" || typeof settings.reviewBeforePublishingEnabled !== "boolean" ||
+        Object.keys(settings).some((key) => key !== "automaticUpdatesEnabled" && key !== "reviewBeforePublishingEnabled")) throw new Error("Invalid review request.");
+      return { status: 200, body: { settings: controls.save({ automaticUpdatesEnabled: settings.automaticUpdatesEnabled, reviewBeforePublishingEnabled: settings.reviewBeforePublishingEnabled }) } };
+    }
     const body = readOnly ? { symbol: input.searchParams.get("symbol") } : input.body;
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Invalid review request.");
     const fields = body as Record<string, unknown>;

@@ -54,3 +54,17 @@ test("conflicts are actionable but provider response details stay private", asyn
   manager.getTradersLinkAiReadReview = () => { throw new Error("Draft changed. Reload before saving."); };
   assert.equal((await send("", undefined, undefined, "GET")).status, 409);
 });
+
+test("owner review controls use a separate exact boolean contract", async () => {
+  const { manager, calls } = setup();
+  let saved = { automaticUpdatesEnabled: false, reviewBeforePublishingEnabled: true };
+  const controls = { get: () => saved, save: (input: typeof saved) => { saved = input; return saved; } };
+  const request = { pathname: "/api/watchlist/analysis-review/settings", method: "GET", actor: "platform-owner:test-owner", searchParams: new URLSearchParams() };
+  assert.deepEqual((await dispatchAnalysisReviewRequest(request, manager as any, controls)).body, { settings: saved });
+  const next = { automaticUpdatesEnabled: true, reviewBeforePublishingEnabled: false };
+  assert.equal((await dispatchAnalysisReviewRequest({ ...request, method: "POST", body: { ...next, regularEnabled: false } }, manager as any, controls)).status, 400);
+  assert.equal(saved.automaticUpdatesEnabled, false);
+  assert.equal((await dispatchAnalysisReviewRequest({ ...request, method: "POST", body: next }, manager as any, controls)).status, 200);
+  assert.deepEqual(saved, next);
+  assert.equal(calls.length, 0);
+});

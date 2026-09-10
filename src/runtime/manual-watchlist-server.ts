@@ -1136,7 +1136,18 @@ async function main(): Promise<void> {
           method: request.method ?? "", pathname: url.pathname, searchParams: url.searchParams,
           body: request.method === "POST" ? await readJsonBody(request) : undefined,
           actor: typeof actorHeader === "string" ? actorHeader : undefined,
-        }, manager);
+        }, manager, {
+          get: () => manager.getTradersLinkAiReadReviewControls(),
+          save: (settings) => {
+            const saved = tradersLinkAiReadSettingsPersistence.load();
+            if (!saved) throw new Error("Review settings storage is unavailable.");
+            // Persist first and keep every model/session/budget/visibility field.
+            tradersLinkAiReadSettingsPersistence.save({ ...saved, ...settings });
+            aiReadGenerationSettings = manager.setTradersLinkAiReadGenerationSettings({ ...aiReadGenerationSettings, automaticUpdatesEnabled: settings.automaticUpdatesEnabled });
+            manager.setTradersLinkAiReadReviewBeforePublishing(settings.reviewBeforePublishingEnabled);
+            return manager.getTradersLinkAiReadReviewControls();
+          },
+        });
         sendJson(response, result.status, result.body);
       } catch {
         sendJson(response, 400, { error: "Invalid review request body." });
@@ -1550,7 +1561,7 @@ async function main(): Promise<void> {
           typeof body.regularEnabled !== "boolean" ||
           typeof body.postmarketEnabled !== "boolean" ||
           typeof body.topRegularActivationEnabled !== "boolean"
-          || (body.automaticUpdatesEnabled !== undefined && typeof body.automaticUpdatesEnabled !== "boolean")
+          || body.automaticUpdatesEnabled !== undefined
         ) {
           sendJson(response, 400, {
             error:
@@ -1560,7 +1571,7 @@ async function main(): Promise<void> {
         }
         const nextGenerationSettings = {
           enabled: body.enabled,
-          automaticUpdatesEnabled: body.automaticUpdatesEnabled ?? aiReadGenerationSettings.automaticUpdatesEnabled,
+          automaticUpdatesEnabled: aiReadGenerationSettings.automaticUpdatesEnabled,
           premarketEnabled: body.premarketEnabled,
           regularEnabled: body.regularEnabled,
           postmarketEnabled: body.postmarketEnabled,
