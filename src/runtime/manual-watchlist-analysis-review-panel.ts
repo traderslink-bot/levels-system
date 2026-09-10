@@ -164,6 +164,13 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     preview = await request("/preview");
     if (preview.cycleId !== review.cycleId || preview.draftRevision !== review.draft.revision) { preview = null; throw new Error("The draft changed. Reload before previewing."); }
     previewContent.replaceChildren(); node("h4", "Discord preview", previewContent);
+    const websiteButton = node("button", "Website preview", previewContent);
+    websiteButton.type = "button";
+    const savedWebsite = preview.publication.website;
+    websiteButton.onclick = () => {
+      if (window.parent === window) { message("Open Watchlist Admin in the dashboard to view the website card."); return; }
+      window.parent.postMessage({ source: "traderslink-watchlist-admin", type: "preview-analysis", card: savedWebsite.cards.tradersLinkAiRead, dipBuyPlanVisible: savedWebsite.tradersLinkAiReadDipBuyPlanVisible }, window.location.origin);
+    };
     preview.publication.discordChunks.forEach((text) => { const body = node("pre", text, previewContent); body.style.whiteSpace = "pre-wrap"; body.style.overflowWrap = "anywhere"; });
     message("Preview ready. Approve and publish sends this saved version.");
   });
