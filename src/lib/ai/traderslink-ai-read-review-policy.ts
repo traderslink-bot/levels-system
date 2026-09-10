@@ -53,8 +53,10 @@ export function isWatchlistPatchApproved(patch: LiveWatchlistPublishedPatch, raw
   try {
     const state = load(review.cycleId);
     if (!hasWatchlistPublicationApproval(patch.symbol, review, () => state)) return false;
+    if (!state!.reviewRequired) return true;
     const card = "cards" in patch ? patch.cards.tradersLinkAiRead : undefined;
-    if (!card) return true;
+    if (!card) return state!.events.some((event) => event.body.kind === "delivery" &&
+      event.body.channel === "website" && event.body.status === "acknowledged");
     const approval = state?.approved?.body;
     if (approval?.kind !== "approve") return false;
     const draft = state!.events.find((event) => event.revision === approval.draftRevision)?.body;

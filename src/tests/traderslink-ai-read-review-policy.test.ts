@@ -54,10 +54,13 @@ test("frozen activation review survives watchlist saves, restart, approval and l
   assert.equal(isWatchlistPatchApproved(approvedPatch, review, (id) => audit.read(id)), true);
   const changedPatch = { symbol: "PDSB", cards: { tradersLinkAiRead: { body: JSON.stringify({ symbol: "PDSB", currentRead: "Not approved" }) } } } as any;
   assert.equal(isWatchlistPatchApproved(changedPatch, review, (id) => audit.read(id)), false);
+  assert.equal(isWatchlistPatchApproved({ symbol: "PDSB", cards: {} }, review, (id) => audit.read(id)), false);
+  assert.equal(isWatchlistPatchApproved({ symbol: "PDSB", type: "tickerData", updatedAt: 123 } as any, review, (id) => audit.read(id)), false);
+  audit.recordDelivery("cycle", 3, 3, "website", "acknowledged", "receipt");
   assert.equal(isWatchlistPatchApproved({ symbol: "PDSB", cards: {} }, review, (id) => audit.read(id)), true);
   assert.equal(hasWatchlistPublicationApproval("FTFT", review, (id) => audit.read(id)), false);
-  audit.saveDraft({ cycleId: "cycle", expectedHead: 3, actor: "generator", generationId: "g2", payload: { symbol: "PDSB" } });
+  audit.saveDraft({ cycleId: "cycle", expectedHead: 4, actor: "generator", generationId: "g2", payload: { symbol: "PDSB" } });
   assert.equal(allowed(), true);
-  audit.cancel("cycle", 4, "owner");
+  audit.cancel("cycle", 5, "owner");
   assert.equal(allowed(), false);
 });

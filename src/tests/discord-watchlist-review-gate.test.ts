@@ -27,6 +27,9 @@ test("lookup failures hold Discord and approval permits the existing route", asy
   await router.announceTickerAdded("pdsb");
   await router.routeAlert("thread", { symbol: "PDSB" } as any);
   assert.deepEqual(sent, ["PDSB", "PDSB"]);
+  await router.routeAlert("thread", { event: { symbol: "PDSB" } } as any);
+  assert.equal(sent.length, 3);
+  await assert.rejects(router.routeAlert("thread", { title: "No ticker", body: "No ticker" }), /owner approval/);
   await assert.rejects(router.announceTickerAdded("FTFT"), /owner approval/);
 });
 

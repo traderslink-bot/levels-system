@@ -2891,9 +2891,9 @@ export class DiscordAlertRouter {
     this.publicationAuthorizer = authorize;
   }
 
-  private assertPublicationAllowed(symbol: string): void {
+  private assertPublicationAllowed(symbol: string | undefined): void {
     let allowed = true;
-    try { allowed = this.publicationAuthorizer?.(normalizeSymbol(symbol)) ?? true; } catch { allowed = false; }
+    try { allowed = this.publicationAuthorizer ? Boolean(symbol) && this.publicationAuthorizer(normalizeSymbol(symbol!)) : true; } catch { allowed = false; }
     if (!allowed) throw new Error("Discord publication is awaiting owner approval.");
   }
 
@@ -2957,7 +2957,7 @@ export class DiscordAlertRouter {
   }
 
   async routeAlert(threadId: string, payload: AlertPayload): Promise<void> {
-    this.assertPublicationAllowed(payload.symbol);
+    this.assertPublicationAllowed(payload.symbol ?? payload.event?.symbol);
     await this.gateway.sendMessage(threadId, payload);
   }
 
