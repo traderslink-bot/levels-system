@@ -100,6 +100,18 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     checkbox.addEventListener("change", () => { patch.ownerHiddenSections = patch.ownerHiddenSections.filter((item) => item !== key); if (!checkbox.checked) patch.ownerHiddenSections.push(key); changed(); });
     return details;
   }
+  function renderReviewHistory(events, parent) {
+    const history = node("details", undefined, parent); node("summary", "Request and version history", history);
+    const requestNumbers = new Map();
+    events.filter((event) => event.body.kind === "generation" || event.body.kind === "original").forEach((event) => {
+      if (!requestNumbers.has(event.body.generationId)) requestNumbers.set(event.body.generationId, requestNumbers.size + 1);
+    });
+    node("p", "Recorded requests: " + requestNumbers.size, history);
+    events.filter((event) => ["generation", "original", "edit", "approve", "delivery", "discord_chunk"].includes(event.body.kind)).forEach((event) => {
+      const requestNumber = requestNumbers.get(event.body.generationId);
+      node("p", (requestNumber ? "Request " + requestNumber + " · " : "") + "Version " + event.revision + " · " + event.body.kind + " · " + new Date(event.at).toLocaleString() + (event.body.channel ? " · " + event.body.channel : "") + (event.body.status ? " · " + event.body.status : "") + (event.body.trigger ? " · " + event.body.trigger : ""), history);
+    });
+  }
   function renderEditor() {
     editor.replaceChildren(); previewContent.replaceChildren(); preview = null;
     const draft = review && review.draft;
@@ -112,7 +124,11 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     });
     byId("export-area").hidden = generationIds.size === 0;
     if (generationIds.size) generations.value = Array.from(generationIds).at(-1);
-    if (!draft || !draft.body.payload) { actions.hidden = true; message("No analysis draft is available yet. The ticker remains held if owner review is required."); return; }
+    if (!draft || !draft.body.payload) {
+      patch = null; dirty = false; actions.hidden = true;
+      if (review) renderReviewHistory(review.events, editor);
+      message("No analysis draft is available yet. The ticker remains held if owner review is required."); return;
+    }
     patch = editable(draft.body.payload); dirty = false; actions.hidden = false;
     node("p", review.symbol + " · Saved version " + draft.revision + " · Analysis price $" + draft.body.payload.currentPrice, editor);
     for (const key of ["bias", "confidence"]) {
@@ -149,10 +165,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
       renderSetup();
     }
     for (const key of ["catalystRealityCheck", "dilutionRisk", "listingStatus"]) fields(section(key), patch[key], ["summary", "dayTradeRelevance"]);
-    const history = node("details", undefined, editor); node("summary", "Saved version history", history);
-    review.events.filter((event) => ["generation", "original", "edit", "approve", "delivery", "discord_chunk"].includes(event.body.kind)).forEach((event) => {
-      node("p", "Version " + event.revision + " · " + event.body.kind + " · " + new Date(event.at).toLocaleString() + (event.body.channel ? " · " + event.body.channel : "") + (event.body.status ? " · " + event.body.status : ""), history);
-    });
+    renderReviewHistory(review.events, editor);
   }
   byId("load").onclick = () => { if (dirty && !window.confirm("Discard unsaved edits and load this ticker?")) return; run(async () => { const result = await request(""); review = result.review; renderEditor(); if (review && review.draft) message("Saved analysis loaded."); }); };
   byId("save").onclick = () => run(async () => {
