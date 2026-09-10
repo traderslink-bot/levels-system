@@ -44,6 +44,11 @@ test("private activation saves an AI draft without website publication or Discor
     const watchlistStore = new WatchlistStore();
     const reviewStore = new TradersLinkAiReadReviewStore(directory);
     const discord = new FakeDiscordAlertRouter();
+    const approvedDiscord: string[] = [];
+    (discord as any).routeApprovedAnalysisChunk = async (chunk: any) => {
+      approvedDiscord.push(chunk.content);
+      return { messageId: String(12345678901234567n + BigInt(approvedDiscord.length)), channelId: "23456789012345678" };
+    };
     const publisher = new FakeLiveWatchlistPublisher();
     let aiCalls = 0;
     const manager = new ManualWatchlistRuntimeManager({
@@ -55,6 +60,10 @@ test("private activation saves an AI draft without website publication or Discor
         getConfiguredModel: () => "test", getReasoningEffort: () => "medium",
         generate: async ({ generationId }: any) => { aiCalls += 1; return {
           symbol: "PDSB", generationId, currentPrice: 0.5, generatedAt: now, model: "test", currentRead: "Original",
+          bias: "bullish", confidence: "medium", failureRecovery: null, riskSummary: [],
+          catalystRealityCheck: { summary: "", dayTradeRelevance: "" },
+          dilutionRisk: { summary: "", dayTradeRelevance: "" },
+          listingStatus: { summary: "", dayTradeRelevance: "" },
           pullbackPlans: { shallow: null, deep: null },
           needsToHold: { label: "Hold", price: 0.45, rationale: "Base" },
           momentumFailure: { label: "Failure", price: 0.4, rationale: "Base failed" },
@@ -90,12 +99,20 @@ test("private activation saves an AI draft without website publication or Discor
     const ready = manager.getTradersLinkAiReadReview("PDSB")!;
     const approvalInput = { symbol: "PDSB", cycleId: ready.cycleId, expectedHead: ready.head,
       draftRevision: ready.draft!.revision, actor: "test-owner" };
+    await assert.rejects(manager.approveTradersLinkAiReadForWebsite({ ...approvalInput, previewHash: "stale-preview" }), /preview changed/);
+    assert.equal(publisher.cardPatches.length, 0);
     const delivered = await manager.approveTradersLinkAiReadForWebsite(approvalInput);
     assert.equal(publisher.cardPatches.length, 1);
     assert.equal(JSON.parse(publisher.cardPatches[0]!.cards.tradersLinkAiRead!.body).currentRead, "Original");
     assert.ok(delivered?.events.some((event) => event.body.kind === "delivery" && event.body.channel === "website" && event.body.status === "acknowledged"));
     await manager.approveTradersLinkAiReadForWebsite(approvalInput);
     assert.equal(publisher.cardPatches.length, 1);
+    const discordInput = { symbol: "PDSB", cycleId: ready.cycleId, approvalRevision: delivered!.approved!.revision };
+    await manager.publishApprovedTradersLinkAiReadToDiscord(discordInput);
+    await manager.publishApprovedTradersLinkAiReadToDiscord(discordInput);
+    assert.equal(approvedDiscord.length, 1);
+    assert.match(approvedDiscord[0]!, /Original/);
+    assert.equal(aiCalls, 1);
     await manager.activateSymbol({ symbol: "PDSB", source: "manual" });
     assert.equal(aiCalls, 1);
     await manager.refreshTradersLinkAiRead("PDSB");

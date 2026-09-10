@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { applyOwnerAnalysisEdit } from "../ai/traderslink-ai-read-owner-edit.js";
+import { publicationPreviewHash, renderApprovedAnalysisDiscord, type ReviewPublication } from "../ai/traderslink-ai-read-publication-preview.js";
 import type { TradersLinkAiReadReviewStore } from "../ai/traderslink-ai-read-review-store.js";
 import { isWatchlistPatchApproved, requiresInitialWatchlistReview } from "../ai/traderslink-ai-read-review-policy.js";
 import { resolveTradersLinkAiReadReferenceQuote } from "../ai/traderslink-ai-read-price-action.js";
@@ -4688,7 +4689,20 @@ export class ManualWatchlistRuntimeManager {
     return { ...snapshot, ...analysis, cards: { ...snapshot.cards, ...analysis.cards } };
   }
 
-  async approveTradersLinkAiReadForWebsite(input: { symbol: string; cycleId: string; expectedHead: number; draftRevision: number; actor: string }) {
+  getTradersLinkAiReadPublicationPreview(symbolInput: string) {
+    const review = this.getTradersLinkAiReadReview(symbolInput);
+    const draft = review?.draft;
+    if (!review || review.cancelled || !draft || (draft.body.kind !== "original" && draft.body.kind !== "edit")) throw new Error("No analysis draft is available to preview.");
+    const existing = review.approved?.body;
+    const read = draft.body.payload as unknown as TradersLinkAiReadPayload;
+    const publication: ReviewPublication = existing?.kind === "approve" && existing.draftRevision === draft.revision && existing.publication
+      ? existing.publication
+      : { website: this.buildReviewedWebsitePatch(read) as unknown as Record<string, unknown>, discordChunks: renderApprovedAnalysisDiscord(read) };
+    return { cycleId: review.cycleId, expectedHead: review.head, draftRevision: draft.revision,
+      publication, previewHash: publicationPreviewHash(publication) };
+  }
+
+  async approveTradersLinkAiReadForWebsite(input: { symbol: string; cycleId: string; expectedHead: number; draftRevision: number; actor: string; previewHash?: string }) {
     const symbol = normalizeSymbol(input.symbol);
     const entry = this.watchlistStore.getEntry(symbol);
     const store = this.options.tradersLinkAiReadReviewStore;
@@ -4698,8 +4712,11 @@ export class ManualWatchlistRuntimeManager {
     const draft = review?.draft;
     if (!draft || draft.revision !== input.draftRevision || (draft.body.kind !== "original" && draft.body.kind !== "edit")) throw new Error("Draft changed. Review the latest version.");
     const read = draft.body.payload as unknown as TradersLinkAiReadPayload;
-    const patch = this.buildReviewedWebsitePatch(read);
-    const approval = store.approve(input.cycleId, input.expectedHead, input.draftRevision, input.actor);
+    const preview = this.getTradersLinkAiReadPublicationPreview(symbol);
+    if (input.previewHash !== undefined && preview.previewHash !== input.previewHash) throw new Error("Publication preview changed. Review it before publishing.");
+    const approval = store.approve(input.cycleId, input.expectedHead, input.draftRevision, input.actor, preview.publication);
+    if (approval.body.kind !== "approve" || !approval.body.publication) throw new Error("Approved publication payload is unavailable.");
+    const patch = approval.body.publication.website as unknown as LiveWatchlistCardPatch;
     const claim = store.claimDelivery(input.cycleId, store.read(input.cycleId)!.head, approval.revision, "website");
     if (claim.shouldSend) {
       this.watchlistStore.patchEntry(symbol, { pendingTradersLinkAiReadGeneration: {
@@ -4717,6 +4734,36 @@ export class ManualWatchlistRuntimeManager {
       await publisher.replayPending?.();
     }
     return this.getTradersLinkAiReadReview(symbol);
+  }
+
+  async publishApprovedTradersLinkAiReadToDiscord(input: { symbol: string; cycleId: string; approvalRevision: number }) {
+    const symbol = normalizeSymbol(input.symbol);
+    const entry = this.watchlistStore.getEntry(symbol);
+    const store = this.options.tradersLinkAiReadReviewStore;
+    if (!entry?.active || entry.publicationReview?.cycleId !== input.cycleId || !store) throw new Error("Ticker review changed.");
+    const state = store.read(input.cycleId);
+    const approval = state?.approved;
+    if (!state || state.cancelled || approval?.revision !== input.approvalRevision || approval.body.kind !== "approve" || !approval.body.publication) throw new Error("Publication approval changed.");
+    if (!state.events.some((event) => event.body.kind === "delivery" && event.body.approvalRevision === approval.revision && event.body.channel === "website" && event.body.status === "acknowledged")) throw new Error("Website delivery must be confirmed before Discord publication.");
+    const channelClaim = store.claimDelivery(input.cycleId, state.head, approval.revision, "discord");
+    if (channelClaim.reason === "acknowledged") return state;
+    for (let index = 0; index < approval.body.publication.discordChunks.length; index++) {
+      const current = this.watchlistStore.getEntry(symbol);
+      if (!current?.active || current.publicationReview?.cycleId !== input.cycleId) throw new Error("Ticker review changed.");
+      const claim = store.claimDiscordChunk(input.cycleId, store.read(input.cycleId)!.head, approval.revision, index);
+      if (claim.reason === "acknowledged") continue;
+      if (!claim.shouldSend) throw new Error("Discord delivery is awaiting confirmation. It has not been sent again.");
+      const receipt = await this.options.discordAlertRouter.routeApprovedAnalysisChunk({ symbol, deliveryKey: claim.deliveryKey, content: claim.content });
+      store.acknowledgeDiscordChunk(input.cycleId, store.read(input.cycleId)!.head, approval.revision, index, receipt);
+    }
+    store.recordDelivery(input.cycleId, store.read(input.cycleId)!.head, approval.revision, "discord", "acknowledged", channelClaim.deliveryKey);
+    return store.read(input.cycleId);
+  }
+
+  async approveTradersLinkAiRead(input: { symbol: string; cycleId: string; expectedHead: number; draftRevision: number; actor: string; previewHash: string }) {
+    const review = await this.approveTradersLinkAiReadForWebsite(input);
+    if (!review?.approved) throw new Error("Publication approval is unavailable.");
+    return this.publishApprovedTradersLinkAiReadToDiscord({ symbol: input.symbol, cycleId: input.cycleId, approvalRevision: review.approved.revision });
   }
 
   /**

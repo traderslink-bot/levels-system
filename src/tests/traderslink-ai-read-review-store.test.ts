@@ -114,3 +114,30 @@ test("durable delivery claims do not resend uncertain or acknowledged attempts a
   restored.recordDelivery("cycle", 6, 3, "discord", "failed", null);
   assert.equal(restored.claimDelivery("cycle", 7, 3, "discord").deliveryKey, discord.deliveryKey);
 });
+
+test("pins exact preview and resumes multipart delivery only after each receipt", () => {
+  const { store, directory } = setup();
+  store.begin("cycle", "PDSB", true, "owner");
+  store.saveDraft({ cycleId: "cycle", expectedHead: 1, actor: "generator", generationId: "g", payload });
+  const publication = { website: { symbol: "PDSB", body: "exact snapshot" }, discordChunks: ["first", "second"] };
+  store.approve("cycle", 2, 2, "owner", publication);
+  assert.throws(() => store.approve("cycle", 3, 2, "owner", { ...publication, discordChunks: ["changed"] }), /cannot change/);
+  assert.throws(() => store.claimDiscordChunk("cycle", 3, 3, 1), /Previous/);
+  const first = store.claimDiscordChunk("cycle", 3, 3, 0);
+  assert.equal(first.content, "first");
+  const restored = new TradersLinkAiReadReviewStore(directory);
+  assert.equal(restored.claimDiscordChunk("cycle", 4, 3, 0).reason, "uncertain");
+  const receipt = { messageId: "12345678901234567", channelId: "23456789012345678" };
+  restored.acknowledgeDiscordChunk("cycle", 4, 3, 0, receipt);
+  assert.equal(restored.claimDiscordChunk("cycle", 5, 3, 0).reason, "acknowledged");
+  assert.throws(() => restored.acknowledgeDiscordChunk("cycle", 5, 3, 0, { ...receipt, messageId: "34567890123456789" }), /conflicts/);
+  const second = restored.claimDiscordChunk("cycle", 5, 3, 1);
+  assert.equal(second.shouldSend, true);
+  assert.equal(second.content, "second");
+  assert.notEqual(second.deliveryKey, first.deliveryKey);
+  restored.cancel("cycle", 6, "owner");
+  assert.throws(() => restored.claimDiscordChunk("cycle", 7, 3, 1), /changed/);
+  restored.acknowledgeDiscordChunk("cycle", 7, 3, 1, { ...receipt, messageId: "34567890123456789" });
+  assert.equal(restored.read("cycle")?.cancelled, true);
+  assert.equal(restored.read("cycle")?.head, 8);
+});

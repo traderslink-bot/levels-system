@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
 import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { ReviewPublication } from "./traderslink-ai-read-publication-preview.js";
 
 type ReviewBody =
   | { kind: "begin"; symbol: string; reviewRequired: boolean }
   | { kind: "original"; generationId: string; payload: Record<string, unknown> }
   | { kind: "edit"; parentDraft: number; payload: Record<string, unknown> }
-  | { kind: "approve"; draftRevision: number }
+  | { kind: "approve"; draftRevision: number; publication?: ReviewPublication }
+  | { kind: "discord_chunk"; approvalRevision: number; index: number; status: "started" | "acknowledged"; deliveryKey: string; receipt?: { messageId: string; channelId: string } }
   | { kind: "delivery"; approvalRevision: number; channel: "website" | "discord"; status: "started" | "acknowledged" | "failed"; deliveryId: string | null }
   | { kind: "cancel" };
 
@@ -84,7 +86,9 @@ export class TradersLinkAiReadReviewStore {
     if (!actor.trim() || actor.length > 200) throw new Error("Invalid review actor.");
     const state = this.read(cycleId);
     if ((state?.head ?? 0) !== expectedHead) throw new Error("Review changed. Reload before saving.");
-    if (state?.cancelled) throw new Error("Review cycle is cancelled.");
+    // A receipt can arrive after removal; retain that historical outcome,
+    // without allowing any new publication or edits on the cancelled cycle.
+    if (state?.cancelled && !(body.kind === "discord_chunk" && body.status === "acknowledged")) throw new Error("Review cycle is cancelled.");
     if (!state && body.kind !== "begin") throw new Error("Review cycle does not exist.");
     if (state && body.kind === "begin") throw new Error("Review cycle already exists.");
     const unsigned = {
@@ -126,11 +130,42 @@ export class TradersLinkAiReadReviewStore {
       : { kind: "edit", parentDraft: state.draft!.revision, payload: input.payload });
   }
 
-  approve(cycleId: string, expectedHead: number, draftRevision: number, actor: string): ReviewEvent {
+  approve(cycleId: string, expectedHead: number, draftRevision: number, actor: string, publication?: ReviewPublication): ReviewEvent {
     const state = this.read(cycleId);
     if (!state || state.cancelled || state.draft?.revision !== draftRevision) throw new Error("Draft changed. Review the latest version.");
-    if (state.approved?.body.kind === "approve" && state.approved.body.draftRevision === draftRevision) return state.approved;
-    return this.append(cycleId, expectedHead, actor, { kind: "approve", draftRevision });
+    if (state.approved?.body.kind === "approve" && state.approved.body.draftRevision === draftRevision) {
+      if (publication && json(state.approved.body.publication) !== json(publication)) throw new Error("Approved preview cannot change. Save a new draft first.");
+      return state.approved;
+    }
+    if (publication && (!publication.website || !Array.isArray(publication.discordChunks) || publication.discordChunks.length === 0 ||
+      publication.discordChunks.some((chunk) => typeof chunk !== "string" || !chunk.trim() || chunk.length > 2000))) throw new Error("Invalid publication preview.");
+    return this.append(cycleId, expectedHead, actor, { kind: "approve", draftRevision, ...(publication ? { publication } : {}) });
+  }
+
+  claimDiscordChunk(cycleId: string, expectedHead: number, approvalRevision: number, index: number) {
+    const state = this.read(cycleId);
+    const approval = state?.approved;
+    if (!state || state.cancelled || approval?.revision !== approvalRevision || approval.body.kind !== "approve") throw new Error("Publication approval changed.");
+    const chunks = approval.body.publication?.discordChunks;
+    if (!Number.isInteger(index) || index < 0 || !chunks?.[index]) throw new Error("Approved Discord chunk is unavailable.");
+    const prior = state.events.findLast((event) => event.body.kind === "discord_chunk" && event.body.approvalRevision === approvalRevision && event.body.index === index);
+    const deliveryKey = digest(`${cycleId}:${approvalRevision}:discord:${index}`);
+    if (prior?.body.kind === "discord_chunk") return { shouldSend: false, deliveryKey, content: chunks[index]!, reason: prior.body.status === "acknowledged" ? "acknowledged" as const : "uncertain" as const };
+    if (index > 0 && !state.events.some((event) => event.body.kind === "discord_chunk" && event.body.approvalRevision === approvalRevision && event.body.index === index - 1 && event.body.status === "acknowledged")) throw new Error("Previous Discord chunk is not acknowledged.");
+    this.append(cycleId, expectedHead, "delivery", { kind: "discord_chunk", approvalRevision, index, status: "started", deliveryKey });
+    return { shouldSend: true, deliveryKey, content: chunks[index]!, reason: "claimed" as const };
+  }
+
+  acknowledgeDiscordChunk(cycleId: string, expectedHead: number, approvalRevision: number, index: number, receipt: { messageId: string; channelId: string }) {
+    if (!/^\d{17,20}$/.test(receipt.messageId) || !/^\d{17,20}$/.test(receipt.channelId)) throw new Error("Invalid Discord receipt.");
+    const state = this.read(cycleId);
+    const prior = state?.events.findLast((event) => event.body.kind === "discord_chunk" && event.body.approvalRevision === approvalRevision && event.body.index === index);
+    if (!prior || prior.body.kind !== "discord_chunk") throw new Error("Discord delivery was not claimed.");
+    if (prior.body.status === "acknowledged") {
+      if (json(prior.body.receipt) !== json(receipt)) throw new Error("Discord receipt conflicts with confirmed delivery.");
+      return prior;
+    }
+    return this.append(cycleId, expectedHead, "delivery", { kind: "discord_chunk", approvalRevision, index, status: "acknowledged", deliveryKey: prior.body.deliveryKey, receipt });
   }
 
   recordDelivery(cycleId: string, expectedHead: number, approvalRevision: number, channel: "website" | "discord", status: "started" | "acknowledged" | "failed", deliveryId: string | null): ReviewEvent {
