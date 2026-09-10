@@ -4,10 +4,29 @@ import { describe, it } from "node:test";
 import type { Candle } from "../lib/market-data/candle-types.js";
 import {
   buildTradersLinkAiPriceActionPacket,
+  materiallySeparatedCandidates,
+  type TradersLinkAiReadPullbackCandidate,
   resolveTradersLinkAiReadHistoricalCoverageRequirement,
 } from "../lib/ai/traderslink-ai-read-price-action.js";
 
 const START = Date.parse("2026-07-21T14:00:00.000Z");
+
+it("ranks a supported lower base ahead of a closer shelf while retaining evidence diversity", () => {
+  const candidate = (id: string, low: number, bars: number, retests: number): TradersLinkAiReadPullbackCandidate => ({
+    id, kind: "one_minute_acceptance", zoneLow: low, zoneHigh: low + 0.02,
+    observedFrom: START, observedTo: START + bars * 60_000, rationale: "Observed base",
+    structure: { observedBarCount: bars, coveredMinutes: bars, meanCandleRange: 0.03,
+      meanWickFraction: 0.5, reportedVolumeFraction: 1, subsequentRetests: retests },
+  });
+  const close = candidate("close", 3.90, 3, 0);
+  const supported = candidate("supported", 3.60, 12, 2);
+  const origin = { ...candidate("origin", 3.20, 5, 0), kind: "broader_move_origin" as const };
+  const result = materiallySeparatedCandidates([close, supported, origin]);
+  assert.equal(result[0]?.id, "supported");
+  assert.ok(result.some((item) => item.id === "origin"));
+  assert.ok(result.some((item) => item.id === "close"));
+  assert.equal(close.zoneHigh, 3.92);
+});
 
 function bar(index: number, open: number, close: number, volume = 100): Candle {
   return {
@@ -144,6 +163,17 @@ describe("TradersLink AI one-minute evidence", () => {
     assert.ok(shallow);
     assert.ok(deep);
     assert.ok(Number(deep.zoneHigh) < Number(shallow.zoneLow));
+    const measured = facts.pullbackCandidates as TradersLinkAiReadPullbackCandidate[];
+    for (const candidate of measured) {
+      assert.ok(candidate.structure!.observedBarCount > 0);
+      assert.ok(candidate.structure!.meanCandleRange > 0);
+      assert.ok(candidate.structure!.meanWickFraction >= 0 && candidate.structure!.meanWickFraction <= 1);
+      assert.ok(candidate.distanceBelowReferencePct! > 0);
+      assert.ok(candidate.zoneWidthPct! >= 0);
+      assert.ok(candidate.distanceInMeanCandleRanges! > 0);
+      assert.ok(candidate.observedFrom <= candidate.observedTo);
+      assert.ok(candidate.timeframe === "1m" || candidate.timeframe === "5m");
+    }
   });
 
   it("does not offer a pullback candidate inside the reference-price validation buffer", () => {

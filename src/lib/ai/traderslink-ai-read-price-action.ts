@@ -100,6 +100,19 @@ export type TradersLinkAiReadPullbackCandidate = {
   observedFrom: number;
   observedTo: number;
   rationale: string;
+  structure?: {
+    observedBarCount: number;
+    coveredMinutes: number;
+    meanCandleRange: number;
+    meanWickFraction: number;
+    reportedVolumeFraction: number;
+    subsequentRetests: number;
+  };
+  distanceBelowReferencePct?: number;
+  zoneWidthPct?: number;
+  distanceInMeanCandleRanges?: number | null;
+  retracementOfObservedMovePct?: number | null;
+  timeframe?: "1m" | "5m";
 };
 
 export type TradersLinkAiReadReferenceQuote = {
@@ -262,24 +275,47 @@ function candidateFromCandles(args: {
   if (!(zoneLow > 0) || zoneHigh < zoneLow) {
     return null;
   }
+  const chronological = [...args.candles].sort((a, b) => a.timestamp - b.timestamp);
+  const timeframeMinutes = args.kind === "five_minute_acceptance" ? 5 : 1;
+  const meanCandleRange = args.candles.reduce((sum, candle) => sum + candle.high - candle.low, 0) / args.candles.length;
   return {
     id: args.id,
     kind: args.kind,
     zoneLow: roundPrice(zoneLow),
     zoneHigh: roundPrice(zoneHigh),
-    observedFrom: args.candles[0]!.timestamp,
-    observedTo: args.candles.at(-1)!.timestamp,
+    observedFrom: chronological[0]!.timestamp,
+    observedTo: chronological.at(-1)!.timestamp,
     rationale: args.rationale,
+    timeframe: timeframeMinutes === 5 ? "5m" : "1m",
+    structure: {
+      observedBarCount: args.candles.length,
+      coveredMinutes: args.candles.length * timeframeMinutes,
+      meanCandleRange: Number(meanCandleRange.toPrecision(8)),
+      meanWickFraction: roundMetric(args.candles.reduce((sum, candle) => {
+        const range = candle.high - candle.low;
+        return sum + (range > 0 ? 1 - Math.abs(candle.close - candle.open) / range : 0);
+      }, 0) / args.candles.length),
+      reportedVolumeFraction: args.candles.filter((candle) => candle.volume > 0).length / args.candles.length,
+      subsequentRetests: 0,
+    },
   };
 }
 
-function materiallySeparatedCandidates(
+export function materiallySeparatedCandidates(
   candidates: TradersLinkAiReadPullbackCandidate[],
 ): TradersLinkAiReadPullbackCandidate[] {
   const separated: TradersLinkAiReadPullbackCandidate[] = [];
   for (const candidate of candidates
     .filter((item) => item.zoneLow > 0 && item.zoneHigh >= item.zoneLow)
-    .sort((left, right) => right.zoneHigh - left.zoneHigh)) {
+    .sort((left, right) => {
+      // Rank observed support, not proximity to the live quote. This is an
+      // evidence ordering heuristic, not a predicted success probability.
+      const strength = (item: TradersLinkAiReadPullbackCandidate) => item.structure
+        ? Math.log1p(item.structure.coveredMinutes) + Math.log1p(item.structure.observedBarCount) +
+          Math.log1p(item.structure.subsequentRetests) * 2 + item.structure.reportedVolumeFraction * 0.25
+        : 0;
+      return strength(right) - strength(left) || right.observedTo - left.observedTo || left.id.localeCompare(right.id);
+    })) {
     const duplicate = separated.some((existing) => {
       if (existing.kind !== candidate.kind) {
         return false;
@@ -588,6 +624,7 @@ function buildOneMinuteFacts(
     : null;
   const reclaim = priorThreeHigh !== null && latest.close > priorThreeHigh;
 
+  const fiveMinuteRetestObservations = normalizeCandles(fiveMinuteCandles, dataAsOf);
   return {
     available: true,
     latestCandleAt: latest.timestamp,
@@ -612,7 +649,31 @@ function buildOneMinuteFacts(
     pullbackCandidates: materiallySeparatedCandidates(
       candidates.filter((candidate): candidate is TradersLinkAiReadPullbackCandidate =>
         candidate !== null && candidate.zoneHigh < currentPrice - minimumReferenceSeparation
-      ),
+      ).map((candidate) => {
+        const observations = candidate.kind === "five_minute_acceptance"
+          ? fiveMinuteRetestObservations : candles;
+        let outside = false;
+        let retests = 0;
+        for (const candle of observations) {
+          if (candle.timestamp <= candidate.observedTo) continue;
+          const accepted = candle.close >= candidate.zoneLow && candle.close <= candidate.zoneHigh;
+          if (accepted && outside) retests += 1;
+          outside = !accepted;
+        }
+        const move = broaderBest
+          ? { low: sessionSearch[broaderBest.startIndex]!.low, high: sessionSearch[broaderBest.endIndex]!.high }
+          : best ? { low: search[best.startIndex]!.low, high: search[best.endIndex]!.high } : null;
+        return {
+          ...candidate,
+          structure: candidate.structure ? { ...candidate.structure, subsequentRetests: retests } : undefined,
+          distanceBelowReferencePct: roundMetric((currentPrice - candidate.zoneHigh) / currentPrice * 100),
+          zoneWidthPct: roundMetric((candidate.zoneHigh - candidate.zoneLow) / currentPrice * 100),
+          distanceInMeanCandleRanges: candidate.structure?.meanCandleRange
+            ? roundMetric((currentPrice - candidate.zoneHigh) / candidate.structure.meanCandleRange) : null,
+          retracementOfObservedMovePct: move && move.high > move.low
+            ? roundMetric((move.high - candidate.zoneHigh) / (move.high - move.low) * 100) : null,
+        };
+      }),
     ),
     recentOneMinuteBars: recent.map(compactIntradayBar),
   };
