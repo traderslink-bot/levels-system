@@ -336,6 +336,7 @@ export type WatchlistGroup = "top_regular" | "main" | "postmarket";
 
 export type WatchlistEntry = {
   symbol: string;
+  publicationReview?: import("../ai/traderslink-ai-read-review-policy.js").WatchlistPublicationReview;
   active: boolean;
   priority: number;
   tags: string[];

@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { normalizePublicationReview } from "../ai/traderslink-ai-read-review-policy.js";
 
 import type {
   PendingTradersLinkAiReadGeneration,
@@ -378,6 +379,7 @@ function validateEntry(value: unknown): WatchlistEntry | null {
       : {}),
     ...(tradersLinkAiReadBoundaryState ? { tradersLinkAiReadBoundaryState } : {}),
     ...(pendingTradersLinkAiReadGeneration ? { pendingTradersLinkAiReadGeneration } : {}),
+    ...(value.publicationReview !== undefined ? { publicationReview: normalizePublicationReview(value.publicationReview) } : {}),
     ...(lastError !== undefined ? { lastError } : {}),
     ...(operationStatus !== undefined ? { operationStatus } : {}),
   };
@@ -490,6 +492,7 @@ function buildPersistedState(entries: WatchlistEntry[], now = Date.now()): Persi
         : {}),
       lastError: entry.lastError?.trim() || undefined,
       operationStatus: entry.operationStatus?.trim() || undefined,
+      ...(entry.publicationReview !== undefined ? { publicationReview: normalizePublicationReview(entry.publicationReview) } : {}),
     })),
   };
 }

@@ -1,5 +1,6 @@
 // 2026-04-14 09:28 PM America/Toronto
 // In-memory watchlist store with manual activate/deactivate operations.
+import { normalizePublicationReview } from "../ai/traderslink-ai-read-review-policy.js";
 
 import type {
   PendingTradersLinkAiReadGeneration,
@@ -142,6 +143,7 @@ export class WatchlistStore {
 
     return {
       symbol: normalizeSymbol(entry.symbol),
+      ...(entry.publicationReview !== undefined ? { publicationReview: normalizePublicationReview(entry.publicationReview) } : {}),
       active: entry.active,
       priority: entry.priority,
       tags: [...entry.tags],
@@ -233,6 +235,7 @@ export class WatchlistStore {
     tradersLinkAiReadConfidence?: WatchlistTradersLinkAiReadConfidence;
     tradersLinkAiReadBoundaryState?: TradersLinkAiReadBoundaryState;
     pendingTradersLinkAiReadGeneration?: PendingTradersLinkAiReadGeneration | null;
+    publicationReview?: WatchlistEntry["publicationReview"];
     tradersLinkAiReadFailure?: WatchlistTradersLinkAiReadFailure | null;
   }): WatchlistEntry {
     const symbol = normalizeSymbol(input.symbol);
@@ -310,6 +313,7 @@ export class WatchlistStore {
         input.pendingTradersLinkAiReadGeneration !== undefined
           ? input.pendingTradersLinkAiReadGeneration ?? undefined
           : existing?.pendingTradersLinkAiReadGeneration,
+      publicationReview: normalizePublicationReview(input.publicationReview ?? existing?.publicationReview),
       tradersLinkAiReadFailure:
         input.tradersLinkAiReadFailure !== undefined
           ? input.tradersLinkAiReadFailure ?? undefined
