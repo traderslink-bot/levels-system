@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { TradersLinkAiReadAuditStore, type AiReadAuditEvent, type AiReadAuditResult } from "./traderslink-ai-read-audit.js";
 import { resolveManualWatchlistDurableDirectory } from "../monitoring/manual-watchlist-durable-storage.js";
-import { validatePullbackSection, validateRecoverySection } from "./traderslink-ai-read-section-validation.js";
+import { validatePullbackPair, validatePullbackSection, validateRecoverySection } from "./traderslink-ai-read-section-validation.js";
 import type { LevelSnapshotPayload } from "../alerts/alert-types.js";
 import type { RecentWebsiteArticleLookupResult } from "../live-watchlist/recent-website-articles.js";
 import {
@@ -2418,9 +2418,13 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       const shallow = validatePullbackSection("shallow", normalized.pullbackPlans.shallow, sectionContext);
       const deep = validatePullbackSection("deep", normalized.pullbackPlans.deep, sectionContext);
       const recovery = validateRecoverySection(normalized.failureRecovery, sectionContext);
-      normalized.pullbackPlans = { shallow: shallow.value, deep: deep.value };
+      const recentPullbackBars = input.priceAction.intradayCandles.slice(-24);
+      const meanPullbackRange = recentPullbackBars.length
+        ? recentPullbackBars.reduce((sum, candle) => sum + Math.max(0, candle.high - candle.low), 0) / recentPullbackBars.length : 0;
+      const pair = validatePullbackPair(shallow.value, deep.value, referenceQuote.price, meanPullbackRange);
+      normalized.pullbackPlans = { shallow: pair.value, deep: deep.value };
       normalized.failureRecovery = recovery.value;
-      const sectionIssues = [...shallow.issues, ...deep.issues, ...recovery.issues];
+      const sectionIssues = [...shallow.issues, ...deep.issues, ...pair.issues, ...recovery.issues];
       if (sectionIssues.length) {
         // These legacy whole-card paragraphs have no dependency declarations.
         // Omit them intact rather than leave a reference to a removed setup.
@@ -2428,7 +2432,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         normalized.riskSummary = [];
         capture("validation", {
           stage: "optional_sections", issues: sectionIssues,
-          changedPaths: [...shallow.changedPaths, ...deep.changedPaths, ...recovery.changedPaths,
+          changedPaths: [...shallow.changedPaths, ...deep.changedPaths, ...pair.changedPaths, ...recovery.changedPaths,
             "currentRead", "riskSummary"],
         });
       }

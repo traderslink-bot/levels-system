@@ -716,21 +716,24 @@ describe("OpenAITradersLinkAiReadService", () => {
     };
 
     const generate = async (responseDraft: Record<string, unknown>) => {
+      let requests = 0;
       const service = new OpenAITradersLinkAiReadService({
         apiKey: "test-key",
         model: "test-model",
-        fetchImpl: async () => new Response(JSON.stringify({
+        fetchImpl: async () => { requests += 1; return new Response(JSON.stringify({
           output: [{
             type: "message",
             content: [{ type: "output_text", text: JSON.stringify(responseDraft) }],
           }],
-        }), { status: 200, headers: { "Content-Type": "application/json" } }),
+        }), { status: 200, headers: { "Content-Type": "application/json" } }); },
       });
-      return service.generate({
+      const result = await service.generate({
         snapshot: { ...snapshot(), currentPrice },
         priceAction: tape,
         research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
       });
+      assert.equal(requests, 1, "section recovery must not make another AI request");
+      return result;
     };
 
     const read = await generate(draft);
@@ -763,11 +766,15 @@ describe("OpenAITradersLinkAiReadService", () => {
         value.failureRecovery.firstObjectivePrice = value.failureRecovery.setupRestorePrice;
       }, /objective must be distinct/i],
     ];
-    for (const [label, mutate, errorPattern] of invalidCases) {
+    for (const [label, mutate] of invalidCases) {
       const invalid = structuredClone(draft) as Record<string, any>;
       mutate(invalid);
       if (label === "overlapping zones") {
-        await assert.rejects(generate(invalid), errorPattern, label);
+        const partial = await generate(invalid);
+        assert.equal(partial.pullbackPlans.shallow, null, label);
+        assert.deepEqual(partial.pullbackPlans.deep, read.pullbackPlans.shallow, label);
+        assert.ok(partial.needsToHold.price !== null, label);
+        assert.equal(partial.currentRead, "", label);
         continue;
       }
       const partial = await generate(invalid);

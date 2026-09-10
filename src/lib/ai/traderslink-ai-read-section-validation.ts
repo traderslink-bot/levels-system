@@ -8,7 +8,7 @@ export type AnalysisSectionIssue = {
   code: "invalid_number" | "low_confidence" | "zone_order" | "reference_order" |
     "missing_evidence" | "unknown_evidence" | "zone_evidence_mismatch" |
     "invalidation_order" | "confirmation_order" | "objective_order" |
-    "momentum_failed" | "failure_order" | "reclaim_order" | "restore_order";
+    "momentum_failed" | "failure_order" | "reclaim_order" | "restore_order" | "zone_overlap";
   action: "omit_section" | "omit_objective";
 };
 
@@ -90,6 +90,21 @@ export function validatePullbackSection(
     };
   }
   return { value: { ...scenario, evidenceIds: [...scenario.evidenceIds] }, issues, changedPaths: [] };
+}
+
+export function validatePullbackPair(
+  shallow: TradersLinkAiReadPullbackScenario | null,
+  deep: TradersLinkAiReadPullbackScenario | null,
+  referencePrice: number,
+  meanCandleRange: number,
+): SectionValidationResult<TradersLinkAiReadPullbackScenario> {
+  const separation = Math.max(referencePrice * 0.005, 0.0001, meanCandleRange * 0.25);
+  if (shallow && deep && shallow.zoneLow - deep.zoneHigh < separation) {
+    // Both branches must already have passed independent validation. Retain
+    // the deeper setup rather than inventing separation or rejecting the card.
+    return { value: null, issues: [{ path: "pullbackPlans.shallow", code: "zone_overlap", action: "omit_section" }], changedPaths: ["pullbackPlans.shallow"] };
+  }
+  return { value: shallow, issues: [], changedPaths: [] };
 }
 
 export function validateRecoverySection(

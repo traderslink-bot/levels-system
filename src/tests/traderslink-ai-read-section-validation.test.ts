@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validatePullbackSection, validateRecoverySection, type ScenarioValidationContext } from "../lib/ai/traderslink-ai-read-section-validation.js";
+import { validatePullbackPair, validatePullbackSection, validateRecoverySection, type ScenarioValidationContext } from "../lib/ai/traderslink-ai-read-section-validation.js";
 
 const context: ScenarioValidationContext = {
   referencePrice: 4, momentumFailure: 3.3, confidence: "high",
@@ -9,6 +9,18 @@ const context: ScenarioValidationContext = {
 const shallow = { zoneLow: 3.7, zoneHigh: 3.8, confirmationPrice: 3.85, confirmation: "Reclaim the base", invalidationPrice: 3.6, firstObjectivePrice: 4.2, rationale: "Observed base", evidenceIds: ["shallow-base"] };
 const deep = { ...shallow, zoneLow: 3.4, zoneHigh: 3.5, confirmationPrice: 3.6, invalidationPrice: 3.3, evidenceIds: ["deep-base"] };
 const recovery = { recoveryZoneLow: 3.4, recoveryZoneHigh: 3.5, firstReclaimPrice: 3.6, setupRestorePrice: 3.7, firstObjectivePrice: 3.9, rationale: "Reclaim observed base", evidenceIds: ["deep-base"] };
+
+test("overlapping valid branches omit shallow without changing the deep setup", () => {
+  const savedDeep = JSON.stringify(deep);
+  const result = validatePullbackPair({ ...shallow, zoneLow: 3.49 }, deep, 4, 0.1);
+  assert.equal(result.value, null);
+  assert.equal(result.issues[0]?.code, "zone_overlap");
+  assert.equal(JSON.stringify(deep), savedDeep);
+  assert.equal(validatePullbackPair(shallow, deep, 4, 0.1).value, shallow);
+  assert.equal(validatePullbackPair(shallow, null, 4, 0.1).value, shallow);
+  assert.equal(validatePullbackPair(null, deep, 4, 0.1).value, null);
+  assert.equal(validatePullbackPair(shallow, deep, 4, 1).value, null);
+});
 
 test("invalid shallow does not remove or relabel an independently valid deep zone", () => {
   const result = validatePullbackSection("shallow", { ...shallow, zoneHigh: 4.1 }, context);
