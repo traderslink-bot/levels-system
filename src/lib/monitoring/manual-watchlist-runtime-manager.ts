@@ -4482,6 +4482,19 @@ export class ManualWatchlistRuntimeManager {
       return;
     }
     const entry = this.watchlistStore.getEntry(read.symbol);
+    if (entry?.publicationReview?.required) {
+      const store = this.options.tradersLinkAiReadReviewStore;
+      const review = store?.read(entry.publicationReview.cycleId);
+      const approval = review?.approved;
+      const approvedBody = approval?.body;
+      const draft = approvedBody?.kind === "approve"
+        ? review!.events.find((event) => event.revision === approvedBody.draftRevision)?.body : undefined;
+      const deliveredBody = "cards" in published ? published.cards.tradersLinkAiRead?.body :
+        "generationId" in published ? JSON.stringify(published) : undefined;
+      if (!store || !review || !approval || (draft?.kind !== "original" && draft?.kind !== "edit") ||
+        deliveredBody !== JSON.stringify(draft.payload)) return;
+      store.recordDelivery(review.cycleId, review.head, approval.revision, "website", "acknowledged", `website:${approval.revision}`);
+    }
     const pending = entry?.pendingTradersLinkAiReadGeneration;
     if (!entry || !pending || pending.generationId !== read.generationId) {
       return;
@@ -4663,6 +4676,47 @@ export class ManualWatchlistRuntimeManager {
     store.saveDraft({ cycleId: input.cycleId, expectedHead: input.expectedHead, actor: input.actor,
       payload: edited.payload as unknown as Record<string, unknown> });
     return { review: this.getTradersLinkAiReadReview(symbol), warnings: edited.warnings, changedPaths: edited.changedPaths };
+  }
+
+  private buildReviewedWebsitePatch(read: TradersLinkAiReadPayload): LiveWatchlistCardPatch {
+    const snapshot = this.applyLiveTraderReadCardVisibility(buildLiveWatchlistSnapshotPatch(
+      this.buildLevelSnapshotPayload(read.symbol, read.generatedAt, read.currentPrice),
+      { pullbackReadEnabled: this.options.pullbackReadEnabled },
+    ));
+    const analysis = buildTradersLinkAiReadPatch({ read, visible: true,
+      dipBuyPlanVisible: this.watchlistStore.getEntry(read.symbol)?.tradersLinkAiReadDipBuyPlanVisible !== false });
+    return { ...snapshot, ...analysis, cards: { ...snapshot.cards, ...analysis.cards } };
+  }
+
+  async approveTradersLinkAiReadForWebsite(input: { symbol: string; cycleId: string; expectedHead: number; draftRevision: number; actor: string }) {
+    const symbol = normalizeSymbol(input.symbol);
+    const entry = this.watchlistStore.getEntry(symbol);
+    const store = this.options.tradersLinkAiReadReviewStore;
+    const publisher = this.liveWatchlistPublisher;
+    if (!entry?.active || entry.publicationReview?.cycleId !== input.cycleId || !store || !publisher) throw new Error("Ticker review or publisher is unavailable.");
+    const review = this.getTradersLinkAiReadReview(symbol);
+    const draft = review?.draft;
+    if (!draft || draft.revision !== input.draftRevision || (draft.body.kind !== "original" && draft.body.kind !== "edit")) throw new Error("Draft changed. Review the latest version.");
+    const read = draft.body.payload as unknown as TradersLinkAiReadPayload;
+    const patch = this.buildReviewedWebsitePatch(read);
+    const approval = store.approve(input.cycleId, input.expectedHead, input.draftRevision, input.actor);
+    const claim = store.claimDelivery(input.cycleId, store.read(input.cycleId)!.head, approval.revision, "website");
+    if (claim.shouldSend) {
+      this.watchlistStore.patchEntry(symbol, { pendingTradersLinkAiReadGeneration: {
+        generationId: read.generationId, createdAt: this.options.now?.() ?? Date.now(),
+        trigger: "manual", boundaryState: buildTradersLinkAiReadRefreshState(read),
+      } });
+      this.persistWatchlist();
+      // A transport error may have reached the provider. Leave the claim
+      // uncertain; retry the durable publisher item, never buy another read.
+      await publisher.publish(patch);
+      const delivered = store.read(input.cycleId)!;
+      store.recordDelivery(input.cycleId, delivered.head, approval.revision, "website", "acknowledged", claim.deliveryKey);
+      this.acknowledgeTradersLinkAiReadPublication(read);
+    } else if (claim.reason === "uncertain") {
+      await publisher.replayPending?.();
+    }
+    return this.getTradersLinkAiReadReview(symbol);
   }
 
   /**

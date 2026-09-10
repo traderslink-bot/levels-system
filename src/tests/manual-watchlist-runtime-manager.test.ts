@@ -58,6 +58,10 @@ test("private activation saves an AI draft without website publication or Discor
           pullbackPlans: { shallow: null, deep: null },
           needsToHold: { label: "Hold", price: 0.45, rationale: "Base" },
           momentumFailure: { label: "Failure", price: 0.4, rationale: "Base failed" },
+          cautionBelow: { label: "Caution", price: 0.43, rationale: "Base" },
+          mustClear: { label: "Clear", price: 0.52, rationale: "Pivot" },
+          breakoutContinuation: { label: "Continuation", price: 0.54, rationale: "Pivot" },
+          targets: [], downsideCheckpoints: [],
         }; },
       } as any,
     });
@@ -80,12 +84,24 @@ test("private activation saves an AI draft without website publication or Discor
     assert.equal(reviewStore.read(entry.publicationReview!.cycleId)?.draft?.body.kind, "original");
     assert.equal(manager.isWatchlistPublicationApproved({ symbol: "PDSB", cards: {} }), false);
     assert.equal(publisher.cardPatches.length, 0);
+    internal.buildReviewedWebsitePatch = (read: any) => ({ symbol: read.symbol, cards: {
+      tradersLinkAiRead: { title: "TradersLink Analysis", body: JSON.stringify(read), updatedAt: now },
+    } });
+    const ready = manager.getTradersLinkAiReadReview("PDSB")!;
+    const approvalInput = { symbol: "PDSB", cycleId: ready.cycleId, expectedHead: ready.head,
+      draftRevision: ready.draft!.revision, actor: "test-owner" };
+    const delivered = await manager.approveTradersLinkAiReadForWebsite(approvalInput);
+    assert.equal(publisher.cardPatches.length, 1);
+    assert.equal(JSON.parse(publisher.cardPatches[0]!.cards.tradersLinkAiRead!.body).currentRead, "Original");
+    assert.ok(delivered?.events.some((event) => event.body.kind === "delivery" && event.body.channel === "website" && event.body.status === "acknowledged"));
+    await manager.approveTradersLinkAiReadForWebsite(approvalInput);
+    assert.equal(publisher.cardPatches.length, 1);
     await manager.activateSymbol({ symbol: "PDSB", source: "manual" });
     assert.equal(aiCalls, 1);
     await manager.refreshTradersLinkAiRead("PDSB");
     assert.equal(aiCalls, 2);
     assert.equal(reviewStore.read(entry.publicationReview!.cycleId)?.events.filter((event) => event.body.kind === "original").length, 2);
-    assert.equal(publisher.cardPatches.length, 0);
+    assert.equal(publisher.cardPatches.length, 1);
     assert.equal(watchlistStore.getEntry("PDSB")?.pendingTradersLinkAiReadGeneration, undefined);
     const beforeEdit = manager.getTradersLinkAiReadReview("PDSB")!;
     const edited = manager.saveTradersLinkAiReadOwnerEdit({ symbol: "PDSB", cycleId: beforeEdit.cycleId,
@@ -93,14 +109,22 @@ test("private activation saves an AI draft without website publication or Discor
     assert.equal((edited.review?.draft?.body as any).payload.currentRead, "Owner analysis");
     assert.equal(edited.review?.draft?.actor, "test-owner");
     assert.equal(aiCalls, 2);
-    assert.equal(publisher.cardPatches.length, 0);
+    assert.equal(publisher.cardPatches.length, 1);
     assert.throws(() => manager.saveTradersLinkAiReadOwnerEdit({ symbol: "PDSB", cycleId: beforeEdit.cycleId,
       expectedHead: beforeEdit.head, patch: { currentRead: "Stale" }, actor: "test-owner" }), /Draft changed/);
     internal.seedLevelsForSymbol = async () => { watchlistStore.patchEntry("FTFT", { active: false }); };
     await assert.rejects(manager.activateSymbol({ symbol: "FTFT", source: "manual" }), /cancel/i);
     assert.equal(aiCalls, 2);
     assert.equal(discord.ensured.length, 0);
-    assert.equal(publisher.cardPatches.length, 0);
+    assert.equal(publisher.cardPatches.length, 1);
+    const latestReview = manager.getTradersLinkAiReadReview("PDSB")!;
+    const editedApproval = { symbol: "PDSB", cycleId: latestReview.cycleId, expectedHead: latestReview.head,
+      draftRevision: latestReview.draft!.revision, actor: "test-owner" };
+    await manager.approveTradersLinkAiReadForWebsite(editedApproval);
+    await manager.approveTradersLinkAiReadForWebsite(editedApproval);
+    assert.equal(publisher.cardPatches.length, 2);
+    assert.equal(JSON.parse(publisher.cardPatches[1]!.cards.tradersLinkAiRead!.body).currentRead, "Owner analysis");
+    assert.equal(aiCalls, 2);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
