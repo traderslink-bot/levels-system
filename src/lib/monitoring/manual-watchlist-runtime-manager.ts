@@ -4014,6 +4014,7 @@ export class ManualWatchlistRuntimeManager {
     runId: string,
     preparedPriceAction?: TradersLinkAiReadPriceActionContext,
   ): Promise<TradersLinkAiReadPayload | null> {
+    const requestActivationEpoch = this.activationEpochs.get(symbol);
     const generationAvailability = this.getTradersLinkAiReadGenerationAvailability(
       this.options.now?.() ?? Date.now(),
       { symbol, requestedTrigger },
@@ -4285,10 +4286,14 @@ export class ManualWatchlistRuntimeManager {
       const requestAvailability = this.getTradersLinkAiReadGenerationAvailability(
         this.options.now?.() ?? Date.now(), { symbol, requestedTrigger },
       );
-      if (!requestAvailability.allowed) {
+      const requestEntry = this.watchlistStore.getEntry(symbol);
+      const activationChanged = !requestEntry?.active ||
+        requestEntry.publicationReview?.cycleId !== entry.publicationReview?.cycleId ||
+        this.activationEpochs.get(symbol) !== requestActivationEpoch;
+      if (!requestAvailability.allowed || activationChanged) {
         this.recordTradersLinkAiReadRunOutcome({
           symbol, trigger: requestedTrigger, stage: "preflight", outcome: "skipped",
-          runId, reason: requestAvailability.reason ?? "AI Read generation is unavailable.",
+          runId, reason: activationChanged ? "Ticker activation changed before the AI request." : requestAvailability.reason ?? "AI Read generation is unavailable.",
         });
         return null;
       }
@@ -11185,6 +11190,7 @@ export class ManualWatchlistRuntimeManager {
   }
 
   async stop(): Promise<void> {
+    for (const symbol of this.activationEpochs.keys()) this.nextActivationEpoch(symbol);
     this.stopPullbackReadIntradayPolling();
     this.stopHaltConfirmationPolling();
     this.stopActivationWatchdog();
@@ -12923,6 +12929,7 @@ export class ManualWatchlistRuntimeManager {
       throw new Error(`${symbol} is still in its manual-deactivation cooldown.`);
     }
     const cycleId = randomUUID();
+    const activationEpoch = this.nextActivationEpoch(symbol);
     reviewStore.begin(cycleId, symbol, true, "runtime:activation");
     this.watchlistStore.upsertManualEntry({
       symbol, tags: watchlistTagsForActivation(input), watchlistGroup: watchlistGroupForActivation(input),
@@ -12936,6 +12943,7 @@ export class ManualWatchlistRuntimeManager {
     this.aiReadInitialGenerationSuppressedSymbols.delete(symbol);
     this.persistWatchlist();
     const assertCurrent = () => {
+      this.assertActivationCurrent(symbol, activationEpoch);
       const current = this.watchlistStore.getEntry(symbol);
       if (!current?.active || current.publicationReview?.cycleId !== cycleId) throw new ActivationCancelledError(symbol);
       return current;

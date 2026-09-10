@@ -82,6 +82,11 @@ test("private activation saves an AI draft without website publication or Discor
     assert.equal(reviewStore.read(entry.publicationReview!.cycleId)?.events.filter((event) => event.body.kind === "original").length, 2);
     assert.equal(publisher.cardPatches.length, 0);
     assert.equal(watchlistStore.getEntry("PDSB")?.pendingTradersLinkAiReadGeneration, undefined);
+    internal.seedLevelsForSymbol = async () => { watchlistStore.patchEntry("FTFT", { active: false }); };
+    await assert.rejects(manager.activateSymbol({ symbol: "FTFT", source: "manual" }), /cancel/i);
+    assert.equal(aiCalls, 2);
+    assert.equal(discord.ensured.length, 0);
+    assert.equal(publisher.cardPatches.length, 0);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
