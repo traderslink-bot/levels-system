@@ -2884,9 +2884,21 @@ export function formatLevelExtensionMessage(payload: LevelExtensionPayload): str
 }
 
 export class DiscordAlertRouter {
+  private publicationAuthorizer?: (symbol: string) => boolean;
   constructor(private readonly gateway: DiscordThreadGateway) {}
 
+  setPublicationAuthorizer(authorize: (symbol: string) => boolean): void {
+    this.publicationAuthorizer = authorize;
+  }
+
+  private assertPublicationAllowed(symbol: string): void {
+    let allowed = true;
+    try { allowed = this.publicationAuthorizer?.(normalizeSymbol(symbol)) ?? true; } catch { allowed = false; }
+    if (!allowed) throw new Error("Discord publication is awaiting owner approval.");
+  }
+
   async announceTickerAdded(symbol: string): Promise<void> {
+    this.assertPublicationAllowed(symbol);
     await this.gateway.announceTickerAdded?.(normalizeSymbol(symbol));
   }
 
@@ -2895,6 +2907,8 @@ export class DiscordAlertRouter {
     storedThreadId?: string | null,
   ): Promise<DiscordThreadRoutingResult> {
     const normalizedSymbol = normalizeSymbol(symbol);
+
+    this.assertPublicationAllowed(normalizedSymbol);
 
     if (this.gateway.ensureSymbolRoute) {
       return this.gateway.ensureSymbolRoute(normalizedSymbol, storedThreadId);
@@ -2932,6 +2946,7 @@ export class DiscordAlertRouter {
       };
     }
 
+    this.assertPublicationAllowed(normalizedSymbol);
     const createdThread = await this.gateway.createThread(normalizedSymbol);
     return {
       threadId: createdThread.id,
@@ -2942,17 +2957,21 @@ export class DiscordAlertRouter {
   }
 
   async routeAlert(threadId: string, payload: AlertPayload): Promise<void> {
+    this.assertPublicationAllowed(payload.symbol);
     await this.gateway.sendMessage(threadId, payload);
   }
 
   async routeLevelSnapshot(threadId: string, payload: LevelSnapshotPayload): Promise<void> {
+    this.assertPublicationAllowed(payload.symbol);
     await this.gateway.sendLevelSnapshot(threadId, payload);
     if (shouldPostFullLevelLadderToDiscord()) {
+      this.assertPublicationAllowed(payload.symbol);
       await this.gateway.sendLevelLadder?.(threadId, payload);
     }
   }
 
   async routeLevelExtension(threadId: string, payload: LevelExtensionPayload): Promise<void> {
+    this.assertPublicationAllowed(payload.symbol);
     await this.gateway.sendLevelExtension(threadId, payload);
   }
 }

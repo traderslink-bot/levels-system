@@ -3279,6 +3279,13 @@ export class ManualWatchlistRuntimeManager {
         })
       : null;
     this.watchlistStore = options.watchlistStore ?? new WatchlistStore();
+    options.discordAlertRouter.setPublicationAuthorizer?.((symbol) => {
+      const entry = this.watchlistStore.getEntry(symbol);
+      // Legacy activation creates the thread before the entry. New reviewed
+      // activation must persist its cycle first so this check can hold it.
+      if (!entry?.publicationReview) return true;
+      return this.isWatchlistPublicationApproved({ symbol, cards: {} });
+    });
     this.watchlistStatePersistence =
       options.watchlistStatePersistence ?? new WatchlistStatePersistence();
     this.postingPolicySettings = getLiveThreadPostingPolicySettings(
