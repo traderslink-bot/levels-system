@@ -1475,21 +1475,13 @@ function appendFactualOuterDailyResistanceTarget(
   };
 }
 
-function assertTradersLinkAiTradeMap(
-  read: ModelRead,
+function assertTradeText(
+  allTradeText: string,
   currentPrice: number,
   priceAction: TradersLinkAiReadPriceActionContext,
   dataAsOf: number,
 ): void {
   const tolerance = Math.max(currentPrice * 0.005, 0.0001);
-  const tacticalSpacing = tacticalTradeMapSpacing(currentPrice, priceAction);
-  const recentBars = priceAction.intradayCandles.slice(-24);
-  const averageTrueRange = recentBars.length > 0
-    ? recentBars.reduce((sum, candle) => sum + Math.max(0, candle.high - candle.low), 0) /
-      recentBars.length
-    : 0;
-  const unsupportedAnalysisLanguage =
-    /\b(?:4h|four[- ]hour|confluence|supplied (?:level|support|resistance)|support stack|resistance stack|next level)\b/i;
   const unsupportedZeroVolumeClaim =
     /\b(?:reported\s+)?(?:extended[- ]hours|premarket|postmarket|after[- ]hours|session|bar)?\s*volume\s+(?:was|is|reported(?:\s+as)?)?\s*zero\b|\bzero\s+(?:reported\s+)?volume\b/i;
   const unavailableVolumeCommentaryPatterns = [
@@ -1503,23 +1495,6 @@ function assertTradersLinkAiTradeMap(
   const fail = (message: string): never => {
     throw new Error(`OpenAI returned an invalid tactical trade map: ${message}`);
   };
-  const isAbove = (left: number, right: number): boolean => left > right + tolerance;
-  const isBelow = (left: number, right: number): boolean => left < right - tolerance;
-  const allTradeText = [
-    read.currentRead,
-    read.needsToHold.rationale,
-    read.cautionBelow.rationale,
-    read.momentumFailure.rationale,
-    read.mustClear.rationale,
-    read.breakoutContinuation.rationale,
-    ...read.targets.map((target) => target.condition),
-    ...read.downsideCheckpoints.map((checkpoint) => checkpoint.condition),
-    ...[read.pullbackPlans.shallow, read.pullbackPlans.deep]
-      .filter((scenario): scenario is TradersLinkAiReadPullbackScenario => scenario !== null)
-      .flatMap((scenario) => [scenario.confirmation, scenario.rationale]),
-    ...(read.failureRecovery ? [read.failureRecovery.rationale] : []),
-    ...read.riskSummary,
-  ].join(" ");
   if (unsupportedZeroVolumeClaim.test(allTradeText)) {
     fail("claims that unavailable provider volume means zero shares traded");
   }
@@ -1536,6 +1511,35 @@ function assertTradersLinkAiTradeMap(
   }
   if (unavailableVolumeCommentaryPatterns.some((pattern) => pattern.test(allTradeText))) {
     fail("exposes operational volume availability in the user-facing AI Read");
+  }
+}
+
+function assertTradersLinkAiTradeMap(
+  read: ModelRead,
+  currentPrice: number,
+  priceAction: TradersLinkAiReadPriceActionContext,
+  dataAsOf: number,
+): void {
+  const tolerance = Math.max(currentPrice * 0.005, 0.0001);
+  const tacticalSpacing = tacticalTradeMapSpacing(currentPrice, priceAction);
+  const recentBars = priceAction.intradayCandles.slice(-24);
+  const averageTrueRange = recentBars.length > 0
+    ? recentBars.reduce((sum, candle) => sum + Math.max(0, candle.high - candle.low), 0) / recentBars.length : 0;
+  const unsupportedAnalysisLanguage =
+    /\b(?:4h|four[- ]hour|confluence|supplied (?:level|support|resistance)|support stack|resistance stack|next level)\b/i;
+  const fail = (message: string): never => {
+    throw new Error(`OpenAI returned an invalid tactical trade map: ${message}`);
+  };
+  const isAbove = (left: number, right: number): boolean => left > right + tolerance;
+  const isBelow = (left: number, right: number): boolean => left < right - tolerance;
+  // Check each field independently: an earlier correct high must not mask a
+  // later incorrect claim in the legacy first-match price parser.
+  for (const text of [read.currentRead, read.needsToHold.rationale, read.cautionBelow.rationale,
+    read.momentumFailure.rationale, read.mustClear.rationale, read.breakoutContinuation.rationale,
+    ...read.targets.map(target => target.condition), ...read.downsideCheckpoints.map(point => point.condition),
+    ...[read.pullbackPlans.shallow, read.pullbackPlans.deep].flatMap(scenario => scenario ? [scenario.confirmation, scenario.rationale] : []),
+    ...(read.failureRecovery ? [read.failureRecovery.rationale] : []), ...read.riskSummary]) {
+    assertTradeText(text, currentPrice, priceAction, dataAsOf);
   }
 
   for (const [label, level] of [
@@ -2628,6 +2632,26 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
           after: Object.fromEntries(changedPaths.map(key => [key, after[key]])),
         });
       }
+      const textIssues: Array<{ path: string; code: "unsupported_text"; action: "omit_section"; reason: string; omitted: unknown }> = [];
+      const admitScenarioText = (path: string, value: unknown, texts: string[]): boolean => {
+        try {
+          for (const text of texts) assertTradeText(text, referenceQuote.price, input.priceAction, dataAsOf);
+          return true;
+        } catch (error) {
+          textIssues.push({ path, code: "unsupported_text", action: "omit_section",
+            reason: error instanceof Error ? error.message : String(error), omitted: value });
+          return false;
+        }
+      };
+      for (const name of ["shallow", "deep"] as const) {
+        const scenario = normalized.pullbackPlans[name];
+        if (scenario && !admitScenarioText(`pullbackPlans.${name}`, scenario, [scenario.confirmation, scenario.rationale])) {
+          normalized.pullbackPlans[name] = null;
+        }
+      }
+      if (normalized.failureRecovery && !admitScenarioText("failureRecovery", normalized.failureRecovery, [normalized.failureRecovery.rationale])) {
+        normalized.failureRecovery = null;
+      }
       const sectionContext = {
         referencePrice: referenceQuote.price,
         momentumFailure: normalized.momentumFailure.price,
@@ -2679,7 +2703,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         normalized.targets = [];
         breakoutDependencyPaths.push(...removeBreakoutDependentContent(normalized, removedPrices, referenceQuote.price));
       }
-      const sectionIssues = [...shallow.issues, ...deep.issues, ...pair.issues, ...recovery.issues, ...breakout.issues];
+      const sectionIssues = [...textIssues, ...shallow.issues, ...deep.issues, ...pair.issues, ...recovery.issues, ...breakout.issues];
       if (sectionIssues.length) {
         // These legacy whole-card paragraphs have no dependency declarations.
         // Omit them intact rather than leave a reference to a removed setup.
@@ -2687,7 +2711,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         normalized.riskSummary = [];
         capture("validation", {
           stage: "optional_sections", issues: sectionIssues,
-          changedPaths: [...shallow.changedPaths, ...deep.changedPaths, ...pair.changedPaths, ...recovery.changedPaths, ...breakout.changedPaths, ...breakoutDependencyPaths,
+          changedPaths: [...textIssues.map(issue => issue.path), ...shallow.changedPaths, ...deep.changedPaths, ...pair.changedPaths, ...recovery.changedPaths, ...breakout.changedPaths, ...breakoutDependencyPaths,
             "currentRead", "riskSummary"],
         });
       }

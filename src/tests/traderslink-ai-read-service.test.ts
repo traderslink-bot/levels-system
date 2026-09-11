@@ -831,7 +831,25 @@ describe("OpenAITradersLinkAiReadService", () => {
     };
 
     const read = await generate(draft);
+    for (const [name, field, claim] of [
+      ["shallow", "confirmation", "Premarket volume was zero."],
+      ["deep", "rationale", "The provider did not report volume."],
+      ["failureRecovery", "rationale", "There is no premarket volume."],
+    ] as const) {
+      const badText = structuredClone(draft) as Record<string, any>;
+      const section = name === "failureRecovery" ? badText.failureRecovery : badText.pullbackPlans[name];
+      section[field] = claim;
+      const partial = await generate(badText);
+      assert.equal(name === "failureRecovery" ? partial.failureRecovery : partial.pullbackPlans[name], null);
+      assert.deepEqual(partial.pullbackPlans[name === "deep" ? "shallow" : "deep"], read.pullbackPlans[name === "deep" ? "shallow" : "deep"]);
+      assert.equal(partial.currentRead, "");
+      const decision = generationAudit.find(event => event.payload?.stage === "optional_sections");
+      assert.ok(decision.payload.issues.some((issue: any) => issue.code === "unsupported_text" && issue.omitted[field] === claim));
+    }
     const unsupportedContinuation = structuredClone(draft) as Record<string, any>;
+    const badCore = structuredClone(draft) as Record<string, any>;
+    badCore.momentumFailure.rationale = "Premarket volume was zero.";
+    await assert.rejects(generate(badCore), /zero shares traded/);
     unsupportedContinuation.breakoutContinuation.price = 999;
     const partialContinuation = await generate(unsupportedContinuation);
     assert.equal(partialContinuation.breakoutContinuation.price, null);
@@ -1390,6 +1408,32 @@ describe("OpenAITradersLinkAiReadService", () => {
       assert.equal(read.currentRead, "");
       assert.equal(read.breakoutContinuation.price, 0.3658);
     }
+  });
+
+  it("attributes a conflicting premarket claim to the optional scenario field", async () => {
+    const draft = premarketModelRead("Price is testing the shelf.");
+    draft.pullbackPlans = { shallow: {
+      zoneLow: 0.31, zoneHigh: 0.32, confirmationPrice: 0.32, invalidationPrice: 0.30,
+      firstObjectivePrice: null, evidenceIds: [],
+      confirmation: "The $0.3469 premarket high was tested.",
+      rationale: "The $0.3658 premarket high was rejected.",
+    }, deep: null };
+    const events: any[] = [];
+    let requests = 0;
+    const service = new OpenAITradersLinkAiReadService({ apiKey: "test-key", model: "test-model",
+      auditStore: { save: event => { events.push(event); return { saved: true }; } },
+      fetchImpl: async () => { requests += 1; return new Response(JSON.stringify({ output: [{
+        type: "message", content: [{ type: "output_text", text: JSON.stringify(draft) }],
+      }] }), { status: 200 }); },
+    });
+    const read = await service.generate({ snapshot: { ...snapshot(), timestamp: PREMARKET_DATA_AS_OF, currentPrice: 0.3336 },
+      dataAsOf: PREMARKET_DATA_AS_OF, priceAction: premarketPriceAction(),
+      research: { ticker: "NXXT", businessDays: 5, count: 0, articles: [] } });
+    assert.equal(requests, 1);
+    assert.equal(read.pullbackPlans.shallow, null);
+    assert.equal(read.breakoutContinuation.price, 0.3658);
+    assert.ok(events.some(event => event.payload?.issues?.some((issue: any) =>
+      issue.path === "pullbackPlans.shallow" && issue.code === "unsupported_text" && /premarket high/.test(issue.reason))));
   });
 
   it("allows a separate continuation level when the stated premarket high matches OHLCV", async () => {

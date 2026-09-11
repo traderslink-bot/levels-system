@@ -21,6 +21,7 @@ test("request inspector renders lazily with explicit truncation and unavailable 
         { path: "pullbackPlans.shallow.zoneHigh", code: "reference_order", action: "omit_section" },
         { path: "pullbackPlans.deep.firstObjectivePrice", code: "objective_order", action: "omit_objective" },
         { path: "failureRecovery.zone", code: "future_code", action: "omit_section" },
+        { path: "pullbackPlans.shallow", code: "unsupported_text", action: "omit_section" },
       ] } },
       { phase: "validation", payload: { stage: "breakout_selection", selectedCandidateId: "alternate" } },
       { phase: "validation", payload: { stage: "core_evidence", issues: [], anchors: {
@@ -36,6 +37,7 @@ test("request inspector renders lazily with explicit truncation and unavailable 
   new Script(render + "\nrenderAudit(audit);").runInNewContext(context);
   assert.equal(elements.filter(element => element.tag === "pre").length, 0);
   assert.ok(elements.some(element => element.text === "Analysis checks"));
+  assert.ok(elements.some(element => element.text === "Shallow pullback — omitted: the explanation failed a volume or session-high claim check; see the validation record for the exact reason."));
   assert.ok(elements.some(element => element.text === "These checks describe the generated analysis. Owner edits are saved separately."));
   assert.ok(elements.some(element => element.text === "Momentum failure — threshold below observed anchor $0.95. Proposed buffer below the daily low."));
   assert.ok(elements.some(element => element.text === "Must-clear level — check failed: No supported observed anchor."));
