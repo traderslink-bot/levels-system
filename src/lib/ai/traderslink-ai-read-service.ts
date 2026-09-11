@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { captureAnalysisCodeIdentity } from "./traderslink-ai-read-code-identity.js";
 import { observedPriceMatcher, unambiguousPriceCandles } from "./traderslink-ai-read-observations.js";
 import { validateCoreEvidence, validateUpperEvidence } from "./traderslink-ai-read-core-evidence.js";
 import { buildBreakoutEvidence, selectBreakoutCandidate, validateBreakoutEvidence, retainBreakoutTargets, type BreakoutCandidate, type BreakoutTarget } from "./traderslink-ai-read-breakout-selection.js";
@@ -37,6 +38,10 @@ import { classifyUsEquityMarketSession } from "../market-data/us-equity-exchange
 
 // Preserve both selectable models. A generation never sends a paid fallback.
 const DEFAULT_MODEL = "gpt-5.6-terra";
+// One bounded read per service-module load, not per ticker or request. This
+// identifies on-disk analysis modules; it is not a whole-runtime build claim.
+const ANALYSIS_CODE_IDENTITY = captureAnalysisCodeIdentity({ moduleUrl: import.meta.url,
+  deployedCommit: process.env.RAILWAY_GIT_COMMIT_SHA });
 const DEFAULT_FALLBACK_MODEL = "gpt-5.6-luna";
 const DEFAULT_TIMEOUT_MS = 90_000;
 const DEFAULT_MAX_OUTPUT_TOKENS = 8_000;
@@ -2356,6 +2361,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         correction,
       });
       capture("request", { body: requestBody, bodySha256: createHash("sha256").update(JSON.stringify(requestBody)).digest("hex"),
+        codeIdentity: ANALYSIS_CODE_IDENTITY,
         promptSha256: createHash("sha256").update(DEVELOPER_PROMPT).digest("hex"),
         schemaSha256: createHash("sha256").update(JSON.stringify(AI_READ_SCHEMA)).digest("hex") });
       const response = await this.fetchImpl("https://api.openai.com/v1/responses", {

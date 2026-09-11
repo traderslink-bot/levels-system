@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { buildBreakoutEvidence } from "../lib/ai/traderslink-ai-read-breakout-selection.js";
 import { describe, it } from "node:test";
 
@@ -1969,6 +1970,18 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(attempt.usageReported, false);
     assert.equal(attempt.usage, null);
     assert.deepEqual((events[0]!.payload as { body: unknown }).body, JSON.parse(sentBody));
+    const capturedRequest = events[0]!.payload as any;
+    const outgoingBody = JSON.parse(sentBody);
+    const digest = (text: string) => createHash("sha256").update(text).digest("hex");
+    assert.equal(capturedRequest.bodySha256, digest(sentBody));
+    assert.equal(capturedRequest.promptSha256, digest(outgoingBody.input[0].content[0].text));
+    assert.equal(capturedRequest.schemaSha256, digest(JSON.stringify(outgoingBody.text.format.schema)));
+    const identity = (events[0]!.payload as any).codeIdentity;
+    assert.equal(identity.scope, "analysis-module-files-at-service-load");
+    assert.equal(identity.complete, true);
+    assert.equal(identity.modules.length, 7);
+    assert.match(identity.sha256, /^[a-f0-9]{64}$/);
+    assert.equal(Object.hasOwn(JSON.parse(sentBody), "codeIdentity"), false);
     assert.equal((events[1]!.payload as { body: string }).body, responseBody);
     assert.doesNotMatch(JSON.stringify(events), /private-test-credential|Authorization/);
   });
