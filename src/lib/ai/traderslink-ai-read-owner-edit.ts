@@ -81,5 +81,15 @@ export function applyOwnerAnalysisEdit(original: TradersLinkAiReadPayload, rawPa
     if (plan.zoneHigh >= result.currentPrice) warnings.push(`${name} pullback is not below the analysis reference price.`);
   }
   if (result.needsToHold.price !== null && result.momentumFailure.price !== null && result.momentumFailure.price > result.needsToHold.price) warnings.push("Momentum failure is above the needs-to-hold price.");
+  const breakout = result.breakoutContinuation?.price;
+  const mustClear = result.mustClear?.price;
+  if (breakout != null && breakout < result.currentPrice) warnings.push("Breakout continuation is below the analysis reference price.");
+  if (breakout != null && mustClear != null && breakout <= mustClear) warnings.push("Breakout continuation is at or below the must-clear price.");
+  let priorUpside = breakout ?? result.currentPrice;
+  for (const point of result.targets ?? []) {
+    if (point.price === null) continue;
+    if (point.price <= priorUpside) warnings.push("An upside level is at or below the preceding continuation level.");
+    priorUpside = point.price;
+  }
   return { payload: result, changedPaths, warnings };
 }

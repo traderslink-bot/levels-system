@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { applyOwnerAnalysisEdit } from "../lib/ai/traderslink-ai-read-owner-edit.js";
+import { renderApprovedAnalysisDiscord } from "../lib/ai/traderslink-ai-read-publication-preview.js";
 import type { TradersLinkAiReadPayload } from "../lib/live-watchlist/live-watchlist-types.js";
 
 const base = () => ({
@@ -51,4 +52,26 @@ test("context text can change without replacing original source URLs and hidden 
   assert.deepEqual(payload.catalystRealityCheck.sourceUrls, original.catalystRealityCheck.sourceUrls);
   assert.deepEqual(payload.ownerHiddenSections, ["deep", "listingStatus"]);
   assert.throws(() => applyOwnerAnalysisEdit(original, { ownerHiddenSections: ["unknown"] }));
+});
+
+test("owner restores omitted breakout and preview preserves the correction without AI evidence requirements", () => {
+  const empty = { label: "", price: null, rationale: "" };
+  const original = { ...base(), cautionBelow: empty, mustClear: { label: "Must clear", price: 0.52, rationale: "Prior pivot" },
+    breakoutContinuation: empty, targets: [], downsideCheckpoints: [], riskSummary: [],
+    dilutionRisk: { summary: "", dayTradeRelevance: "" }, listingStatus: { summary: "", dayTradeRelevance: "" },
+    ownerHiddenSections: ["breakoutContinuation"] } as unknown as TradersLinkAiReadPayload;
+  const correction = { label: "Breakout continuation", price: 0.54321, rationale: "My corrected confirmation above the pivot." };
+  const edited = applyOwnerAnalysisEdit(original, { breakoutContinuation: correction, ownerHiddenSections: [] });
+  assert.deepEqual(edited.payload.breakoutContinuation, correction);
+  assert.equal(original.breakoutContinuation.price, null);
+  assert.deepEqual(original.ownerHiddenSections, ["breakoutContinuation"]);
+  assert.equal(edited.payload.generationId, original.generationId);
+  assert.equal(edited.payload.generatedAt, original.generatedAt);
+  assert.equal(edited.warnings.length, 0);
+  const preview = renderApprovedAnalysisDiscord(edited.payload).join("");
+  assert.match(preview, /Breakout continuation/);
+  assert.match(preview, /My corrected confirmation/);
+  const inconsistent = applyOwnerAnalysisEdit(edited.payload, { breakoutContinuation: { ...correction, price: 0.49 } });
+  assert.equal(inconsistent.payload.breakoutContinuation.price, 0.49);
+  assert.equal(inconsistent.warnings.length, 2);
 });

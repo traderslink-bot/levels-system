@@ -75,7 +75,7 @@ test("private activation saves an AI draft without website publication or Discor
           momentumFailure: { label: "Failure", price: 0.4, rationale: "Base failed" },
           cautionBelow: { label: "Caution", price: 0.43, rationale: "Base" },
           mustClear: { label: "Clear", price: 0.52, rationale: "Pivot" },
-          breakoutContinuation: { label: "Continuation", price: 0.54, rationale: "Pivot" },
+          breakoutContinuation: aiCalls === 1 ? { label: "Continuation", price: 0.54, rationale: "Pivot" } : { label: "", price: null, rationale: "" },
           targets: [], downsideCheckpoints: [],
         }; },
       } as any,
@@ -143,9 +143,19 @@ test("private activation saves an AI draft without website publication or Discor
     assert.equal(watchlistStore.getEntry("PDSB")?.pendingTradersLinkAiReadGeneration, undefined);
     const beforeEdit = manager.getTradersLinkAiReadReview("PDSB")!;
     const edited = manager.saveTradersLinkAiReadOwnerEdit({ symbol: "PDSB", cycleId: beforeEdit.cycleId,
-      expectedHead: beforeEdit.head, patch: { currentRead: "Owner analysis" }, actor: "test-owner" });
+      expectedHead: beforeEdit.head, patch: { currentRead: "Owner analysis",
+        breakoutContinuation: { label: "Breakout continuation", price: 0.54321, rationale: "Owner confirmation above the pivot." } }, actor: "test-owner" });
     assert.equal((edited.review?.draft?.body as any).payload.currentRead, "Owner analysis");
     assert.equal(edited.review?.draft?.actor, "test-owner");
+    const restored = new TradersLinkAiReadReviewStore(directory).read(beforeEdit.cycleId)!;
+    const lastOriginal = restored.events.filter(event => event.body.kind === "original").at(-1)!;
+    assert.equal((lastOriginal.body as any).payload.breakoutContinuation.price, null);
+    assert.equal((restored.draft!.body as any).payload.breakoutContinuation.price, 0.54321);
+    assert.equal((restored.draft!.body as any).payload.generationId, (lastOriginal.body as any).payload.generationId);
+    const correctedPreview = manager.getTradersLinkAiReadPublicationPreview("PDSB");
+    assert.match(correctedPreview.publication.discordChunks.join(""), /Owner confirmation above the pivot/);
+    assert.equal(manager.getHistoricalTradersLinkAiReadReview("PDSB", beforeEdit.cycleId).head, restored.head);
+    assert.throws(() => manager.getHistoricalTradersLinkAiReadReview("TNON", beforeEdit.cycleId), /unavailable/);
     assert.equal(aiCalls, 2);
     assert.equal(publisher.cardPatches.length, 1);
     assert.throws(() => manager.saveTradersLinkAiReadOwnerEdit({ symbol: "PDSB", cycleId: beforeEdit.cycleId,
@@ -162,6 +172,7 @@ test("private activation saves an AI draft without website publication or Discor
     await manager.approveTradersLinkAiReadForWebsite(editedApproval);
     assert.equal(publisher.cardPatches.length, 2);
     assert.equal(JSON.parse(publisher.cardPatches[1]!.cards.tradersLinkAiRead!.body).currentRead, "Owner analysis");
+    assert.equal(JSON.parse(publisher.cardPatches[1]!.cards.tradersLinkAiRead!.body).breakoutContinuation.price, 0.54321);
     assert.equal(aiCalls, 2);
     discordError = new Error("Mock transport timeout");
     const editedDiscordInput = { symbol: "PDSB", cycleId: latestReview.cycleId, approvalRevision: manager.getTradersLinkAiReadReview("PDSB")!.approved!.revision };
