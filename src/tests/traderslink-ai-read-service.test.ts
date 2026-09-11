@@ -140,10 +140,15 @@ function premarketModelRead(currentRead: string): Record<string, unknown> {
   return {
     ...modelRead(),
     currentRead,
+    coreEvidence: {
+      needsToHold: { anchorPrice: 0.325, basis: "threshold_below", explanation: "Decision threshold below the observed premarket low." },
+      cautionBelow: { anchorPrice: 0.325, basis: "threshold_below", explanation: "Lower caution threshold below that base." },
+      momentumFailure: { anchorPrice: 0.325, basis: "threshold_below", explanation: "Proposed thesis-failure threshold, not an observed traded low." },
+    },
     needsToHold: {
       label: "Premarket shelf",
       price: 0.32,
-      rationale: "Repeated premarket tests held the consolidation shelf.",
+      rationale: "Proposed hold threshold below the observed premarket consolidation low.",
     },
     cautionBelow: {
       label: "Premarket caution",
@@ -153,7 +158,7 @@ function premarketModelRead(currentRead: string): Record<string, unknown> {
     momentumFailure: {
       label: "Premarket failure",
       price: 0.3,
-      rationale: "A clean loss of the premarket range low would invalidate the rebound.",
+      rationale: "A move to this proposed threshold below the premarket low would invalidate the rebound.",
     },
     mustClear: {
       label: "Premarket rejection zone",
@@ -425,6 +430,37 @@ describe("TradersLink AI price-action volume quality", () => {
 });
 
 describe("OpenAITradersLinkAiReadService", () => {
+  it("requires core price evidence while retaining explicitly derived thresholds in one request", async () => {
+    let calls = 0;
+    let draft = modelRead();
+    draft.momentumFailure = { label: "Failure threshold", price: 0.91,
+      rationale: "Proposed buffer below the observed daily low, not a tested price." };
+    draft.downsideCheckpoints = [];
+    const decisions: Record<string, unknown>[] = [];
+    const service = new OpenAITradersLinkAiReadService({ apiKey: "test-key", model: "test-model",
+      fetchImpl: async () => { calls++; return new Response(JSON.stringify({ output: [{ type: "message",
+        content: [{ type: "output_text", text: JSON.stringify(draft) }] }] }), { status: 200 }); } });
+    const input = { snapshot: snapshot(), priceAction: priceAction(),
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+      onValidationDecision: (decision: Record<string, unknown>) => { decisions.push(decision); } };
+    await assert.rejects(service.generate(input), /momentumFailure lacks observable price evidence/);
+    assert.equal(calls, 1);
+    draft = { ...draft, coreEvidence: {
+      needsToHold: { anchorPrice: 1.25, basis: "observed_level", explanation: "Observed shelf" },
+      cautionBelow: { anchorPrice: 1.25, basis: "observed_level", explanation: "Loss of that shelf" },
+      momentumFailure: { anchorPrice: 0.95, basis: "threshold_below", explanation: "Proposed buffer below the daily low" },
+    } };
+    const read = await service.generate(input);
+    assert.equal(calls, 2);
+    assert.equal(read.momentumFailure.price, 0.91);
+    assert.equal(Object.hasOwn(read, "coreEvidence"), false, "internal proof is not a public card field");
+    const proof = decisions.findLast(decision => decision.stage === "core_evidence");
+    assert.deepEqual(proof?.anchors, draft.coreEvidence);
+    assert.deepEqual(proof?.issues, []);
+    (draft.coreEvidence as any).momentumFailure.anchorPrice = 0.5;
+    await assert.rejects(service.generate(input), /momentumFailure has no supported observed anchor/);
+    assert.equal(calls, 3, "one provider request per explicit generation, no automatic corrections");
+  });
   it("normalizes abort errors with read-only messages into a timeout error", async () => {
     const service = new OpenAITradersLinkAiReadService({
       apiKey: "test-key",
@@ -576,6 +612,7 @@ describe("OpenAITradersLinkAiReadService", () => {
       format: { schema: { properties: Record<string, unknown> } };
     }).format.schema;
     assert.ok(schema.properties.cautionBelow);
+    assert.ok(schema.properties.coreEvidence);
     assert.ok(schema.properties.momentumFailure);
     assert.ok(schema.properties.breakoutContinuation);
     assert.ok(schema.properties.catalystRealityCheck);
