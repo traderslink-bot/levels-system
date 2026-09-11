@@ -87,10 +87,42 @@ test("multipart approved delivery resumes after verified uncertainty without dup
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test("private activation saves an AI draft without website publication or Discord thread creation", async () => {
+test("activation publishes normally with zero AI calls when master or session is off in all three sessions", async () => {
+  for (const [session, timestamp] of [["premarket", "2026-07-23T12:00:00Z"], ["regular", "2026-07-23T15:00:00Z"], ["postmarket", "2026-07-23T21:00:00Z"]] as const) {
+    for (const watchlistGroup of ["main", "top_regular"] as const) for (const [master, sessionEnabled] of [[false, true], [true, false], [false, false]]) {
+      const now = Date.parse(timestamp), store = new WatchlistStore(), levels = new LevelStore();
+      const discord = new FakeDiscordAlertRouter(), publisher = new FakeLiveWatchlistPublisher();
+      let calls = 0;
+      const manager = new ManualWatchlistRuntimeManager({
+        candleFetchService: {} as any, levelStore: levels, monitor: new FakeMonitor() as any,
+        discordAlertRouter: discord as any, opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+        watchlistStore: store, watchlistStatePersistence: new FakeWatchlistStatePersistence() as any,
+        liveWatchlistPublisher: publisher, now: () => now,
+        seedSymbolLevels: async symbol => { levels.setLevels(buildLevelOutput(symbol)); },
+        tradersLinkAiReadService: { getConfiguredModel: () => "test", getReasoningEffort: () => "medium",
+          generate: async () => { calls++; throw new Error("Disabled generation must not be invoked"); } } as any,
+      });
+      manager.setTradersLinkAiReadGenerationSettings({ ...manager.getTradersLinkAiReadGenerationSettings(), enabled: master!,
+        premarketEnabled: session === "premarket" && sessionEnabled!, regularEnabled: session === "regular" && sessionEnabled!,
+        postmarketEnabled: session === "postmarket" && sessionEnabled!, automaticUpdatesEnabled: false });
+      const entry = await manager.activateSymbol({ symbol: "PDSB", source: "manual", watchlistGroup });
+      await waitForAsyncWork();
+      const label = `${watchlistGroup} ${session} master=${master} session=${sessionEnabled}`;
+      assert.equal(entry.active, true, label);
+      assert.equal(entry.publicationReview?.required ?? false, false, label);
+      assert.equal(discord.ensured.length, 1, label);
+      assert.ok(discord.levelSnapshots.length > 0, label);
+      assert.ok(publisher.cardPatches.length > 0, label);
+      assert.equal(calls, 0, label);
+    }
+  }
+});
+
+for (const sessionTimestamp of ["2026-07-23T12:00:00Z", "2026-07-23T15:00:00Z", "2026-07-23T21:00:00Z"]) {
+test(`private activation saves an AI draft without website publication or Discord thread creation at ${sessionTimestamp}`, async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-activation-"));
   try {
-    const now = Date.parse("2026-07-23T15:00:00Z");
+    const now = Date.parse(sessionTimestamp);
     const watchlistStore = new WatchlistStore();
     const reviewStore = new TradersLinkAiReadReviewStore(directory);
     const discord = new FakeDiscordAlertRouter();
@@ -287,6 +319,8 @@ test("private activation saves an AI draft without website publication or Discor
     assert.equal(aiCalls, 3);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
+
+}
 
 test("automatic AI Read refreshes are capped per ticker and reset on a new New York date", () => {
   const state = {
