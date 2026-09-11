@@ -438,6 +438,29 @@ describe("TradersLink AI price-action volume quality", () => {
 });
 
 describe("OpenAITradersLinkAiReadService", () => {
+  it("refusal, malformed and incomplete responses never publish or buy a repair request", async () => {
+    const scenarios = [
+      { output: [{ type: "message", content: [{ type: "refusal", refusal: "Cannot provide this analysis" }] }] },
+      { output_text: "not JSON" },
+      { status: "incomplete", incomplete_details: { reason: "max_output_tokens" }, output_text: '{"currentRead":' },
+      { status: "incomplete", incomplete_details: { reason: "max_output_tokens" }, output_text: JSON.stringify(modelRead()) },
+    ];
+    for (const response of scenarios) {
+      let calls = 0;
+      const captures: any[] = [];
+      const service = new OpenAITradersLinkAiReadService({ apiKey: "test-key", model: "test-model",
+        auditStore: { save: event => { captures.push(event); return { saved: true }; } },
+        fetchImpl: async () => { calls++; return Response.json(response); },
+      });
+      await assert.rejects(service.generate({ snapshot: snapshot(), priceAction: priceAction(),
+        research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+      }), /OpenAI returned/);
+      assert.equal(calls, 1);
+      assert.equal(captures.some(event => event.phase === "prepared_payload"), false);
+      assert.ok(captures.some(event => event.phase === "validation" && event.payload.valid === false));
+    }
+  });
+
   it("restricts Stock Titan web search to explicit no-article authority in the same request", async () => {
     for (const status of [undefined, "eligible", "lookup_unavailable", "no_eligible_article"] as const) {
       for (const hasProcessedArticle of [false, true]) {

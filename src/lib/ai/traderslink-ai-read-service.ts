@@ -2570,6 +2570,9 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       draftText: string | null,
       availableSources: TradersLinkAiReadSource[],
     ): ModelRead => {
+      if (response.status === "incomplete") {
+        throw new Error("OpenAI returned an incomplete TradersLink AI Read.");
+      }
       if (!draftText) {
         const reason = response.incomplete_details?.reason;
         throw new Error(reason
