@@ -82,6 +82,10 @@ import {
   type RecentWebsiteArticleExecFile,
 } from "../live-watchlist/recent-website-articles.js";
 import {
+  lookupOfficialWatchlistArticleSource,
+  type OfficialWatchlistArticleSourceLookup,
+} from "../live-watchlist/official-watchlist-article-source.js";
+import {
   applyStockTitanRssFallback,
   type StockTitanCatalystFeedLookup,
 } from "../live-watchlist/stocktitan-catalyst-feed.js";
@@ -289,6 +293,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
     request: BuildTradeCandleContextRequest,
   ) => Promise<TradeCandleContext>;
   recentWebsiteArticlesExecFileImpl?: RecentWebsiteArticleExecFile;
+  officialWatchlistArticleSourceLookup?: OfficialWatchlistArticleSourceLookup;
   stockTitanCatalystFeedLookup?: StockTitanCatalystFeedLookup;
   pressReleaseCatalystContextEnabled?: boolean;
   pressReleaseCatalystExecFileImpl?: PressReleaseCatalystExecFile;
@@ -4280,39 +4285,33 @@ export class ManualWatchlistRuntimeManager {
     this.aiReadInFlight.add(symbol);
     try {
       const priceActionPromise = preparedPriceAction ? Promise.resolve(preparedPriceAction) : this.buildTradersLinkAiReadPriceActionContext(symbol, dataAsOf);
-      let research = this.aiReadResearchBySymbol.get(symbol);
-      if (!research) {
-        try {
-          research = await lookupRecentWebsiteArticlesForSymbol({
+      const targetSessionDate = newYorkDateKeyForTimestamp(dataAsOf);
+      const emptyResearch = { ticker: symbol, businessDays: 5, count: 0, articles: [] };
+      const officialSource = targetSessionDate
+        ? await (this.options.officialWatchlistArticleSourceLookup ?? lookupOfficialWatchlistArticleSource)({
             symbol,
-            execFileImpl: this.options.recentWebsiteArticlesExecFileImpl,
-          });
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          console.warn(
-            `[TradersLinkAiRead] Initial catalyst lookup failed for ${symbol}: ${message}`,
-          );
-          research = {
-            ticker: symbol,
-            businessDays: 5,
-            count: 0,
-            articles: [],
-          };
-        }
+            targetSessionDate,
+            referenceTimeMs: dataAsOf,
+          })
+        : { status: "lookup_unavailable" as const, error: "invalid_target_session_date", research: emptyResearch };
+      let research = officialSource.research;
+      if (officialSource.status === "no_eligible_article") {
         try {
           research = await applyStockTitanRssFallback({
             localResearch: research,
             symbol,
             referenceTimeMs: dataAsOf,
+            authorizedBy: "no_eligible_article",
             lookup: this.options.stockTitanCatalystFeedLookup,
           });
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           console.warn(
-            `[TradersLinkAiRead] Initial catalyst fallback failed for ${symbol}: ${message}`,
+            `[TradersLinkAiRead] StockTitan fallback failed for ${symbol}: ${message}`,
           );
         }
-        this.aiReadResearchBySymbol.set(symbol, research);
+      } else if (officialSource.status === "lookup_unavailable") {
+        console.warn(`[TradersLinkAiRead] Canonical article lookup unavailable for ${symbol}: ${officialSource.error}`);
       }
 
       let priceAction: TradersLinkAiReadPriceActionContext;

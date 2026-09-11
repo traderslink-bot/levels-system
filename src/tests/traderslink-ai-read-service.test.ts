@@ -736,7 +736,7 @@ describe("OpenAITradersLinkAiReadService", () => {
       price: 1.42,
       priorPlanGeneratedAt: DATA_AS_OF - 60_000,
     });
-    assert.equal(packet.primaryCatalystResearch.source, "TradersLink press-release/SEC database");
+    assert.equal(packet.primaryCatalystResearch.source, "TradersLink processed article");
     assert.equal(packet.primaryCatalystResearch.articles.length, 1);
     assert.equal(
       packet.primaryCatalystResearch.articles[0]?.sourceSummary,
@@ -1204,6 +1204,9 @@ describe("OpenAITradersLinkAiReadService", () => {
           url: "https://traderslink.pro/news/tghl-current-report",
           sourceUrl: "https://www.sec.gov/Archives/example",
           filingType: "8-K",
+          processedContent: "TGHL completed a canonical processed article for this exact AI Read.",
+          articleId: "article-tghl", revision: "3", contentSha256: "a".repeat(64),
+          targetSessionDate: "2026-07-15", publishedDateEt: "2026-07-15", recency: "current_day",
         }],
       },
     });
@@ -1213,6 +1216,12 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(read.usage.webSearchCallCount, 0);
     assert.equal(requestBodies[0]!.tools, undefined);
     assert.equal(requestBodies[0]!.include, undefined);
+    const packetInput = requestBodies[0]!.input as Array<{ content: Array<{ text: string }> }>;
+    const articlePacket = JSON.parse(packetInput[1]!.content[0]!.text);
+    assert.equal(articlePacket.primaryCatalystResearch.source, "TradersLink processed article");
+    assert.equal(articlePacket.primaryCatalystResearch.articles[0]?.processedContent,
+      "TGHL completed a canonical processed article for this exact AI Read.");
+    assert.equal(articlePacket.primaryCatalystResearch.articles[0]?.articleId, "article-tghl");
 
     service.setExternalResearchEnabled(true);
     assert.equal(service.isExternalResearchEnabled(), true);

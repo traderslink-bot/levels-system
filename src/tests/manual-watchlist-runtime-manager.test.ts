@@ -39,6 +39,75 @@ function waitForAsyncWork(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+for (const sourceStatus of ["eligible", "no_eligible_article", "lookup_unavailable"] as const) {
+test(`canonical article manager flow: ${sourceStatus} uses fresh lookup and explicit fallback authority`, async () => {
+  const directory = mkdtempSync(join(tmpdir(), "article-manager-review-"));
+  try {
+    const now = Date.parse("2026-07-23T15:00:00Z");
+    const watchlistStore = new WatchlistStore();
+    watchlistStore.upsertManualEntry({ symbol: "PDSB", active: true });
+    watchlistStore.patchEntry("PDSB", { lastPrice: 0.5, lastPriceUpdateAt: now });
+    const publisher = new FakeLiveWatchlistPublisher();
+    let lookups = 0;
+    let fallbackCalls = 0;
+    const received: any[] = [];
+    const manager = new ManualWatchlistRuntimeManager({
+      candleFetchService: {} as any, levelStore: new LevelStore(), monitor: new FakeMonitor() as any,
+      discordAlertRouter: new FakeDiscordAlertRouter() as any,
+      opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+      watchlistStore, watchlistStatePersistence: new FakeWatchlistStatePersistence() as any,
+      liveWatchlistPublisher: publisher, tradersLinkAiReadReviewStore: new TradersLinkAiReadReviewStore(directory),
+      now: () => now,
+      officialWatchlistArticleSourceLookup: async (args) => {
+        assert.deepEqual(args, { symbol: "PDSB", targetSessionDate: "2026-07-23", referenceTimeMs: now });
+        lookups++;
+        const research = { ticker: "PDSB", businessDays: 5, count: 0, articles: [] };
+        if (sourceStatus === "lookup_unavailable") return { status: sourceStatus, error: "mock_unavailable", research };
+        if (sourceStatus === "no_eligible_article") return { status: sourceStatus, research };
+        return { status: sourceStatus, research: { ...research, count: 1, articles: [{
+          ticker: "PDSB", title: "Processed article", url: "https://traderslink.pro/news/mock",
+          processedContent: `Processed content revision ${lookups}`, articleId: "mock-article",
+          revision: String(lookups), targetSessionDate: args.targetSessionDate,
+          publishedDateEt: args.targetSessionDate, recency: "current_day",
+        }] } };
+      },
+      stockTitanCatalystFeedLookup: async () => {
+        fallbackCalls++;
+        return { available: true, research: { ticker: "PDSB", businessDays: 5, count: 1,
+          articles: [{ ticker: "PDSB", title: "Fallback", url: "https://example.test/fallback", sourceKind: "stocktitan_rss" }] } };
+      },
+      tradersLinkAiReadService: {
+        getConfiguredModel: () => "test", getReasoningEffort: () => "medium",
+        generate: async ({ research, generationId }: any) => {
+          received.push(structuredClone(research));
+          return { symbol: "PDSB", generationId, model: "test", generatedAt: now, currentPrice: 0.5, currentRead: "Draft" };
+        },
+      } as any,
+    });
+    const internal = manager as any;
+    internal.buildTradersLinkAiReadPriceActionContext = async () => ({ source: "test", fetchedAt: now,
+      oneMinuteCandles: [{ timestamp: now, open: 0.5, high: 0.51, low: 0.49, close: 0.5, volume: 100 }], intradayCandles: [], dailyCandles: [] });
+    internal.buildLevelSnapshotPayload = () => ({ symbol: "PDSB", currentPrice: 0.5 });
+    internal.aiReadResearchBySymbol.set("PDSB", { ticker: "PDSB", count: 1, articles: [{ title: "Stale cached article" }] });
+    await manager.refreshTradersLinkAiRead("PDSB");
+    await manager.refreshTradersLinkAiRead("PDSB");
+    assert.equal(lookups, 2);
+    assert.equal(received.length, 2, "one generation per explicit manual refresh");
+    assert.equal(fallbackCalls, sourceStatus === "no_eligible_article" ? 2 : 0);
+    for (const [index, research] of received.entries()) {
+      assert.equal(research.count, sourceStatus === "lookup_unavailable" ? 0 : 1);
+      if (sourceStatus === "eligible") {
+        assert.equal(research.articles[0].processedContent, `Processed content revision ${index + 1}`);
+        assert.equal(research.articles[0].revision, String(index + 1));
+      } else if (sourceStatus === "no_eligible_article") {
+        assert.equal(research.articles[0].sourceKind, "stocktitan_rss");
+      }
+    }
+    assert.equal(publisher.cardPatches.length, 0, "review keeps generated analysis private");
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+}
+
 test("multipart approved delivery resumes after verified uncertainty without duplicate parts or AI calls", async () => {
   const directory = mkdtempSync(join(tmpdir(), "multipart-review-"));
   try {
