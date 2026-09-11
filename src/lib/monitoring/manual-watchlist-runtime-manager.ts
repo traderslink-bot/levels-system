@@ -4828,6 +4828,28 @@ export class ManualWatchlistRuntimeManager {
     return store.read(input.cycleId);
   }
 
+  async verifyTradersLinkAiReadDiscordReceipt(input: { symbol: string; cycleId: string; expectedHead: number; approvalRevision: number; index: number; messageId: string; actor: string }) {
+    const symbol = normalizeSymbol(input.symbol);
+    const store = this.options.tradersLinkAiReadReviewStore;
+    const requireCurrent = () => {
+      const entry = this.watchlistStore.getEntry(symbol);
+      const state = store?.read(input.cycleId);
+      if (!entry?.active || entry.publicationReview?.cycleId !== input.cycleId || !state || state.cancelled || state.approved?.revision !== input.approvalRevision) throw new Error("Publication approval changed.");
+      return state;
+    };
+    const state = requireCurrent();
+    if (state.head !== input.expectedHead) throw new Error("Review changed. Reload before saving.");
+    const approval = state.approved!;
+    const claim = state.events.findLast(event => event.body.kind === "discord_chunk" && event.body.approvalRevision === input.approvalRevision && event.body.index === input.index);
+    const content = approval.body.kind === "approve" ? approval.body.publication?.discordChunks[input.index] : undefined;
+    if (!Number.isSafeInteger(input.index) || input.index < 0 || !content || claim?.body.kind !== "discord_chunk" || claim.body.status !== "started") throw new Error("Discord delivery is not awaiting confirmation.");
+    const receipt = await this.options.discordAlertRouter.verifyApprovedAnalysisMessage({ symbol, content, deliveryKey: claim.body.deliveryKey }, input.messageId, claim.at);
+    const current = requireCurrent();
+    if (current.head !== state.head) throw new Error("Review changed. Reload before saving.");
+    store!.acknowledgeDiscordChunk(input.cycleId, current.head, input.approvalRevision, input.index, receipt, input.actor);
+    return store!.read(input.cycleId);
+  }
+
   async approveTradersLinkAiRead(input: { symbol: string; cycleId: string; expectedHead: number; draftRevision: number; actor: string; previewHash: string }) {
     const review = await this.approveTradersLinkAiReadForWebsite(input);
     if (!review?.approved) throw new Error("Publication approval is unavailable.");

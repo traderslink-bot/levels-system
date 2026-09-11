@@ -210,7 +210,7 @@ export class TradersLinkAiReadReviewStore {
     return this.append(cycleId, expectedHead, "delivery", { kind: "discord_chunk", approvalRevision, index, status: "rejected", deliveryKey: prior.body.deliveryKey, httpStatus });
   }
 
-  acknowledgeDiscordChunk(cycleId: string, expectedHead: number, approvalRevision: number, index: number, receipt: { messageId: string; channelId: string }) {
+  acknowledgeDiscordChunk(cycleId: string, expectedHead: number, approvalRevision: number, index: number, receipt: { messageId: string; channelId: string }, actor = "delivery") {
     if (!/^\d{17,20}$/.test(receipt.messageId) || !/^\d{17,20}$/.test(receipt.channelId)) throw new Error("Invalid Discord receipt.");
     const state = this.read(cycleId);
     const prior = state?.events.findLast((event) => event.body.kind === "discord_chunk" && event.body.approvalRevision === approvalRevision && event.body.index === index);
@@ -219,7 +219,7 @@ export class TradersLinkAiReadReviewStore {
       if (json(prior.body.receipt) !== json(receipt)) throw new Error("Discord receipt conflicts with confirmed delivery.");
       return prior;
     }
-    return this.append(cycleId, expectedHead, "delivery", { kind: "discord_chunk", approvalRevision, index, status: "acknowledged", deliveryKey: prior.body.deliveryKey, receipt });
+    return this.append(cycleId, expectedHead, actor, { kind: "discord_chunk", approvalRevision, index, status: "acknowledged", deliveryKey: prior.body.deliveryKey, receipt });
   }
 
   recordDelivery(cycleId: string, expectedHead: number, approvalRevision: number, channel: "website" | "discord", status: "started" | "acknowledged" | "failed", deliveryId: string | null): ReviewEvent {

@@ -541,6 +541,25 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
     await this.postMessage(threadId, formatLevelSnapshotMessage(payload));
   }
 
+  /** Read-only verification of an owner-selected existing message. This never
+   * sends a message or decides that a missing message is safe to resend.
+   */
+  async verifyApprovedAnalysisMessage(chunk: ApprovedAnalysisDiscordChunk, messageId: string, notBefore: number): Promise<ApprovedAnalysisDiscordReceipt> {
+    if (!/^\d{17,20}$/.test(messageId) || !Number.isFinite(notBefore) || notBefore <= 0 ||
+      !chunk.content.trim() || !chunk.deliveryKey.trim()) throw new Error("Invalid Discord verification request.");
+    const self = await this.request<{ id: string; bot?: boolean }>("/users/@me", { method: "GET" }, 0);
+    const message = await this.request<{ id: string; channel_id: string; content?: string; author?: { id: string }; webhook_id?: string;
+      timestamp?: string; nonce?: string | number }>(`/channels/${this.watchlistChannelId}/messages/${messageId}`, { method: "GET" }, 0);
+    const timestamp = typeof message?.timestamp === "string" ? Date.parse(message.timestamp) : Number.NaN;
+    const nonce = createHash("sha256").update(chunk.deliveryKey).digest("hex").slice(0, 25);
+    if (!self || !message || !self.bot || !/^\d{17,20}$/.test(self.id) || message.author?.id !== self.id || message.webhook_id ||
+      message.id !== messageId || message.channel_id !== this.watchlistChannelId || message.content !== chunk.content ||
+      !Number.isFinite(timestamp) || timestamp < notBefore || (message.nonce !== undefined && String(message.nonce) !== nonce)) {
+      throw new Error("Discord message does not match the approved delivery. No delivery status was changed.");
+    }
+    return { messageId, channelId: this.watchlistChannelId };
+  }
+
   async sendLevelLadder(threadId: string, payload: LevelSnapshotPayload): Promise<void> {
     const ladder = formatLevelLadderMessage(payload);
     if (ladder) {

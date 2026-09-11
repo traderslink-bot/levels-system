@@ -4,9 +4,11 @@ type ReviewManager = Pick<ManualWatchlistRuntimeManager,
   "getTradersLinkAiReadReview" | "getTradersLinkAiReadPublicationPreview" | "listTradersLinkAiReadReviews" |
   "listTradersLinkAiReadHistory" | "getHistoricalTradersLinkAiReadReview" |
   "saveTradersLinkAiReadOwnerEdit" | "approveTradersLinkAiRead" |
+  "verifyTradersLinkAiReadDiscordReceipt" |
   "publishApprovedTradersLinkAiReadToDiscord">;
 
 export const ANALYSIS_REVIEW_PATHS = new Set([
+  "/api/watchlist/analysis-review/verify-discord",
   "/api/watchlist/analysis-review/history",
   "/api/watchlist/analysis-review/export",
   "/api/watchlist/analysis-review/queue",
@@ -75,6 +77,7 @@ export async function dispatchAnalysisReviewRequest(input: {
     const action = input.pathname.split("/").at(-1);
     const allowed = action === "save" ? ["symbol", "cycleId", "expectedHead", "patch"]
       : action === "approve" ? ["symbol", "cycleId", "expectedHead", "draftRevision", "previewHash"]
+      : action === "verify-discord" ? ["symbol", "cycleId", "expectedHead", "approvalRevision", "index", "messageId"]
       : ["symbol", "cycleId", "approvalRevision"];
     if (Object.keys(fields).some((key) => !allowed.includes(key))) throw new Error("Invalid review request.");
     const cycleId = fields.cycleId;
@@ -87,6 +90,14 @@ export async function dispatchAnalysisReviewRequest(input: {
     if (action === "save") return { status: 200, body: manager.saveTradersLinkAiReadOwnerEdit({
       symbol, cycleId, expectedHead: revision("expectedHead"), patch: fields.patch, actor: input.actor,
     }) };
+    if (action === "verify-discord") {
+      if (typeof fields.index !== "number" || !Number.isSafeInteger(fields.index) || fields.index < 0 ||
+        typeof fields.messageId !== "string" || !/^\d{17,20}$/.test(fields.messageId)) throw new Error("Invalid review request.");
+      return { status: 200, body: { review: await manager.verifyTradersLinkAiReadDiscordReceipt({
+        symbol, cycleId, expectedHead: revision("expectedHead"), approvalRevision: revision("approvalRevision"),
+        index: fields.index, messageId: fields.messageId, actor: input.actor,
+      }) } };
+    }
     if (action === "approve") {
       if (typeof fields.previewHash !== "string" || !/^[a-f0-9]{64}$/.test(fields.previewHash)) throw new Error("Invalid review request.");
       return { status: 200, body: { review: await manager.approveTradersLinkAiRead({ symbol, cycleId,
@@ -102,6 +113,8 @@ export async function dispatchAnalysisReviewRequest(input: {
     const safe = new Set([
       "Draft changed. Review the latest version.", "Draft changed. Reload before saving.",
       "Publication preview changed. Review it before publishing.", "Review changed. Reload before saving.",
+      "Discord message does not match the approved delivery. No delivery status was changed.",
+      "Discord delivery is not awaiting confirmation.",
       "Ticker review changed. Reload before saving.", "Publication approval changed.",
       "Discord delivery is awaiting confirmation. It has not been sent again.",
       "Website delivery must be confirmed before Discord publication.",

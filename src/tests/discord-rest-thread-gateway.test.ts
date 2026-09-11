@@ -11,6 +11,22 @@ type MockResponseInit = {
   headers?: Record<string, string>;
 };
 
+test("owner-selected uncertain-message verification is read-only and requires exact approved content and bot identity", async () => {
+  const bot = "12345678901234567", channel = "23456789012345678", messageId = "34567890123456789";
+  const sentAt = Date.parse("2026-09-10T15:00:00Z");
+  const original = { id: messageId, channel_id: channel, content: "Approved analysis", author: { id: bot }, timestamp: new Date(sentAt).toISOString() };
+  for (const change of [null, { content: "Different analysis" }, { author: { id: "45678901234567890" } },
+    { channel_id: "45678901234567890" }, { timestamp: new Date(sentAt - 1).toISOString() }, { nonce: "wrong" }, { webhook_id: bot }]) {
+    const methods: string[] = [];
+    const gateway = new DiscordRestThreadGateway({ botToken: "test-token", watchlistChannelId: channel,
+      fetchImpl: async (url, init) => { methods.push(init?.method || "GET"); return jsonResponse({ body: String(url).endsWith("/users/@me") ? { id: bot, bot: true } : { ...original, ...change } }); } });
+    const action = gateway.verifyApprovedAnalysisMessage({ symbol: "TEST", content: original.content, deliveryKey: "approved-key" }, messageId, sentAt);
+    if (change) await assert.rejects(action, /does not match/);
+    else assert.deepEqual(await action, { messageId, channelId: channel });
+    assert.deepEqual(methods, ["GET", "GET"]);
+  }
+});
+
 test("approved chunks distinguish confirmed rejections from uncertain responses without retrying", async () => {
   for (const status of [400, 401, 403, 404, 429, 408, 500, 502]) {
     let calls = 0;

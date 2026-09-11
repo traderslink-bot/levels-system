@@ -10,6 +10,7 @@ function setup() {
     listTradersLinkAiReadReviews: call("queue"),
     saveTradersLinkAiReadOwnerEdit: call("save"), approveTradersLinkAiRead: call("approve"),
     publishApprovedTradersLinkAiReadToDiscord: call("retry"),
+    verifyTradersLinkAiReadDiscordReceipt: call("verify"),
   };
   const send = (pathname: string, body?: unknown, actor: string | undefined = "platform-owner:test-owner", method = "POST") =>
     dispatchAnalysisReviewRequest({ pathname: `/api/watchlist/analysis-review${pathname}`, body, actor, method, searchParams: new URLSearchParams("symbol=PDSB") }, manager as any);
@@ -111,6 +112,19 @@ test("historical reads and exports retain the explicit ticker and cycle selectio
   assert.equal((await dispatchAnalysisReviewRequest(history, historicalManager as any)).status, 400);
   assert.deepEqual(selections, [["PDSB", "old-cycle"], ["PDSB", "g-old", "old-cycle"], ["PDSB", "a".repeat(64)]]);
   assert.equal(calls.length, 0);
+});
+
+test("receipt verification uses trusted owner actor and exact revision and message inputs", async () => {
+  const { calls, send } = setup();
+  const body = { symbol: "PDSB", cycleId: "cycle", expectedHead: 8, approvalRevision: 4, index: 0, messageId: "34567890123456789" };
+  assert.equal((await send("/verify-discord", body, "")).status, 403);
+  assert.equal((await send("/verify-discord", body, undefined, "GET")).status, 405);
+  for (const invalid of [{ index: -1 }, { index: 0.5 }, { expectedHead: 0 }, { messageId: "https://discord.com/message" }, { actor: "spoof" }]) {
+    assert.equal((await send("/verify-discord", { ...body, ...invalid })).status, 400);
+  }
+  assert.equal(calls.length, 0);
+  assert.equal((await send("/verify-discord", body)).status, 200);
+  assert.deepEqual(calls, [{ method: "verify", input: { ...body, actor: "platform-owner:test-owner" } }]);
 });
 
 test("export requires an explicit generation and the protected owner context", async () => {

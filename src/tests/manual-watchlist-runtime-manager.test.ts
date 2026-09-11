@@ -193,6 +193,40 @@ test("private activation saves an AI draft without website publication or Discor
     await assert.rejects(manager.publishApprovedTradersLinkAiReadToDiscord(editedDiscordInput), /awaiting confirmation/);
     assert.equal(discordAttempts.length, attemptsAfterTimeout);
     assert.equal(aiCalls, 2);
+    const uncertainReview = manager.getTradersLinkAiReadReview("PDSB")!;
+    const verificationInput = { ...editedDiscordInput, expectedHead: uncertainReview.head, index: 0,
+      messageId: "34567890123456789", actor: "platform-owner:test-owner" };
+    (discord as any).verifyApprovedAnalysisMessage = async () => { throw new Error("Mock receipt mismatch"); };
+    await assert.rejects(manager.verifyTradersLinkAiReadDiscordReceipt(verificationInput), /mismatch/);
+    assert.equal(manager.getTradersLinkAiReadReview("PDSB")!.head, uncertainReview.head);
+    (discord as any).verifyApprovedAnalysisMessage = async (_chunk: any, messageId: string) => {
+      manager.saveTradersLinkAiReadOwnerEdit({ symbol: "PDSB", cycleId: verificationInput.cycleId,
+        expectedHead: verificationInput.expectedHead, patch: { currentRead: "New unsent owner draft" }, actor: "test-owner" });
+      return { messageId, channelId: "23456789012345678" };
+    };
+    await assert.rejects(manager.verifyTradersLinkAiReadDiscordReceipt(verificationInput), /Review changed/);
+    const afterConcurrentEdit = manager.getTradersLinkAiReadReview("PDSB")!;
+    assert.equal(afterConcurrentEdit.events.at(-1)!.body.kind, "edit", "a stale lookup cannot append a receipt");
+    verificationInput.expectedHead = afterConcurrentEdit.head;
+    (discord as any).verifyApprovedAnalysisMessage = async (_chunk: any, messageId: string) => {
+      watchlistStore.patchEntry("PDSB", { active: false });
+      return { messageId, channelId: "23456789012345678" };
+    };
+    await assert.rejects(manager.verifyTradersLinkAiReadDiscordReceipt(verificationInput), /Publication approval changed/);
+    assert.equal(reviewStore.read(verificationInput.cycleId)!.head, afterConcurrentEdit.head);
+    watchlistStore.patchEntry("PDSB", { active: true });
+    (discord as any).verifyApprovedAnalysisMessage = async (chunk: any, messageId: string, notBefore: number) => {
+      assert.equal(chunk.content, discordAttempts.at(-1)!.content);
+      assert.equal(chunk.deliveryKey, discordAttempts.at(-1)!.deliveryKey);
+      assert.ok(notBefore > 0);
+      return { messageId, channelId: "23456789012345678" };
+    };
+    const verified = await manager.verifyTradersLinkAiReadDiscordReceipt(verificationInput);
+    assert.equal(verified!.events.at(-1)!.actor, "platform-owner:test-owner");
+    assert.equal(discordAttempts.length, attemptsAfterTimeout);
+    assert.equal(aiCalls, 2);
+    await manager.publishApprovedTradersLinkAiReadToDiscord(editedDiscordInput);
+    assert.equal(discordAttempts.length, attemptsAfterTimeout, "verified receipt is not resent");
     rejectNextRead = true;
     await assert.rejects(manager.refreshTradersLinkAiRead("PDSB"), /Mock rejected analysis/);
     const rejected = manager.getTradersLinkAiReadReview("PDSB")!;

@@ -585,6 +585,13 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
     return receipt;
   }
 
+  async verifyApprovedAnalysisMessage(chunk: ApprovedAnalysisDiscordChunk, messageId: string, notBefore: number): Promise<ApprovedAnalysisDiscordReceipt> {
+    if (!this.inner.verifyApprovedAnalysisMessage) throw new Error("Discord receipt verification is unavailable.");
+    // Verification is not a new Discord post. The owner review ledger records
+    // the verified receipt and owner actor after all revision checks succeed.
+    return this.inner.verifyApprovedAnalysisMessage(chunk, messageId, notBefore);
+  }
+
   async sendLevelSnapshot(threadId: string, payload: LevelSnapshotPayload): Promise<void> {
     const body = formatLevelSnapshotMessage(payload);
     const bodyPreview =

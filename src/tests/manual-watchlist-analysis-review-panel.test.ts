@@ -37,6 +37,66 @@ test("request inspector renders lazily with explicit truncation and unavailable 
   assert.equal(elements.filter(element => element.tag === "details").length, 1);
 });
 
+test("receipt controls show only uncertain parts of the current approval and clear stale IDs", () => {
+  const script = ANALYSIS_REVIEW_PANEL.match(/<script>([\s\S]*?)<\/script>/)![1]!;
+  const render = script.slice(script.indexOf("  function renderVerificationControls("), script.indexOf('  byId("verify-discord").onclick'));
+  const area = { hidden: false };
+  const input = { value: "123456789012345678" };
+  const parts = { children: [] as any[], replaceChildren() { this.children = []; } };
+  const event = (approvalRevision: number, index: number, status: string) => ({ body: { kind: "discord_chunk", approvalRevision, index, status } });
+  const context = {
+    historical: false,
+    review: { approved: { revision: 5 }, events: [event(3, 0, "started"), event(5, 0, "started"), event(5, 0, "acknowledged"), event(5, 1, "started"), event(5, 2, "rejected")] },
+    byId: (id: string) => id === "verification" ? area : id === "verify-part" ? parts : input,
+    node: (_tag: string, text: string, parent: typeof parts) => { const option = { text, value: "" }; parent.children.push(option); return option; },
+  };
+  new Script(render + "\nrenderVerificationControls();").runInNewContext(context);
+  assert.equal(area.hidden, false);
+  assert.equal(input.value, "");
+  assert.deepEqual(parts.children, [{ text: "Part 2 · Awaiting confirmation", value: "1" }]);
+  context.historical = true;
+  input.value = "123456789012345678";
+  new Script(render + "\nrenderVerificationControls();").runInNewContext(context);
+  assert.equal(area.hidden, true);
+  assert.equal(input.value, "");
+  assert.equal(parts.children.length, 0);
+});
+
+test("receipt verification preserves unsaved edits and invalidates their preview without sending", async () => {
+  const script = ANALYSIS_REVIEW_PANEL.match(/<script>([\s\S]*?)<\/script>/)![1]!;
+  const handler = script.slice(script.indexOf('  byId("verify-discord").onclick'), script.indexOf("  function renderAudit("));
+  const button = { onclick: undefined as undefined | (() => Promise<void>) };
+  const input = { value: "123456789012345678" };
+  const calls: any[] = [];
+  const patch = { breakout: 0.54321 };
+  let refreshed = 0, cleared = 0;
+  const context = {
+    historical: false, dirty: true, patch, preview: { old: true },
+    review: { symbol: "PDSB", cycleId: "cycle", head: 7, approved: { revision: 5 } },
+    byId: (id: string) => id === "verify-discord" ? button : id === "verify-part" ? { value: "0" } : input,
+    run: (work: () => Promise<void>) => work(),
+    request: async (path: string, body: unknown) => { calls.push({ path, body }); return { review: { symbol: "PDSB", cycleId: "cycle", head: 8, approved: { revision: 5 } } }; },
+    renderVerificationControls: () => { refreshed++; },
+    renderEditor: () => { throw new Error("Must not overwrite unsaved draft"); },
+    previewContent: { replaceChildren: () => { cleared++; } }, message: (_text: string) => {},
+  };
+  new Script(handler).runInNewContext(context);
+  await button.onclick!();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].path, "/verify-discord");
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[0].body)), { symbol: "PDSB", cycleId: "cycle", expectedHead: 7, approvalRevision: 5, index: 0, messageId: "123456789012345678" });
+  assert.equal(context.patch, patch);
+  assert.equal(context.dirty, true);
+  assert.equal(context.preview, null);
+  assert.equal(context.review.head, 8);
+  assert.equal(input.value, "");
+  assert.equal(refreshed, 1);
+  assert.equal(cleared, 1);
+  context.historical = true;
+  await assert.rejects(button.onclick!(), /current approved review/);
+  assert.equal(calls.length, 1);
+});
+
 test("owner editor embeds once and generated browser script parses", () => {
   assert.equal(MANUAL_WATCHLIST_PAGE.split('id="analysis-review-panel"').length - 1, 1);
   const script = ANALYSIS_REVIEW_PANEL.match(/<script>([\s\S]*?)<\/script>/)?.[1];
@@ -69,7 +129,7 @@ test("failed requests render history without a draft and clear stale editor stat
     ] },
     byId: (id: string) => id === "export-generation" ? generations : exportArea,
     node: (_tag: string, text: string | undefined, parent: ReturnType<typeof element>) => { const result = element(); parent.children.push(result); if (text) texts.push(text); return result; },
-    message: (_text: string) => {},
+    message: (_text: string) => {}, renderVerificationControls: () => {},
   };
   new Script(functions + "\nrenderEditor();").runInNewContext(context);
   assert.ok(texts.includes("Request and version history"));

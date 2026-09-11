@@ -1716,6 +1716,7 @@ export type ApprovedAnalysisDiscordReceipt = { messageId: string; channelId: str
 
 export interface DiscordThreadGateway {
   sendApprovedAnalysisChunk?(chunk: ApprovedAnalysisDiscordChunk): Promise<ApprovedAnalysisDiscordReceipt>;
+  verifyApprovedAnalysisMessage?(chunk: ApprovedAnalysisDiscordChunk, messageId: string, notBefore: number): Promise<ApprovedAnalysisDiscordReceipt>;
   ensureSymbolRoute?(
     symbol: string,
     storedRouteId?: string | null,
@@ -2974,6 +2975,11 @@ export class DiscordAlertRouter {
     this.assertPublicationAllowed(chunk.symbol);
     if (!this.gateway.sendApprovedAnalysisChunk) throw new Error("Approved analysis Discord delivery is unavailable.");
     return this.gateway.sendApprovedAnalysisChunk(chunk);
+  }
+
+  async verifyApprovedAnalysisMessage(chunk: ApprovedAnalysisDiscordChunk, messageId: string, notBefore: number): Promise<ApprovedAnalysisDiscordReceipt> {
+    if (!this.gateway.verifyApprovedAnalysisMessage) throw new Error("Discord receipt verification is unavailable.");
+    return this.gateway.verifyApprovedAnalysisMessage(chunk, messageId, notBefore);
   }
 
   async routeLevelSnapshot(threadId: string, payload: LevelSnapshotPayload): Promise<void> {

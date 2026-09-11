@@ -36,6 +36,13 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     <button type="button" id="analysis-review-export" class="secondary">Export audit</button>
   </div>
   <div id="analysis-review-audit-content"></div>
+  <div class="inline-control" id="analysis-review-verification" hidden>
+    <label for="analysis-review-verify-part">Discord message part</label>
+    <select id="analysis-review-verify-part"></select>
+    <label for="analysis-review-verify-message">Existing Discord message ID</label>
+    <input id="analysis-review-verify-message" inputmode="numeric" maxlength="20" />
+    <button type="button" id="analysis-review-verify-discord">Verify existing message</button>
+  </div>
   <div id="analysis-review-preview-content"></div>
 </div>
 <script>
@@ -118,6 +125,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     });
   }
   function renderEditor() {
+    renderVerificationControls();
     byId("audit-content").replaceChildren();
     editor.replaceChildren(); previewContent.replaceChildren(); preview = null;
     const draft = review && review.draft;
@@ -235,7 +243,32 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     if (historical) throw new Error("Historical records are read only.");
     if (!review || !review.approved) throw new Error("There is no approved version to deliver.");
     const result = await request("/retry-discord", { symbol: review.symbol, cycleId: review.cycleId, approvalRevision: review.approved.revision });
-    review = result.review; message("Discord delivery confirmed.");
+    review = result.review; renderVerificationControls(); preview = null; previewContent.replaceChildren();
+    message("Discord delivery confirmed.");
+  });
+  function renderVerificationControls() {
+    const area = byId("verification"), parts = byId("verify-part");
+    parts.replaceChildren(); area.hidden = true; byId("verify-message").value = "";
+    if (historical || !review || !review.approved) return;
+    const latest = new Map();
+    review.events.filter(event => event.body.kind === "discord_chunk" && event.body.approvalRevision === review.approved.revision)
+      .forEach(event => latest.set(event.body.index, event));
+    latest.forEach((event, index) => {
+      if (event.body.status !== "started") return;
+      const option = node("option", "Part " + (index + 1) + " · Awaiting confirmation", parts); option.value = String(index);
+      area.hidden = false;
+    });
+  }
+  byId("verify-discord").onclick = () => run(async () => {
+    if (historical || !review || !review.approved) throw new Error("Open the current approved review first.");
+    const part = byId("verify-part").value, messageId = byId("verify-message").value.trim();
+    if (!part || !/^\d{17,20}$/.test(messageId)) throw new Error("Select a message part and enter its Discord message ID.");
+    const result = await request("/verify-discord", { symbol: review.symbol, cycleId: review.cycleId,
+      expectedHead: review.head, approvalRevision: review.approved.revision, index: Number(part), messageId });
+    review = result.review; byId("verify-message").value = "";
+    if (dirty) { renderVerificationControls(); preview = null; previewContent.replaceChildren(); }
+    else renderEditor();
+    message("Existing Discord message verified. No message was sent. Use Retry Discord delivery to finish any remaining delivery steps.");
   });
   function renderAudit(audit) {
     const container = byId("audit-content"); container.replaceChildren();
