@@ -11242,6 +11242,16 @@ export class ManualWatchlistRuntimeManager {
     for (const entry of orphanedAiReadGenerations) {
       this.watchlistStore.patchEntry(entry.symbol, {
         pendingTradersLinkAiReadGeneration: null,
+        // Replay has not acknowledged this generation. Clearing its pending
+        // marker must not turn a previous paid attempt into a fresh activation.
+        // Preserve an existing failure; otherwise require an explicit refresh
+        // while automatic follow-ups are OFF, across subsequent restarts too.
+        tradersLinkAiReadFailure: entry.tradersLinkAiReadFailure ?? {
+          stage: "generation",
+          reason: "Previous AI request was interrupted before publication was acknowledged. Use manual refresh for another analysis.",
+          trigger: entry.pendingTradersLinkAiReadGeneration!.trigger,
+          failedAt: this.options.now?.() ?? Date.now(),
+        },
       });
       console.warn(
         `[TradersLinkAiRead] Cleared interrupted ${entry.symbol} generation after the publish outbox was replayed.`,
