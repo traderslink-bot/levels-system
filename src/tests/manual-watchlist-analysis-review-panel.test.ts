@@ -25,11 +25,14 @@ test("request inspector renders lazily with explicit truncation and unavailable 
       { phase: "validation", payload: { stage: "breakout_selection", selectedCandidateId: "alternate" } },
       { phase: "validation", payload: { stage: "outer_daily_resistance", action: "omit_objective", omitted: [{ price: 2.3 }] } },
       { phase: "validation", payload: { stage: "optional_overview", issues: [{ path: "currentRead", action: "omit_text" }] } },
+      { phase: "validation", payload: { stage: "api_attempt", clientRequestId: "request-1", usageReported: true, usage: { estimatedTotalCostUsd: 0.00014 } } },
     ] }, selectedEvents: [{ revision: 2, body: { kind: "original" } }] },
   };
   new Script(render + "\nrenderAudit(audit);").runInNewContext(context);
   assert.equal(elements.filter(element => element.tag === "pre").length, 0);
   assert.ok(elements.some(element => element.text === "Analysis checks"));
+  assert.ok(elements.some(element => element.text === "API requests: 1 recorded"));
+  assert.ok(elements.some(element => element.text === "Estimated cost: $0.000140 USD for recorded requests"));
   assert.ok(elements.some(element => element.text?.startsWith("Analysis overview — omitted after a text check;")));
   assert.ok(elements.some(element => element.text === "Shallow pullback — omitted: zone is not sufficiently below the analysis price."));
   assert.ok(elements.some(element => element.text === "Deep pullback — optional objective omitted: the optional objective is out of order."));
@@ -50,6 +53,8 @@ test("request inspector renders lazily with explicit truncation and unavailable 
   assert.ok(elements.some(element => element.text === "Version 2 · original"));
   assert.equal(elements.filter(element => element.tag === "details").length, 1);
   assert.equal(elements.some(element => element.text === "Analysis checks"), false, "missing diagnostics must not imply a clean check result");
+  assert.ok(elements.some(element => element.text === "API requests: Unavailable in this audit"));
+  assert.ok(elements.some(element => element.text === "Estimated cost: Unavailable"));
 });
 
 test("receipt controls show only uncertain parts of the current approval and clear stale IDs", () => {

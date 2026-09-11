@@ -2405,6 +2405,17 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       const timing = (attemptResponse as TimedResponsesApiResponse | null)?.__tradersLinkRequestTiming ??
         (error as TimedRequestError | null)?.requestTiming;
       const receivedAt = timing?.completedAt ?? Date.now();
+      const reported = attemptResponse?.usage;
+      const validUsageNumber = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0;
+      const usageReported = Boolean(reported && (validUsageNumber(reported.total_tokens) ||
+        (validUsageNumber(reported.input_tokens) && validUsageNumber(reported.output_tokens))));
+      const costInputsReported = Boolean(reported && validUsageNumber(reported.input_tokens) && validUsageNumber(reported.output_tokens));
+      capture("validation", { stage: "api_attempt", attemptSequence, attemptType, status, model: attemptModel,
+        clientRequestId: timing?.clientRequestId ?? `${generationId}-request-${attemptSequence}`,
+        providerRequestId: attemptResponse?.id ?? null, usageReported,
+        usage: usageReported ? { ...usage, tokenCostUsd: costInputsReported ? usage.tokenCostUsd : null,
+          estimatedTotalCostUsd: costInputsReported ? usage.estimatedTotalCostUsd : null } : null,
+        startedAt: timing?.startedAt ?? receivedAt, completedAt: receivedAt });
       input.onAttempt?.({
         generationId,
         requestId: attemptResponse?.id ?? `${generationId}-${attemptSequence}`,

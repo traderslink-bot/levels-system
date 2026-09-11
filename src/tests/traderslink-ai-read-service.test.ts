@@ -1377,6 +1377,7 @@ describe("OpenAITradersLinkAiReadService", () => {
 
   it("does not buy a corrected draft after tactical validation fails", async () => {
     const requestBodies: Record<string, unknown>[] = [];
+    const auditEvents: Array<{ phase: string; payload: unknown }> = [];
     const invalidRead = modelRead();
     invalidRead.needsToHold = {
       label: "Consolidation floor",
@@ -1393,6 +1394,7 @@ describe("OpenAITradersLinkAiReadService", () => {
       apiKey: "test-key",
       model: "test-model",
       webSearchEnabled: true,
+      auditStore: { save: event => { auditEvents.push(event); return { saved: true }; } },
       pricing: {
         inputPer1M: 1,
         cachedInputPer1M: 0.1,
@@ -1427,6 +1429,12 @@ describe("OpenAITradersLinkAiReadService", () => {
     }), /cautionBelow must not be above needsToHold/);
 
     assert.equal(requestBodies.length, 1);
+    const savedAttempt = auditEvents.find(event => event.phase === "validation" && (event.payload as any).stage === "api_attempt")?.payload as any;
+    assert.equal(savedAttempt.status, "invalid_output");
+    assert.equal(savedAttempt.attemptSequence, 1);
+    assert.equal(savedAttempt.usageReported, true);
+    assert.equal(savedAttempt.usage.totalTokens, 120);
+    assert.ok(Math.abs(savedAttempt.usage.estimatedTotalCostUsd - 0.00014) < 1e-10);
     assert.deepEqual(requestBodies[0]!.tools, [{ type: "web_search" }]);
     assert.deepEqual(attempts, [
       { attemptType: "primary", status: "invalid_output", totalTokens: 120 },
@@ -1675,7 +1683,12 @@ describe("OpenAITradersLinkAiReadService", () => {
     });
     await service.generate({ snapshot: snapshot(), priceAction: priceAction(),
       research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
-    assert.deepEqual(events.map((event) => event.phase), ["request", "response", "validation", "prepared_payload"]);
+    assert.deepEqual(events.map((event) => event.phase), ["request", "response", "validation", "validation", "prepared_payload"]);
+    const attempt = events.find(event => event.phase === "validation" && (event.payload as any).stage === "api_attempt")?.payload as any;
+    assert.equal(attempt.attemptSequence, 1);
+    assert.equal(attempt.status, "success");
+    assert.equal(attempt.usageReported, false);
+    assert.equal(attempt.usage, null);
     assert.deepEqual((events[0]!.payload as { body: unknown }).body, JSON.parse(sentBody));
     assert.equal((events[1]!.payload as { body: string }).body, responseBody);
     assert.doesNotMatch(JSON.stringify(events), /private-test-credential|Authorization/);
@@ -1714,7 +1727,7 @@ describe("OpenAITradersLinkAiReadService", () => {
       onAuditCapture: (result) => captures.push(result) });
     assert.equal(read.symbol, "TGHL");
     assert.equal(requests, 1);
-    assert.equal(captures.length, 4);
+    assert.equal(captures.length, 5);
     assert.ok(captures.every((result) => !result.saved));
   });
 
