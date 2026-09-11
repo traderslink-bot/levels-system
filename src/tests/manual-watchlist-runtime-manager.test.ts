@@ -5311,6 +5311,52 @@ test("Automatic AI updates OFF blocks every follow-up trigger but preserves init
   assert.equal(availability("startup").allowed, true);
 });
 
+test("Queued automatic AI dispatch rechecks OFF after scheduling in every enabled session", async () => {
+  for (const timestamp of ["2026-07-23T12:00:00Z", "2026-07-23T15:00:00Z", "2026-07-23T21:00:00Z"]) {
+    const watchlistStore = new WatchlistStore();
+    watchlistStore.upsertManualEntry({ symbol: "QUEUE", active: true, lifecycle: "active", tags: ["manual"], lastPrice: 2 });
+    let providerCalls = 0;
+    let researchCalls = 0;
+    const manager = new ManualWatchlistRuntimeManager({
+      candleFetchService: {} as any, levelStore: new LevelStore(),
+      monitor: new FakeMonitor() as any, discordAlertRouter: new FakeDiscordAlertRouter() as any,
+      opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+      watchlistStore, watchlistStatePersistence: new FakeWatchlistStatePersistence() as any,
+      liveWatchlistPublisher: new FakeLiveWatchlistPublisher(),
+      tradersLinkAiReadService: { generate: async () => { providerCalls += 1; throw new Error("unexpected request"); } } as any,
+      recentWebsiteArticlesExecFileImpl: async () => { researchCalls += 1; throw new Error("unexpected research"); },
+      initialTradersLinkAiReadGenerationSettings: { enabled: true, premarketEnabled: true, regularEnabled: true,
+        postmarketEnabled: true, topRegularActivationEnabled: true, automaticUpdatesEnabled: true },
+      now: () => Date.parse(timestamp),
+    });
+    const internal = manager as any;
+    const originalGenerate = internal.generateTradersLinkAiRead.bind(manager);
+    let dispatches = 0;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const dispatched = new Promise<unknown>((resolve, reject) => {
+      // Keep this real-timer test bounded and the unref'ed coalescer alive.
+      timeout = setTimeout(() => reject(new Error("queued dispatch did not complete")), 3000);
+      internal.generateTradersLinkAiRead = async (...args: unknown[]) => {
+        dispatches += 1;
+        try { const result = await originalGenerate(...args); resolve(result); return result; }
+        catch (error) { reject(error); throw error; }
+      };
+    });
+    try {
+      internal.scheduleTradersLinkAiRead("QUEUE", false, "automatic");
+      internal.scheduleTradersLinkAiRead("QUEUE", false, "automatic");
+      assert.equal(internal.pendingAutomaticAiReadSchedules.size, 1);
+      manager.setTradersLinkAiReadGenerationSettings({ ...manager.getTradersLinkAiReadGenerationSettings(), automaticUpdatesEnabled: false });
+      assert.equal(await dispatched, null);
+      assert.equal(dispatches, 1);
+      assert.equal(internal.pendingAutomaticAiReadSchedules.size, 0);
+      assert.equal(providerCalls, 0);
+      assert.equal(researchCalls, 0);
+      assert.equal(manager.getTradersLinkAiReadGenerationAvailability(undefined, { symbol: "QUEUE", requestedTrigger: "manual" }).allowed, true);
+    } finally { clearTimeout(timeout); await manager.stop(); }
+  }
+});
+
 test("ManualWatchlistRuntimeManager posts stock context into a newly created thread before the level snapshot", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
