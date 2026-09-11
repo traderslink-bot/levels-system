@@ -5,7 +5,7 @@ import { DiscordConfirmedRejection } from "../alerts/discord-confirmed-rejection
 import { applyOwnerAnalysisEdit } from "../ai/traderslink-ai-read-owner-edit.js";
 import { publicationPreviewHash, renderApprovedAnalysisDiscord, type ReviewPublication } from "../ai/traderslink-ai-read-publication-preview.js";
 import type { TradersLinkAiReadReviewStore } from "../ai/traderslink-ai-read-review-store.js";
-import { isWatchlistPatchApproved, requiresInitialWatchlistReview } from "../ai/traderslink-ai-read-review-policy.js";
+import { isWatchlistPatchApproved, requiresInitialWatchlistReview, type WatchlistPublicationCheck } from "../ai/traderslink-ai-read-review-policy.js";
 import { resolveTradersLinkAiReadReferenceQuote } from "../ai/traderslink-ai-read-price-action.js";
 
 import { CandleFetchService, type HistoricalFetchRequest } from "../market-data/candle-fetch-service.js";
@@ -3461,7 +3461,7 @@ export class ManualWatchlistRuntimeManager {
     );
   }
 
-  isWatchlistPublicationApproved(patch: LiveWatchlistPublishedPatch): boolean {
+  isWatchlistPublicationApproved(patch: WatchlistPublicationCheck): boolean {
     if (!("symbol" in patch)) return true;
     const entry = this.watchlistStore.getEntry(patch.symbol);
     if (!entry) return false;

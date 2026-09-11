@@ -1,5 +1,8 @@
 import type { ReviewState } from "./traderslink-ai-read-review-store.js";
-import type { LiveWatchlistPublishedPatch } from "../live-watchlist/live-watchlist-types.js";
+import type { LiveWatchlistCardPatch, LiveWatchlistPublishedPatch } from "../live-watchlist/live-watchlist-types.js";
+
+/** Approval probes do not publish data and need no invented update timestamp. */
+export type WatchlistPublicationCheck = LiveWatchlistPublishedPatch | Pick<LiveWatchlistCardPatch, "symbol" | "cards">;
 
 export type WatchlistPublicationReview = { cycleId: string; required: boolean };
 
@@ -46,7 +49,7 @@ export function hasWatchlistPublicationApproval(
   } catch { return false; }
 }
 
-export function isWatchlistPatchApproved(patch: LiveWatchlistPublishedPatch, rawReview: unknown, load: (id: string) => ReviewState | null): boolean {
+export function isWatchlistPatchApproved(patch: WatchlistPublicationCheck, rawReview: unknown, load: (id: string) => ReviewState | null): boolean {
   if (!("symbol" in patch)) return true;
   const review = normalizePublicationReview(rawReview);
   if (!review) return true;
