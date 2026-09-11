@@ -25,6 +25,7 @@ export function remainingGeneratedSectionOmissions(review: ReviewState, draftRev
   }
   if (origin.body.kind !== "original") return [];
   const omissions = new Set<string>();
+  const removedCounts = { targets: 0, downsideCheckpoints: 0, riskSummary: 0 };
   const sections = ["pullbackPlans.shallow", "pullbackPlans.deep", "failureRecovery", "mustClear", "breakoutContinuation"];
   const hidden = (path: string) => Array.isArray(payload.ownerHiddenSections) &&
     payload.ownerHiddenSections.includes(path.replace("pullbackPlans.", ""));
@@ -49,17 +50,40 @@ export function remainingGeneratedSectionOmissions(review: ReviewState, draftRev
       const overviewRemoved = decision.issues.some(raw => object(raw)?.path === "currentRead");
       if (overviewRemoved && (hidden("currentRead") || !populated(payload.currentRead))) omissions.add("currentRead");
       const removedRisks = decision.issues.filter(raw => String(object(raw)?.path).startsWith("riskSummary.")).length;
-      const originalRisks = Array.isArray(origin.body.payload.riskSummary) ? origin.body.payload.riskSummary.length : 0;
-      const finalRisks = Array.isArray(payload.riskSummary) ? payload.riskSummary.length : 0;
-      if (removedRisks && (hidden("riskSummary") || finalRisks < originalRisks + removedRisks)) omissions.add("riskSummary");
+      removedCounts.riskSummary += removedRisks;
     }
     if (decision.stage === "checkpoint_spacing" || decision.stage === "observable_evidence_normalization") {
-      for (const key of ["targets", "downsideCheckpoints"]) {
-        const before = at(decision.before, key), after = at(decision.after, key), final = payload[key];
-        if (Array.isArray(before) && Array.isArray(after) && before.length > after.length &&
-          (hidden(key) || !Array.isArray(final) || final.length < before.length)) omissions.add(key);
+      for (const key of ["targets", "downsideCheckpoints"] as const) {
+        const before = at(decision.before, key), after = at(decision.after, key);
+        if (Array.isArray(before) && Array.isArray(after)) removedCounts[key] += Math.max(0, before.length - after.length);
       }
     }
+    if (decision.stage === "breakout_selection") {
+      const parsing = Array.isArray(decision.parsingIssues) ? decision.parsingIssues : [];
+      const rejected = Array.isArray(decision.decisions) && decision.decisions.length > 0;
+      if (decision.selectedCandidateId === null && (rejected || parsing.length) &&
+        (hidden("breakoutContinuation") || (!populated(at(payload, "breakoutContinuation.price")) &&
+          !populated(at(payload, "breakoutContinuation.rationale"))))) omissions.add("breakoutContinuation");
+      if (decision.selectedCandidateId === "primary" || decision.selectedCandidateId === "alternate") {
+        const prefix = `breakoutCandidates.${decision.selectedCandidateId}.targets`;
+        removedCounts.targets += parsing.filter(raw => {
+          const path = object(raw)?.path;
+          return typeof path === "string" && (path === prefix || path.startsWith(prefix + "."));
+        }).length;
+      }
+      if (populated(at(decision.omittedNarrative, "currentRead")) &&
+        (hidden("currentRead") || !populated(payload.currentRead))) omissions.add("currentRead");
+      const risks = at(decision.omittedNarrative, "riskSummary");
+      if (Array.isArray(risks)) removedCounts.riskSummary += risks.length;
+    }
+    if (decision.stage === "outer_daily_resistance" && decision.action === "omit_objective" && Array.isArray(decision.omitted)) {
+      removedCounts.targets += decision.omitted.length;
+    }
+  }
+  for (const key of ["targets", "downsideCheckpoints", "riskSummary"] as const) {
+    const originalCount = Array.isArray(origin.body.payload[key]) ? origin.body.payload[key].length : 0;
+    const finalCount = Array.isArray(payload[key]) ? payload[key].length : 0;
+    if (removedCounts[key] && (hidden(key) || finalCount < originalCount + removedCounts[key])) omissions.add(key);
   }
   return [...omissions];
 }

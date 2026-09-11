@@ -2591,7 +2591,9 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         const primaryMirrorMismatch = selection.selected?.id === "primary" &&
           (JSON.stringify(modelRead.breakoutContinuation) !== JSON.stringify(selection.selected.level) ||
            JSON.stringify(modelRead.targets) !== JSON.stringify(selection.selected.targets));
+        let omittedNarrative: { currentRead: string; riskSummary: string[] } | undefined;
         if (selection.selected?.id !== "primary" || primaryMirrorMismatch) {
+          omittedNarrative = { currentRead: modelRead.currentRead, riskSummary: [...modelRead.riskSummary] };
           removeBreakoutDependentContent(modelRead, [modelRead.breakoutContinuation.price,
             ...modelRead.targets.map(target => target.price)].filter((price): price is number => price !== null), referenceQuote.price);
           modelRead.currentRead = "";
@@ -2600,7 +2602,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         modelRead.breakoutContinuation = selection.selected?.level ?? { label: "", price: null, rationale: "" };
         modelRead.targets = selection.selected?.targets ?? [];
         capture("validation", { stage: "breakout_selection", decisions: selection.decisions, parsingIssues: candidateParsingIssues, primaryMirrorMismatch,
-          selectedCandidateId: selection.selected?.id ?? null });
+          selectedCandidateId: selection.selected?.id ?? null, ...(omittedNarrative ? { omittedNarrative } : {}) });
       }
       const spacedRead = pruneRedundantScenarioCheckpoints(modelRead, referenceQuote.price, input.priceAction);
       const normalized = normalizeObservableTapeEvidence(
