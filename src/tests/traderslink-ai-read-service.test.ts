@@ -881,6 +881,31 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(backupRead.breakoutContinuation.price, Number(anchor.price.toFixed(2)));
     assert.equal(Object.hasOwn(backupRead, "breakoutCandidates"), false);
     assert.ok(backupRead.pullbackPlans.deep, "independent deep setup survives backup selection");
+    for (const badExplanation of ["Premarket volume was zero.", "The next supplied resistance level confirms the breakout."]) {
+      const badPrimaryText = structuredClone(withBackup);
+      badPrimaryText.breakoutCandidates.primary = { ...structuredClone(supportedBackup),
+        level: { ...supportedBackup.level, rationale: badExplanation } };
+      const selected = await generate(badPrimaryText);
+      assert.equal(selected.breakoutContinuation.rationale, backupRead.breakoutContinuation.rationale);
+      assert.ok(generationAudit.some(event => event.payload?.stage === "breakout_selection" && event.payload.selectedCandidateId === "alternate" &&
+        event.payload.decisions[0].reasons.length > 0));
+      badPrimaryText.breakoutCandidates.alternate.level.rationale = badExplanation;
+      const omitted = await generate(badPrimaryText);
+      assert.equal(omitted.breakoutContinuation.price, null);
+      assert.ok(omitted.pullbackPlans.deep);
+    }
+    for (const name of ["mustClear", "breakoutContinuation"] as const) {
+      const badLegacyText = structuredClone(draft) as Record<string, any>;
+      badLegacyText[name].rationale = "Premarket volume was zero.";
+      badLegacyText.pullbackPlans.shallow.confirmation = "Only after the breakout holds.";
+      const partial = await generate(badLegacyText);
+      assert.equal(partial[name].price, null);
+      assert.equal(partial.breakoutContinuation.price, null);
+      assert.deepEqual(partial.targets, []);
+      assert.equal(partial.pullbackPlans.shallow, null, "dependent confirmation is omitted with its breakout");
+      assert.ok(partial.pullbackPlans.deep, "independent deep setup remains");
+      assert.ok(generationAudit.some(event => event.payload?.issues?.some((issue: any) => issue.path === name && issue.code === "unsupported_text")));
+    }
     const withDependencies = structuredClone(withBackup);
     withDependencies.breakoutCandidates.alternate.targets = [
       { id: "bad", dependsOn: ["alternate"], label: "Bad sequence", price: 1.7, condition: "Observed daily high" },
@@ -892,6 +917,15 @@ describe("OpenAITradersLinkAiReadService", () => {
     tape.dailyCandles.push({ timestamp: DATA_AS_OF - 22 * 86400000,
       open: 2.1, high: 2.2, low: 2.05, close: 2.15, volume: 100000 });
     const dependenciesRead = await generate(withDependencies);
+    const badTargetText = structuredClone(withDependencies);
+    badTargetText.breakoutCandidates.alternate.targets[2].condition = "Premarket volume was zero.";
+    const textPartial = await generate(badTargetText);
+    assert.deepEqual(textPartial.targets, []);
+    assert.equal(textPartial.breakoutContinuation.price, dependenciesRead.breakoutContinuation.price);
+    assert.ok(textPartial.pullbackPlans.deep);
+    assert.ok(generationAudit.some(event => event.payload?.parsingIssues?.some((issue: any) => /zero shares traded/.test(issue.reason))));
+    // Restore the successful selection audit used by the assertions below.
+    await generate(withDependencies);
     tape.dailyCandles.pop();
     assert.deepEqual(dependenciesRead.targets.map(target => target.price), [2.2]);
     assert.equal(Object.hasOwn(dependenciesRead.targets[0]!, "dependsOn"), false);

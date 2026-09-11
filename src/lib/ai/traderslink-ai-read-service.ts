@@ -1514,6 +1514,18 @@ function assertTradeText(
   }
 }
 
+function assertLevelText(level: TradersLinkAiReadLevel, field: string, currentPrice: number,
+  priceAction: TradersLinkAiReadPriceActionContext, dataAsOf: number): void {
+  if (level.price === null) return;
+  const unsupported = /\b(?:4h|four[- ]hour|confluence|supplied (?:level|support|resistance)|support stack|resistance stack|next level)\b/i;
+  if (unsupported.test(`${level.label} ${level.rationale}`)) {
+    throw new Error(`OpenAI returned an invalid tactical trade map: ${field} uses unsupported precomputed-level or timeframe language`);
+  }
+  if (!level.rationale.trim()) throw new Error(`OpenAI returned an invalid tactical trade map: ${field} has no explanation`);
+  assertTradeText(level.label, currentPrice, priceAction, dataAsOf);
+  assertTradeText(level.rationale, currentPrice, priceAction, dataAsOf);
+}
+
 function assertTradersLinkAiTradeMap(
   read: ModelRead,
   currentPrice: number,
@@ -1525,8 +1537,6 @@ function assertTradersLinkAiTradeMap(
   const recentBars = priceAction.intradayCandles.slice(-24);
   const averageTrueRange = recentBars.length > 0
     ? recentBars.reduce((sum, candle) => sum + Math.max(0, candle.high - candle.low), 0) / recentBars.length : 0;
-  const unsupportedAnalysisLanguage =
-    /\b(?:4h|four[- ]hour|confluence|supplied (?:level|support|resistance)|support stack|resistance stack|next level)\b/i;
   const fail = (message: string): never => {
     throw new Error(`OpenAI returned an invalid tactical trade map: ${message}`);
   };
@@ -1552,11 +1562,7 @@ function assertTradersLinkAiTradeMap(
     if (level.price === null) {
       continue;
     }
-    const combinedText = `${level.label} ${level.rationale}`;
-    if (unsupportedAnalysisLanguage.test(combinedText)) {
-      fail(`${label} uses unsupported precomputed-level or timeframe language`);
-    }
-    if (!level.rationale.trim()) fail(`${label} has no explanation`);
+    assertLevelText(level, label, currentPrice, priceAction, dataAsOf);
     // Numeric observations/candidate anchors are checked by their own paths;
     // including a tape-like keyword is neither proof nor a requirement.
   }
@@ -2581,8 +2587,17 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
           });
           const checkedTargets = retainBreakoutTargets({ candidateId: id, continuationPrice: level.price,
             targets, spacing: tacticalTradeMapSpacing(referenceQuote.price, input.priceAction),
-            validate: target => target.price !== null &&
-              observableCandleEvidence(target.price, referenceQuote.price, input.priceAction, dataAsOf) !== null });
+            validate: target => {
+              try {
+                assertTradeText(target.label, referenceQuote.price, input.priceAction, dataAsOf);
+                assertTradeText(target.condition, referenceQuote.price, input.priceAction, dataAsOf);
+              } catch (error) {
+                candidateParsingIssues.push({ path: `breakoutCandidates.${id}.targets`,
+                  reason: `Price ${target.price}: ${error instanceof Error ? error.message : String(error)}` });
+                return false;
+              }
+              return target.price !== null && observableCandleEvidence(target.price, referenceQuote.price, input.priceAction, dataAsOf) !== null;
+            } });
           candidateParsingIssues.push(...checkedTargets.issues.map(issue => ({ path: `breakoutCandidates.${id}.targets.${issue.id}`, reason: issue.reason })));
           return { id, level: normalizeLevel(value.level, "Breakout continuation"),
             targets: checkedTargets.retained.map(({ id: _id, dependsOn: _dependencies, ...target }) => target),
@@ -2595,7 +2610,8 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         const selection = selectBreakoutCandidate({ referencePrice: referenceQuote.price, mustClear: modelRead.mustClear,
           primary, alternate, validateEvidence: candidate => {
             const reasons = validateBreakoutEvidence(candidate, evidence);
-            if (!candidate.level.rationale.trim()) reasons.push("Breakout explanation is missing.");
+            try { assertLevelText(candidate.level, "breakoutContinuation", referenceQuote.price, input.priceAction, dataAsOf); }
+            catch (error) { reasons.push(error instanceof Error ? error.message : String(error)); }
             return reasons;
           } });
         const primaryMirrorMismatch = selection.selected?.id === "primary" &&
@@ -2668,6 +2684,18 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       normalized.pullbackPlans = { shallow: pair.value, deep: pair.deepValue };
       normalized.failureRecovery = recovery.value;
       const breakout = validateBreakoutOrdering(normalized.mustClear, normalized.breakoutContinuation, referenceQuote.price);
+      for (const name of ["mustClear", "breakoutContinuation"] as const) {
+        const level = normalized[name];
+        try { assertLevelText(level, name, referenceQuote.price, input.priceAction, dataAsOf); }
+        catch (error) {
+          textIssues.push({ path: name, code: "unsupported_text", action: "omit_section",
+            reason: error instanceof Error ? error.message : String(error), omitted: level });
+          breakout[name] = { label: "", price: null, rationale: "" };
+          if (name === "mustClear") breakout.breakoutContinuation = { label: "", price: null, rationale: "" };
+          breakout.omitDependentUpside = true;
+          breakout.changedPaths.push(name, "breakoutContinuation", "targets");
+        }
+      }
       if (!Object.hasOwn(parsed as object, "breakoutCandidates") && normalized.breakoutContinuation.price !== null &&
         (!normalized.breakoutContinuation.rationale.trim() || observableCandleEvidence(normalized.breakoutContinuation.price,
           referenceQuote.price, input.priceAction, dataAsOf) === null)) {
