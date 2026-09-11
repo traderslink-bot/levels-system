@@ -8,7 +8,22 @@ import { LiveWatchlistHttpPublisher } from "../lib/live-watchlist/live-watchlist
 
 const directories: string[] = [];
 afterEach(() => { for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true }); });
-const patch = (symbol: string) => ({ symbol, cards: {} });
+const patch = (symbol: string) => ({ symbol, updatedAt: 123, cards: {} });
+
+test("HTTP guard holds both card and quote data for a pending ticker while unrelated symbols continue", async () => {
+  const sent: unknown[] = [];
+  const publisher = new LiveWatchlistHttpPublisher({
+    ingestUrl: "https://example.invalid/ingest", token: "test", retryAttempts: 0,
+    authorizePublication: value => !("symbol" in value) || value.symbol !== "PDSB",
+    fetchImpl: async (_url, init) => { sent.push(JSON.parse(String(init?.body))); return new Response("{}", { status: 200 }); },
+  });
+  await assert.rejects(publisher.publish(patch("PDSB")), /owner approval/);
+  await assert.rejects(publisher.publishTickerData({ type: "tickerData", symbol: "PDSB", updatedAt: 123, latestPrice: 0.5,
+    nearestSupport: null, nearestResistance: null }), /owner approval/);
+  assert.equal(sent.length, 0);
+  await publisher.publish(patch("FTFT"));
+  assert.deepEqual(sent, [patch("FTFT")]);
+});
 
 test("held publication never reaches HTTP and does not create retry outbox entries", async () => {
   const directory = mkdtempSync(join(tmpdir(), "publish-gate-")); directories.push(directory);

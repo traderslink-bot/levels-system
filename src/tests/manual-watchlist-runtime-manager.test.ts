@@ -118,8 +118,8 @@ test("activation publishes normally with zero AI calls when master or session is
   }
 });
 
-for (const sessionTimestamp of ["2026-07-23T12:00:00Z", "2026-07-23T15:00:00Z", "2026-07-23T21:00:00Z"]) {
-test(`private activation saves an AI draft without website publication or Discord thread creation at ${sessionTimestamp}`, async () => {
+for (const activationMethod of ["activateSymbol", "queueActivation"] as const) for (const sessionTimestamp of ["2026-07-23T12:00:00Z", "2026-07-23T15:00:00Z", "2026-07-23T21:00:00Z"]) {
+test(`private activation saves an AI draft without website publication or Discord thread creation via ${activationMethod} at ${sessionTimestamp}`, async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-activation-"));
   try {
     const now = Date.parse(sessionTimestamp);
@@ -170,7 +170,7 @@ test(`private activation saves an AI draft without website publication or Discor
     });
     internal.buildLevelSnapshotPayload = () => ({ symbol: "PDSB", currentPrice: 0.5 });
     internal.aiReadResearchBySymbol.set("PDSB", { ticker: "PDSB", count: 0, articles: [] });
-    const entry = await manager.activateSymbol({ symbol: "PDSB", source: "manual" });
+    const entry = await manager[activationMethod]({ symbol: "PDSB", source: "manual" });
     assert.equal(entry.publicationReview?.required, true);
     assert.deepEqual(manager.listTradersLinkAiReadReviews(), [{ symbol: "PDSB", status: "Ready for review", canReview: true }]);
     assert.deepEqual(manager.getTradersLinkAiReadReviewControls(), { automaticUpdatesEnabled: false, reviewBeforePublishingEnabled: true });
