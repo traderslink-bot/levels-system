@@ -2645,6 +2645,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         capture("validation", { stage: "breakout_selection", decisions: selection.decisions, parsingIssues: candidateParsingIssues, primaryMirrorMismatch,
           selectedCandidateId: selection.selected?.id ?? null, ...(omittedNarrative ? { omittedNarrative } : {}) });
       }
+      const checkpointDependencies = new Map<"targets" | "downsideCheckpoints", unknown>();
       for (const field of ["targets", "downsideCheckpoints"] as const) {
         // Candidate-specific upside already uses its own IDs/selection path.
         if (field === "targets" && Object.hasOwn(parsed as object, "breakoutCandidates")) continue;
@@ -2659,6 +2660,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         // Preserve the existing price-only legacy normalization when no new
         // dependency metadata or text omission requires dependency handling.
         if (!hasDependencies && !hasInvalidText) continue;
+        if (hasDependencies) checkpointDependencies.set(field, raw);
         const root = field === "targets" ? "breakoutContinuation" : "momentumFailure";
         const result = retainAnalysisCheckpoints({ raw, root,
           rootPrice: modelRead[root].price ?? referenceQuote.price,
@@ -2782,6 +2784,27 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         normalized.breakoutContinuation = breakout.breakoutContinuation;
         normalized.targets = [];
         breakoutDependencyPaths.push(...removeBreakoutDependentContent(normalized, removedPrices, referenceQuote.price));
+      }
+      for (const [field, raw] of checkpointDependencies) {
+        const before = normalized[field];
+        const root = field === "targets" ? "breakoutContinuation" : "momentumFailure";
+        const matches = (left: TradersLinkAiReadTarget, right: unknown) => right !== null && typeof right === "object" &&
+          "price" in right && "label" in right && left.price === right.price && left.label === right.label;
+        const final = retainAnalysisCheckpoints({ raw, root, rootPrice: normalized[root].price ?? Number.NaN,
+          direction: field === "targets" ? "up" : "down", spacing: tacticalTradeMapSpacing(referenceQuote.price, input.priceAction),
+          validate: target => before.some(point => matches(point, target)) ? null : "Checkpoint was removed by later section validation.",
+        });
+        const retained = before.filter(point => final.retained.some(target => matches(point, target)));
+        if (retained.length !== before.length) {
+          const omittedNarrative = { currentRead: normalized.currentRead, riskSummary: [...normalized.riskSummary] };
+          normalized[field] = retained;
+          normalized.currentRead = ""; normalized.riskSummary = [];
+          // Count only newly removed rows here; earlier removals already have
+          // their own provenance and must not be counted twice after approval.
+          const issues = final.issues.filter(issue => before.some(point => matches(point, issue.omitted)));
+          capture("validation", { stage: "checkpoint_dependencies", validationPass: "final_assembly", field, issues,
+            omittedNarrative, changedPaths: [field, "currentRead", "riskSummary"] });
+        }
       }
       const sectionIssues = [...textIssues, ...shallow.issues, ...deep.issues, ...pair.issues, ...recovery.issues, ...breakout.issues];
       if (sectionIssues.length) {

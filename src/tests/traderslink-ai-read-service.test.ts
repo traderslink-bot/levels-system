@@ -980,6 +980,23 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(dependentRead.breakoutContinuation.price, null);
     assert.deepEqual(dependentRead.targets, []);
 
+    const finalDependencies = structuredClone(draft) as Record<string, any>;
+    finalDependencies.breakoutContinuation.price = finalDependencies.mustClear.price;
+    finalDependencies.downsideCheckpoints = [
+      null,
+      { id: "removed", dependsOn: ["momentumFailure"], label: "Breakout dependent", price: 0.85, condition: "Only after the breakout fails." },
+      { id: "child", dependsOn: ["removed"], label: "Later dependent", price: 0.8, condition: "After the earlier checkpoint fails." },
+      { id: "independent", dependsOn: ["momentumFailure"], label: "Independent daily low", price: 0.75, condition: "The observed daily low remains relevant." },
+    ];
+    tape.dailyCandles.push({ timestamp: DATA_AS_OF - 23 * 86400000,
+      open: 0.85, high: 1, low: 0.75, close: 0.8, volume: 100000 });
+    const assembled = await generate(finalDependencies);
+    tape.dailyCandles.pop();
+    assert.deepEqual(assembled.downsideCheckpoints.map(point => point.price), [0.75]);
+    assert.ok(assembled.pullbackPlans.deep);
+    const finalAudit = generationAudit.find(event => event.payload?.validationPass === "final_assembly");
+    assert.deepEqual(finalAudit.payload.issues.map((issue: any) => issue.id), ["child"]);
+
     const invalidCases: Array<[string, (value: Record<string, any>) => void, RegExp]> = [
       ["shallow above reference", (value) => {
         value.pullbackPlans.shallow.zoneHigh = currentPrice + 0.1;
