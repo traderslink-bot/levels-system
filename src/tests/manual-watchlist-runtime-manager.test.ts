@@ -60,6 +60,31 @@ test("AI audit retains five request counts after the latest generation fails", (
   assert.equal(audit.recentEvents.length, 10);
 });
 
+test("AI audit retains inactive and removed ticker history with exact symbol filtering", () => {
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.upsertManualEntry({ symbol: "PDSB", active: false });
+  watchlistStore.upsertManualEntry({ symbol: "LIVE", active: true });
+  const events = ["PDSB", "REMOVED", "LIVE"].map((symbol, index) => ({
+    symbol, stage: "request", outcome: "request_started", generationId: `${symbol}-g`, occurredAt: index + 1,
+  }));
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any, levelStore: new LevelStore(), monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any, opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore, watchlistStatePersistence: new FakeWatchlistStatePersistence() as any,
+    tradersLinkAiReadRunLedger: { load: () => [...events].reverse(), summarize: () => ({}) } as any,
+  });
+  const all = manager.getTradersLinkAiReadAudit();
+  assert.equal(all.currentEntries.find(entry => entry.symbol === "PDSB")?.status, "inactive");
+  assert.equal(all.recentEvents.length, 3);
+  const inactive = manager.getTradersLinkAiReadAudit({ symbol: " pdsb ", includeFullHistory: true });
+  assert.equal(inactive.currentEntries.length, 1);
+  assert.equal(inactive.currentEntries[0]!.requestCount, 1);
+  assert.deepEqual(inactive.recentEvents.map(event => event.symbol), ["PDSB"]);
+  const removed = manager.getTradersLinkAiReadAudit({ symbol: "REMOVED", includeFullHistory: true });
+  assert.equal(removed.currentEntries.length, 0, "history does not invent a current entry");
+  assert.deepEqual(removed.recentEvents.map(event => event.symbol), ["REMOVED"]);
+});
+
 for (const sourceStatus of ["eligible", "no_eligible_article", "lookup_unavailable"] as const) {
 test(`canonical article manager flow: ${sourceStatus} uses fresh lookup and explicit fallback authority`, async () => {
   const directory = mkdtempSync(join(tmpdir(), "article-manager-review-"));

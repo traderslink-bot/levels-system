@@ -3786,18 +3786,17 @@ export class ManualWatchlistRuntimeManager {
   } {
     const ledger = this.options.tradersLinkAiReadRunLedger;
     const symbol = options.symbol?.trim().toUpperCase();
-    const activeEntries = this.watchlistStore.getActiveEntries()
+    const auditEntries = this.watchlistStore.getEntries()
       .filter((entry) => !symbol || entry.symbol === symbol);
-    const activeSymbols = new Set(activeEntries.map((entry) => entry.symbol));
     const events = ledger?.load() ?? [];
-    const filteredEvents = events.filter((event) => activeSymbols.has(event.symbol));
+    const filteredEvents = events.filter((event) => !symbol || event.symbol === symbol);
     const eventsBySymbol = new Map<string, TradersLinkAiReadRunEvent[]>();
     for (const event of filteredEvents) {
       const existing = eventsBySymbol.get(event.symbol) ?? [];
       existing.push(event);
       eventsBySymbol.set(event.symbol, existing);
     }
-    const currentEntries = activeEntries
+    const currentEntries = auditEntries
       .map((entry) => {
         const entryEvents = eventsBySymbol.get(entry.symbol) ?? [];
         const lastPublishedAt = entry.tradersLinkAiReadBoundaryState?.generatedAt ?? 0;

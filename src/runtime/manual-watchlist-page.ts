@@ -1738,7 +1738,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       aiReadDetailGridEl.innerHTML = "";
       [
         ["Current state", auditStatusLabel(row.state)],
-        ["Lifecycle", row.current?.active === false ? "Inactive" : "Active"],
+        ["Lifecycle", row.current ? (row.current.active === false ? "Inactive" : "Active") : "No current entry"],
         ["Last read", row.current?.lastReadGeneratedAt ? formatTime(row.current.lastReadGeneratedAt) : "None"],
         ["Latest trigger", row.latestEvent?.trigger || "None"],
         ["Requests", String(row.current?.requestCount ?? row.events.filter((event) => event.stage === "request" && event.outcome === "request_started").length)],
