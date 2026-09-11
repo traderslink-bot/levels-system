@@ -741,6 +741,31 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(read.pullbackPlans.deep?.evidenceIds[0], deepCandidate.id);
     assert.equal(read.failureRecovery?.firstReclaimPrice, 1.1);
 
+    const invalidBreakout = structuredClone(draft) as Record<string, any>;
+    invalidBreakout.mustClear.price = currentPrice - 0.1;
+    invalidBreakout.pullbackPlans.shallow.confirmation = "Reclaim the consolidation high before considering an upside target.";
+    invalidBreakout.pullbackPlans.shallow.rationale = "The observed base supplies an independent pullback target.";
+    const partialBreakout = await generate(invalidBreakout);
+    assert.equal(partialBreakout.mustClear.price, null);
+    assert.equal(partialBreakout.breakoutContinuation.price, null);
+    assert.deepEqual(partialBreakout.targets, []);
+    assert.ok(partialBreakout.pullbackPlans.shallow);
+    assert.ok(partialBreakout.pullbackPlans.deep);
+    assert.equal(partialBreakout.pullbackPlans.shallow.confirmation, invalidBreakout.pullbackPlans.shallow.confirmation);
+    assert.equal(partialBreakout.pullbackPlans.shallow.rationale, invalidBreakout.pullbackPlans.shallow.rationale);
+    assert.equal(partialBreakout.currentRead, "");
+
+    const dependentBreakout = structuredClone(draft) as Record<string, any>;
+    dependentBreakout.breakoutContinuation.price = dependentBreakout.mustClear.price;
+    dependentBreakout.pullbackPlans.shallow.confirmation = "Only after the breakout holds.";
+    dependentBreakout.pullbackPlans.deep.firstObjectivePrice = dependentBreakout.mustClear.price;
+    const dependentRead = await generate(dependentBreakout);
+    assert.equal(dependentRead.pullbackPlans.shallow, null);
+    assert.ok(dependentRead.pullbackPlans.deep);
+    assert.equal(dependentRead.pullbackPlans.deep.firstObjectivePrice, null);
+    assert.equal(dependentRead.breakoutContinuation.price, null);
+    assert.deepEqual(dependentRead.targets, []);
+
     const invalidCases: Array<[string, (value: Record<string, any>) => void, RegExp]> = [
       ["shallow above reference", (value) => {
         value.pullbackPlans.shallow.zoneHigh = currentPrice + 0.1;

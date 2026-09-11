@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { TradersLinkAiReadAuditStore, type AiReadAuditEvent, type AiReadAuditResult } from "./traderslink-ai-read-audit.js";
 import { resolveManualWatchlistDurableDirectory } from "../monitoring/manual-watchlist-durable-storage.js";
-import { hasCompleteValidatedSetup, validatePullbackPair, validatePullbackSection, validateRecoverySection } from "./traderslink-ai-read-section-validation.js";
+import { hasCompleteValidatedSetup, validateBreakoutOrdering, validatePullbackPair, validatePullbackSection, validateRecoverySection } from "./traderslink-ai-read-section-validation.js";
 import type { LevelSnapshotPayload } from "../alerts/alert-types.js";
 import type { RecentWebsiteArticleLookupResult } from "../live-watchlist/recent-website-articles.js";
 import {
@@ -1661,6 +1661,48 @@ function assertTradersLinkAiTradeMap(
   }
 }
 
+function removeBreakoutDependentContent(read: ModelRead, removedPrices: number[], referencePrice: number): string[] {
+  const tolerance = Math.max(referencePrice * 0.005, 0.0001);
+  const removedPrice = (price: number | null) => price !== null && removedPrices.some(removed => Math.abs(removed - price) <= tolerance);
+  const referencesRemoved = (text: string) => /\b(?:(?:the|that|this|original|prior)\s+breakout|must[- ]clear|breakout continuation|(?:that|this)\s+(?:level|target))\b/i.test(text) ||
+    Array.from(text.matchAll(/\$?((?:\d+(?:\.\d+)?|\.\d+))/g)).some(match => {
+      const suffix = text.slice((match.index ?? 0) + match[0].length);
+      if (/^\s*(?:%|percent|minutes?\b|bars?\b|shares?\b)/i.test(suffix)) return false;
+      const prefix = text.slice(0, match.index);
+      const priceContext = match[0].startsWith("$") || match[1]!.includes(".") || /\b(?:above|below|at|reclaim|clear|hold|holds|fails|through)\s*$/i.test(prefix);
+      return priceContext && removedPrice(Number(match[1]));
+    });
+  const changed: string[] = [];
+  for (const name of ["shallow", "deep"] as const) {
+    const scenario = read.pullbackPlans[name];
+    if (!scenario) continue;
+    const path = `pullbackPlans.${name}`;
+    if (removedPrice(scenario.confirmationPrice) || referencesRemoved(scenario.confirmation)) {
+      read.pullbackPlans[name] = null; changed.push(path); continue;
+    }
+    if (removedPrice(scenario.firstObjectivePrice)) {
+      scenario.firstObjectivePrice = null; changed.push(`${path}.firstObjectivePrice`);
+    }
+    if (referencesRemoved(scenario.rationale)) { scenario.rationale = ""; changed.push(`${path}.rationale`); }
+  }
+  const recovery = read.failureRecovery;
+  if (recovery) {
+    if (removedPrice(recovery.firstReclaimPrice) || removedPrice(recovery.setupRestorePrice)) {
+      read.failureRecovery = null; changed.push("failureRecovery");
+    } else {
+      if (removedPrice(recovery.firstObjectivePrice)) { recovery.firstObjectivePrice = null; changed.push("failureRecovery.firstObjectivePrice"); }
+      if (referencesRemoved(recovery.rationale)) { recovery.rationale = ""; changed.push("failureRecovery.rationale"); }
+    }
+  }
+  // Recheck downstream references after each omitted downside point too.
+  read.downsideCheckpoints = read.downsideCheckpoints.filter((point, index) => {
+    if (!referencesRemoved(point.condition)) return true;
+    if (point.price !== null) removedPrices.push(point.price);
+    changed.push(`downsideCheckpoints.${index}`); return false;
+  });
+  return changed;
+}
+
 function pruneRedundantScenarioCheckpoints(
   read: ModelRead,
   currentPrice: number,
@@ -2432,7 +2474,20 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       const pair = validatePullbackPair(shallow.value, deep.value, referenceQuote.price, meanPullbackRange, sectionContext.candidates);
       normalized.pullbackPlans = { shallow: pair.value, deep: pair.deepValue };
       normalized.failureRecovery = recovery.value;
-      const sectionIssues = [...shallow.issues, ...deep.issues, ...pair.issues, ...recovery.issues];
+      const breakout = validateBreakoutOrdering(normalized.mustClear, normalized.breakoutContinuation, referenceQuote.price);
+      const breakoutDependencyPaths: string[] = [];
+      if (breakout.omitDependentUpside) {
+        const removedPrices = [
+          ...(breakout.mustClear.price === null && normalized.mustClear.price !== null ? [normalized.mustClear.price] : []),
+          ...(normalized.breakoutContinuation.price !== null ? [normalized.breakoutContinuation.price] : []),
+          ...normalized.targets.flatMap(target => target.price === null ? [] : [target.price]),
+        ];
+        normalized.mustClear = breakout.mustClear;
+        normalized.breakoutContinuation = breakout.breakoutContinuation;
+        normalized.targets = [];
+        breakoutDependencyPaths.push(...removeBreakoutDependentContent(normalized, removedPrices, referenceQuote.price));
+      }
+      const sectionIssues = [...shallow.issues, ...deep.issues, ...pair.issues, ...recovery.issues, ...breakout.issues];
       if (sectionIssues.length) {
         // These legacy whole-card paragraphs have no dependency declarations.
         // Omit them intact rather than leave a reference to a removed setup.
@@ -2440,7 +2495,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         normalized.riskSummary = [];
         capture("validation", {
           stage: "optional_sections", issues: sectionIssues,
-          changedPaths: [...shallow.changedPaths, ...deep.changedPaths, ...pair.changedPaths, ...recovery.changedPaths,
+          changedPaths: [...shallow.changedPaths, ...deep.changedPaths, ...pair.changedPaths, ...recovery.changedPaths, ...breakout.changedPaths, ...breakoutDependencyPaths,
             "currentRead", "riskSummary"],
         });
       }
