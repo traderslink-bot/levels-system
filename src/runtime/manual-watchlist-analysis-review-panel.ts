@@ -32,8 +32,10 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   <div class="inline-control" id="analysis-review-export-area" hidden>
     <label for="analysis-review-export-generation">Audit generation</label>
     <select id="analysis-review-export-generation"></select>
+    <button type="button" id="analysis-review-inspect" class="secondary">Inspect request</button>
     <button type="button" id="analysis-review-export" class="secondary">Export audit</button>
   </div>
+  <div id="analysis-review-audit-content"></div>
   <div id="analysis-review-preview-content"></div>
 </div>
 <script>
@@ -116,6 +118,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     });
   }
   function renderEditor() {
+    byId("audit-content").replaceChildren();
     editor.replaceChildren(); previewContent.replaceChildren(); preview = null;
     const draft = review && review.draft;
     const generations = byId("export-generation"); generations.replaceChildren();
@@ -234,6 +237,35 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     const result = await request("/retry-discord", { symbol: review.symbol, cycleId: review.cycleId, approvalRevision: review.approved.revision });
     review = result.review; message("Discord delivery confirmed.");
   });
+  function renderAudit(audit) {
+    const container = byId("audit-content"); container.replaceChildren();
+    node("h4", audit.symbol + " · Request audit", container);
+    node("p", "Generation: " + audit.generationId, container);
+    node("p", audit.diagnosticStatus === "available" ? "Available captured diagnostics are shown below." : "Input/response diagnostics are unavailable. Saved request and version records remain below.", container);
+    const show = (label, value) => {
+      const details = node("details", undefined, container); node("summary", label, details);
+      let rendered = false;
+      details.addEventListener("toggle", () => {
+        if (!details.open || rendered) return;
+        rendered = true;
+        const text = typeof value === "string" ? value : JSON.stringify(value ?? null, null, 2);
+        const body = node("pre", text.slice(0, 100000), details);
+        body.style.whiteSpace = "pre-wrap"; body.style.overflowWrap = "anywhere";
+        if (text.length > 100000) node("p", "Display shortened for performance. Export audit contains the full available record.", details);
+      });
+    };
+    const labels = { request: "Input packet", response: "AI response", validation: "Validation results", prepared_payload: "Prepared analysis", transport_error: "Request error" };
+    ((audit.diagnostic && audit.diagnostic.events) || []).forEach((event, index) => show((labels[event.phase] || "Diagnostic record") + " · " + (index + 1), event.payload));
+    (audit.selectedEvents || []).forEach((event) => show("Version " + event.revision + " · " + event.body.kind, event));
+  }
+  byId("inspect").onclick = () => run(async () => {
+    const generationId = byId("export-generation").value;
+    if (!review || !generationId) throw new Error("Select a saved request to inspect.");
+    const result = await request("/export", undefined, { symbol: review.symbol, generationId, ...(historical ? { cycleId: review.cycleId } : {}) });
+    renderAudit(result.audit);
+    message("Selected request loaded. Inspecting does not generate or publish analysis.");
+  });
+  byId("export-generation").onchange = () => byId("audit-content").replaceChildren();
   byId("export").onclick = () => run(async () => {
     const generationId = byId("export-generation").value;
     if (!review || !generationId) throw new Error("Select a saved analysis to export.");

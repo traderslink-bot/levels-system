@@ -4,6 +4,39 @@ import { Script } from "node:vm";
 import { ANALYSIS_REVIEW_PANEL } from "../runtime/manual-watchlist-analysis-review-panel.js";
 import { MANUAL_WATCHLIST_PAGE } from "../runtime/manual-watchlist-page.js";
 
+test("request inspector renders lazily with explicit truncation and unavailable diagnostics", () => {
+  const script = ANALYSIS_REVIEW_PANEL.match(/<script>([\s\S]*?)<\/script>/)![1]!;
+  const render = script.slice(script.indexOf("  function renderAudit("), script.indexOf('  byId("inspect").onclick'));
+  const elements: any[] = [];
+  const container = { replaceChildren: () => { elements.length = 0; } };
+  const context = {
+    byId: () => container,
+    node: (tag: string, text: string | undefined) => {
+      const element: any = { tag, text, style: {}, open: false, addEventListener: (_event: string, callback: () => void) => { element.toggle = callback; } };
+      elements.push(element); return element;
+    },
+    audit: { symbol: "PDSB", generationId: "g1", diagnosticStatus: "available", diagnostic: { events: [
+      { phase: "response", payload: "<script>untrusted()</script>" + "x".repeat(100000) },
+      { phase: "validation", payload: { stage: "optional_sections", issues: ["omitted"] } },
+    ] }, selectedEvents: [{ revision: 2, body: { kind: "original" } }] },
+  };
+  new Script(render + "\nrenderAudit(audit);").runInNewContext(context);
+  assert.equal(elements.filter(element => element.tag === "pre").length, 0);
+  const detail = elements.find(element => element.tag === "details");
+  detail.open = true; detail.toggle(); detail.toggle();
+  const pre = elements.filter(element => element.tag === "pre");
+  assert.equal(pre.length, 1);
+  assert.equal(pre[0].text.length, 100000);
+  assert.ok(pre[0].text.startsWith("<script>untrusted()</script>"));
+  assert.ok(elements.some(element => element.text?.includes("Display shortened")));
+  context.audit.diagnosticStatus = "unavailable";
+  context.audit.diagnostic = null as any;
+  new Script(render + "\nrenderAudit(audit);").runInNewContext(context);
+  assert.ok(elements.some(element => element.text?.includes("diagnostics are unavailable")));
+  assert.ok(elements.some(element => element.text === "Version 2 · original"));
+  assert.equal(elements.filter(element => element.tag === "details").length, 1);
+});
+
 test("owner editor embeds once and generated browser script parses", () => {
   assert.equal(MANUAL_WATCHLIST_PAGE.split('id="analysis-review-panel"').length - 1, 1);
   const script = ANALYSIS_REVIEW_PANEL.match(/<script>([\s\S]*?)<\/script>/)?.[1];
