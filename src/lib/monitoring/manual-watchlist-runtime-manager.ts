@@ -12124,6 +12124,13 @@ export class ManualWatchlistRuntimeManager {
     if (existing?.active && existing.lifecycle === "active") {
       return existing;
     }
+    // This is the normal (non-private) admission path. An inactive ticker's
+    // previous review cycle belongs to its old post, not this new addition.
+    // Keep the immutable review files; detach only the current publication gate.
+    if (existing?.publicationReview) {
+      this.watchlistStore.patchEntry(symbol, { publicationReview: undefined });
+      this.persistWatchlist();
+    }
     this.aiReadInitialGenerationSuppressedSymbols.delete(symbol);
     const reuseExistingSameDayContext = input.reuseExistingSameDayContext !== false &&
       !existing?.active &&
@@ -13354,6 +13361,12 @@ export class ManualWatchlistRuntimeManager {
     try {
       const activationEpoch = this.nextActivationEpoch(symbol);
       const rollbackEntries = this.watchlistStore.getEntries();
+      // Thread creation also checks the publication gate, so detach the old
+      // inactive cycle before that first external operation on a normal re-add.
+      if (existing?.publicationReview) {
+        this.watchlistStore.patchEntry(symbol, { publicationReview: undefined });
+        this.persistWatchlist();
+      }
       const thread = await this.options.discordAlertRouter.ensureThread(
         symbol,
         existing?.discordThreadId,

@@ -92,6 +92,10 @@ test("activation publishes normally with zero AI calls when master or session is
     for (const watchlistGroup of ["main", "top_regular"] as const) for (const [master, sessionEnabled] of [[false, true], [true, false], [false, false]]) for (const changeDuringPreparation of [false, true]) {
       let now = Date.parse(timestamp);
       const store = new WatchlistStore(), levels = new LevelStore();
+      if (changeDuringPreparation) {
+        store.upsertManualEntry({ symbol: "PDSB", active: false, lifecycle: "inactive",
+          publicationReview: { cycleId: "previous-removed-post", required: true } });
+      }
       const discord = new FakeDiscordAlertRouter(), publisher = new FakeLiveWatchlistPublisher();
       let calls = 0;
       const manager = new ManualWatchlistRuntimeManager({
@@ -235,6 +239,13 @@ test(`private activation saves an AI draft without website publication or Discor
     const now = Date.parse(sessionTimestamp);
     const watchlistStore = new WatchlistStore();
     const reviewStore = new TradersLinkAiReadReviewStore(directory);
+    reviewStore.begin("previous-post", "PDSB", true, "owner");
+    reviewStore.saveDraft({ cycleId: "previous-post", expectedHead: 1, actor: "generator",
+      generationId: "previous-generation", payload: { symbol: "PDSB", currentRead: "Previous post" } });
+    reviewStore.approve("previous-post", 2, 2, "owner");
+    const oldReview = reviewStore.read("previous-post");
+    watchlistStore.upsertManualEntry({ symbol: "PDSB", active: false, lifecycle: "inactive",
+      publicationReview: { cycleId: "previous-post", required: true } });
     const discord = new FakeDiscordAlertRouter();
     const approvedDiscord: string[] = [];
     const discordAttempts: Array<{ content: string; deliveryKey: string }> = [];
@@ -284,6 +295,9 @@ test(`private activation saves an AI draft without website publication or Discor
     internal.aiReadResearchBySymbol.set("PDSB", { ticker: "PDSB", count: 0, articles: [] });
     const entry = await manager[activationMethod]({ symbol: "PDSB", source: "manual" });
     assert.equal(entry.publicationReview?.required, true);
+    assert.notEqual(entry.publicationReview?.cycleId, "previous-post");
+    assert.equal(manager.getTradersLinkAiReadReview("PDSB")?.approved, null);
+    assert.deepEqual(manager.getHistoricalTradersLinkAiReadReview("PDSB", "previous-post"), oldReview);
     assert.deepEqual(manager.listTradersLinkAiReadReviews(), [{ symbol: "PDSB", status: "Ready for review", canReview: true }]);
     assert.deepEqual(manager.getTradersLinkAiReadReviewControls(), { automaticUpdatesEnabled: false, reviewBeforePublishingEnabled: true });
     manager.setTradersLinkAiReadReviewBeforePublishing(false);
