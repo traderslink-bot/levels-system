@@ -4742,6 +4742,8 @@ export class ManualWatchlistRuntimeManager {
           if (generation.body.status === "started") return { symbol: entry.symbol,
             status: review.draft ? "Preparing replacement — previous version available" : "Preparing analysis",
             canReview: Boolean(review.draft) };
+          if (generation.body.status === "completed") return { symbol: entry.symbol,
+            status: "Analysis storage needs attention", canReview: Boolean(review.draft) };
         }
         if (!review.draft) return { symbol: entry.symbol, status: entry.tradersLinkAiReadFailure ? "Analysis failed — held for review" : "Preparing analysis", canReview: false };
         const approved = review.approved;

@@ -195,6 +195,18 @@ test("legacy public ticker manual replacement is persisted for review before dis
     assert.equal(manager.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger: "automatic" }).allowed, false);
     assert.equal(manager.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger: "manual" }).allowed, true);
     assert.equal(manager.isWatchlistPublicationApproved({ symbol: "PDSB", cards: {} }), true);
+    internal.options.tradersLinkAiReadService.generate = async ({ generationId }: any) => {
+      calls++;
+      return { symbol: "PDSB", generationId, model: "test", generatedAt: now, currentPrice: 0.5, currentRead: "Unsaved replacement" };
+    };
+    reviewStore.saveDraft = () => { throw new Error("Mock review disk failure"); };
+    await assert.rejects(manager.refreshTradersLinkAiRead("PDSB"), /Mock review disk failure/);
+    assert.equal(calls, 3, "storage failure does not buy a retry");
+    assert.equal(manager.getTradersLinkAiReadReview("PDSB")!.draft!.hash, latest.draft!.hash);
+    assert.equal(publisher.cardPatches.filter(patch => patch.cards.tradersLinkAiRead).length, 0);
+    assert.deepEqual(manager.listTradersLinkAiReadReviews(), [{ symbol: "PDSB",
+      status: "Analysis storage needs attention", canReview: true }]);
+    assert.equal(manager.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger: "automatic" }).allowed, false);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
