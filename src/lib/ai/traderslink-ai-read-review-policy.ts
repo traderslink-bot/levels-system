@@ -6,6 +6,15 @@ export type WatchlistPublicationCheck = LiveWatchlistPublishedPatch | Pick<LiveW
 
 export type WatchlistPublicationReview = { cycleId: string; required: boolean };
 
+/** Removal carries no new market data or draft content and must remain possible. */
+export function isWatchlistRemovalPatch(patch: WatchlistPublicationCheck): boolean {
+  if (!("symbol" in patch) || !("status" in patch) || patch.status !== "deactivated" ||
+    !("updatedAt" in patch) || !Number.isFinite(patch.updatedAt) ||
+    !("cards" in patch) || !patch.cards || typeof patch.cards !== "object" || Array.isArray(patch.cards)) return false;
+  return Object.keys(patch.cards).length === 0 &&
+    Object.keys(patch).every(key => ["symbol", "status", "updatedAt", "cards"].includes(key));
+}
+
 export type WatchlistAiReadAdmission = {
   timestamp: number;
   session: "premarket" | "regular" | "postmarket" | "closed";
@@ -72,6 +81,7 @@ export function hasWatchlistPublicationApproval(
 
 export function isWatchlistPatchApproved(patch: WatchlistPublicationCheck, rawReview: unknown, load: (id: string) => ReviewState | null): boolean {
   if (!("symbol" in patch)) return true;
+  if (isWatchlistRemovalPatch(patch)) return true;
   const review = normalizePublicationReview(rawReview);
   if (!review) return true;
   try {

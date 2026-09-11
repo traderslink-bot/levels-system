@@ -9,6 +9,16 @@ import { WatchlistStore } from "../lib/monitoring/watchlist-store.js";
 import { WatchlistStatePersistence } from "../lib/monitoring/watchlist-state-persistence.js";
 
 const directories: string[] = [];
+test("held or unavailable review allows only a content-free removal", () => {
+  const removal = { symbol: "PDSB", status: "deactivated" as const, updatedAt: Date.now(), cards: {} };
+  const held = { cycleId: "held", required: true };
+  const unavailable = () => { throw new Error("Unavailable review"); };
+  assert.equal(isWatchlistPatchApproved(removal, held, unavailable), true);
+  assert.equal(isWatchlistPatchApproved({ ...removal, status: "live" }, held, () => null), false);
+  assert.equal(isWatchlistPatchApproved({ ...removal, updatedAt: NaN }, held, () => null), false);
+  assert.equal(isWatchlistPatchApproved({ ...removal, cards: { tradersLinkAiRead: { body: "Private", updatedAt: 1 } } } as any, held, () => null), false);
+  assert.equal(isWatchlistPatchApproved({ ...removal, latestPrice: 123 } as any, held, () => null), false);
+});
 test("admission decision survives store and disk reload; malformed data cannot enable an initial request", () => {
   const directory = mkdtempSync(join(tmpdir(), "admission-policy-"));
   directories.push(directory);

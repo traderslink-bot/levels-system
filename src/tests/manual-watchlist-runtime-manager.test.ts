@@ -87,6 +87,22 @@ test("multipart approved delivery resumes after verified uncertainty without dup
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
+test("reviewed ticker removal never builds or publishes a private level snapshot", async () => {
+  const manager = Object.create(ManualWatchlistRuntimeManager.prototype) as any;
+  const sent: unknown[] = [];
+  manager.watchlistStore = new WatchlistStore();
+  manager.watchlistStore.upsertManualEntry({ symbol: "PDSB", active: false,
+    publicationReview: { cycleId: "held", required: true } });
+  manager.options = { levelStore: { getLevels: () => ({ symbol: "PDSB" }) } };
+  manager.buildLevelSnapshotPayload = () => { throw new Error("Private snapshot must not be read during removal"); };
+  manager.liveWatchlistPublisher = { publish: async (patch: unknown) => {
+    assert.equal(manager.isWatchlistPublicationApproved(patch), true);
+    sent.push(patch);
+  } };
+  await manager.publishWebsiteTickerDeactivation("pdsb", 123);
+  assert.deepEqual(sent, [{ symbol: "PDSB", status: "deactivated", updatedAt: 123, cards: {} }]);
+});
+
 test("activation publishes normally with zero AI calls when master or session is off in all three sessions", async () => {
   for (const method of ["activateSymbol", "queueActivation"] as const) for (const [session, timestamp] of [["premarket", "2026-07-23T12:00:00Z"], ["regular", "2026-07-23T15:00:00Z"], ["postmarket", "2026-07-23T21:00:00Z"]] as const) {
     for (const watchlistGroup of ["main", "top_regular"] as const) for (const [master, sessionEnabled] of [[false, true], [true, false], [false, false]]) for (const changeDuringPreparation of [false, true]) {

@@ -5,10 +5,24 @@ import { join } from "node:path";
 import { afterEach, test } from "node:test";
 import { DurableLiveWatchlistPublisher } from "../lib/live-watchlist/live-watchlist-publish-outbox.js";
 import { LiveWatchlistHttpPublisher } from "../lib/live-watchlist/live-watchlist-publisher.js";
+import { isWatchlistPatchApproved } from "../lib/ai/traderslink-ai-read-review-policy.js";
 
 const directories: string[] = [];
 afterEach(() => { for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true }); });
 const patch = (symbol: string) => ({ symbol, updatedAt: 123, cards: {} });
+
+test("HTTP permits held-ticker removal without admitting attached private data", async () => {
+  const sent: unknown[] = [];
+  const publisher = new LiveWatchlistHttpPublisher({ ingestUrl: "https://example.invalid/ingest", token: "test", retryAttempts: 0,
+    authorizePublication: value => isWatchlistPatchApproved(value, { cycleId: "held", required: true }, () => null),
+    fetchImpl: async (_url, init) => { sent.push(JSON.parse(String(init?.body))); return new Response("{}", { status: 200 }); },
+  });
+  const removal = { ...patch("PDSB"), status: "deactivated" as const };
+  await publisher.publish(removal);
+  await assert.rejects(publisher.publish({ ...removal, cards: { tradersLinkAiRead: { body: "Private", updatedAt: 123 } } } as any), /owner approval/);
+  await assert.rejects(publisher.publish(patch("PDSB")), /owner approval/);
+  assert.deepEqual(sent, [removal]);
+});
 
 test("HTTP guard holds both card and quote data for a pending ticker while unrelated symbols continue", async () => {
   const sent: unknown[] = [];

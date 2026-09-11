@@ -6,7 +6,7 @@ import { applyOwnerAnalysisEdit } from "../ai/traderslink-ai-read-owner-edit.js"
 import { publicationPreviewHash, renderApprovedAnalysisDiscord, type ReviewPublication } from "../ai/traderslink-ai-read-publication-preview.js";
 import type { TradersLinkAiReadReviewStore } from "../ai/traderslink-ai-read-review-store.js";
 import { remainingGeneratedSectionOmissions } from "../ai/traderslink-ai-read-review-omissions.js";
-import { isWatchlistPatchApproved, requiresInitialWatchlistReview, type WatchlistPublicationCheck } from "../ai/traderslink-ai-read-review-policy.js";
+import { isWatchlistPatchApproved, isWatchlistRemovalPatch, requiresInitialWatchlistReview, type WatchlistPublicationCheck } from "../ai/traderslink-ai-read-review-policy.js";
 import { resolveTradersLinkAiReadReferenceQuote } from "../ai/traderslink-ai-read-price-action.js";
 
 import { CandleFetchService, type HistoricalFetchRequest } from "../market-data/candle-fetch-service.js";
@@ -3466,6 +3466,7 @@ export class ManualWatchlistRuntimeManager {
 
   isWatchlistPublicationApproved(patch: WatchlistPublicationCheck): boolean {
     if (!("symbol" in patch)) return true;
+    if (isWatchlistRemovalPatch(patch)) return true;
     const entry = this.watchlistStore.getEntry(patch.symbol);
     if (!entry) return false;
     return isWatchlistPatchApproved(patch, entry.publicationReview,
@@ -12608,7 +12609,12 @@ export class ManualWatchlistRuntimeManager {
 
     const normalizedSymbol = normalizeSymbol(symbol);
     const levels = this.options.levelStore.getLevels(normalizedSymbol);
-    const patch = levels
+    // Never attach newly prepared private data to a removal. The existing
+    // public snapshot, if any, is sufficient for the website's archive.
+    const review = this.watchlistStore.getEntry(normalizedSymbol)?.publicationReview;
+    const patch = review?.required
+      ? { symbol: normalizedSymbol, status: "deactivated" as const, updatedAt: timestamp, cards: {} }
+      : levels
       ? {
           ...this.applyLiveTraderReadCardVisibility(
             buildLiveWatchlistSnapshotPatch(
