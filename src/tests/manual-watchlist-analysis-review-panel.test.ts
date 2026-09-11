@@ -23,6 +23,11 @@ test("request inspector renders lazily with explicit truncation and unavailable 
         { path: "failureRecovery.zone", code: "future_code", action: "omit_section" },
       ] } },
       { phase: "validation", payload: { stage: "breakout_selection", selectedCandidateId: "alternate" } },
+      { phase: "validation", payload: { stage: "core_evidence", issues: [], anchors: {
+        momentumFailure: { anchorPrice: 0.95, basis: "threshold_below", explanation: "Proposed buffer below the daily low." },
+      } } },
+      { phase: "validation", payload: { stage: "must_clear_evidence", issues: ["No supported observed anchor"],
+        anchor: { anchorPrice: 999, basis: "observed_level" } } },
       { phase: "validation", payload: { stage: "outer_daily_resistance", action: "omit_objective", omitted: [{ price: 2.3 }] } },
       { phase: "validation", payload: { stage: "optional_overview", issues: [{ path: "currentRead", action: "omit_text" }] } },
       { phase: "validation", payload: { stage: "api_attempt", clientRequestId: "request-1", usageReported: true, usage: { estimatedTotalCostUsd: 0.00014 } } },
@@ -31,6 +36,10 @@ test("request inspector renders lazily with explicit truncation and unavailable 
   new Script(render + "\nrenderAudit(audit);").runInNewContext(context);
   assert.equal(elements.filter(element => element.tag === "pre").length, 0);
   assert.ok(elements.some(element => element.text === "Analysis checks"));
+  assert.ok(elements.some(element => element.text === "These checks describe the generated analysis. Owner edits are saved separately."));
+  assert.ok(elements.some(element => element.text === "Momentum failure — threshold below observed anchor $0.95. Proposed buffer below the daily low."));
+  assert.ok(elements.some(element => element.text === "Must-clear level — check failed: No supported observed anchor."));
+  assert.equal(elements.some(element => element.text?.includes("observed anchor $999")), false);
   assert.ok(elements.some(element => element.text === "API requests: 1 recorded"));
   assert.ok(elements.some(element => element.text === "Estimated cost: $0.000140 USD for recorded requests"));
   assert.ok(elements.some(element => element.text?.startsWith("Analysis overview — omitted after a text check;")));
@@ -57,10 +66,13 @@ test("request inspector renders lazily with explicit truncation and unavailable 
   assert.ok(elements.some(element => element.text === "Estimated cost: Unavailable"));
   (context.audit.selectedEvents[0]!.body as any).validationDecisions = [{ stage: "optional_sections", issues: [
     { path: "pullbackPlans.shallow", code: "reference_order", action: "omit_section" },
-  ] }];
+  ] }, { stage: "core_evidence", issues: ["momentumFailure has no supported observed anchor"] },
+  { stage: "must_clear_evidence", issues: [], anchor: { anchorPrice: 1.3, basis: "confirmation_above", explanation: "Proposed confirmation." } }];
   new Script(render + "\nrenderAudit(audit);").runInNewContext(context);
   assert.ok(elements.some(element => element.text === "Shallow pullback — omitted: zone is not sufficiently below the analysis price."));
   assert.ok(elements.some(element => element.text === "API requests: Unavailable in this audit"), "saved validation is not usage evidence");
+  assert.ok(elements.some(element => element.text === "Momentum failure — check failed: has no supported observed anchor."));
+  assert.ok(elements.some(element => element.text === "Must-clear level — confirmation above observed anchor $1.3. Proposed confirmation."));
   (context.audit as any).diagnosticCoverage = { request: 1, response: 0, validation: 2, prepared_payload: 0, transport_error: 1 };
   new Script(render + "\nrenderAudit(audit);").runInNewContext(context);
   assert.ok(elements.some(element => element.text === "Captured records — Input packet: 1 · AI response: 0 · Validation: 2 · Prepared analysis: 0 · Transport error: 1"));

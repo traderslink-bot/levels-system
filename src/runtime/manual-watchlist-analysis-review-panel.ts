@@ -306,6 +306,25 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     [...diagnosticEvents, ...savedValidationEvents].forEach(event => {
       if (event.phase !== "validation" || !event.payload || typeof event.payload !== "object") return;
       const result = event.payload;
+      if ((result.stage === "core_evidence" || result.stage === "must_clear_evidence") && Array.isArray(result.issues)) {
+        const names = { needsToHold: "Needs to hold", cautionBelow: "Caution below", momentumFailure: "Momentum failure", mustClear: "Must-clear level" };
+        if (result.issues.length) result.issues.forEach(issue => {
+          if (typeof issue !== "string") return;
+          const key = Object.keys(names).find(name => issue.startsWith(name + " "));
+          const label = key ? names[key] : result.stage === "must_clear_evidence" ? names.mustClear : "Core levels";
+          checks.push(label + " — check failed: " + (key ? issue.slice(key.length + 1) : issue).slice(0, 600) + ".");
+        });
+        else {
+          const anchors = result.stage === "must_clear_evidence" ? { mustClear: result.anchor } : result.anchors;
+          if (anchors && typeof anchors === "object") Object.keys(names).forEach(key => {
+            const anchor = anchors[key];
+            if (!anchor || typeof anchor.anchorPrice !== "number" || !Number.isFinite(anchor.anchorPrice) || anchor.anchorPrice <= 0) return;
+            const basis = anchor.basis === "observed_level" ? "observed anchor" : anchor.basis === "threshold_below" ? "threshold below observed anchor" : anchor.basis === "confirmation_above" ? "confirmation above observed anchor" : null;
+            if (basis) checks.push(names[key] + " — " + basis + " $" + anchor.anchorPrice + "." +
+              (typeof anchor.explanation === "string" && anchor.explanation.trim() ? " " + anchor.explanation.trim().slice(0, 600) : ""));
+          });
+        }
+      }
       if (result.stage === "optional_overview" && Array.isArray(result.issues)) result.issues.forEach(issue => {
         if (!issue || issue.action !== "omit_text" || typeof issue.path !== "string") return;
         checks.push((issue.path === "currentRead" ? "Analysis overview" : "Risk summary item") + " — omitted after a text check; valid setup prices were retained. See the validation record for the original text and reason.");
@@ -322,6 +341,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     });
     if (checks.length) {
       node("h4", "Analysis checks", container);
+      node("p", "These checks describe the generated analysis. Owner edits are saved separately.", container);
       const list = node("ul", undefined, container);
       const unique = Array.from(new Set(checks));
       unique.slice(0, 80).forEach(text => node("li", text, list));
