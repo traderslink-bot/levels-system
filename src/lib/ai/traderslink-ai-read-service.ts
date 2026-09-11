@@ -1217,7 +1217,7 @@ function claimedCurrentPremarketHigh(text: string): number | null {
 }
 
 const TAPE_EVIDENCE_LANGUAGE =
-  /\b(?:premarket|postmarket|after[- ]hours|regular session|opening range|session (?:high|low|open)|prior close|daily (?:high|low|range)|(?:intraday|daily) candle (?:high|low|open|close)|consolidation|shelf|base|rejection|rejected|acceptance|reclaim|failed spike|range (?:high|low|ceiling|floor)|volume|vwap|wick|tested|tests?|holds?|held|holding|higher low|lower high|whole-dollar|half-dollar|psychological)\b/i;
+  /\b(?:premarket|postmarket|after[- ]hours|regular session|opening range|session (?:high|low|open)|prior close|daily (?:high|low|range)|(?:intraday|daily|one-minute) candle (?:high|low|open|close)|consolidation|shelf|base|rejection|rejected|acceptance|reclaim|failed spike|range (?:high|low|ceiling|floor)|volume|vwap|wick|tested|tests?|holds?|held|holding|higher low|lower high|whole-dollar|half-dollar|psychological)\b/i;
 
 function observableCandleEvidence(
   price: number,
@@ -1236,7 +1236,7 @@ function observableCandleEvidence(
 
   const nearestEvidence = (
     candles: TradersLinkAiReadPriceActionContext["intradayCandles"],
-    label: "intraday" | "daily",
+    label: "intraday" | "daily" | "one-minute",
     rangeWeight: number,
   ): string | null => {
     const byTime = new Map<number, typeof candles[number]>();
@@ -1278,7 +1278,8 @@ function observableCandleEvidence(
       : null;
   };
 
-  return nearestEvidence(priceAction.intradayCandles, "intraday", 0.35) ??
+  return nearestEvidence(priceAction.oneMinuteCandles ?? [], "one-minute", 0.35) ??
+    nearestEvidence(priceAction.intradayCandles, "intraday", 0.35) ??
     nearestEvidence(priceAction.dailyCandles, "daily", 0.1);
 }
 

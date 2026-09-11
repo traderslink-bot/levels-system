@@ -235,6 +235,20 @@ function modelRead(): Record<string, unknown> {
 }
 
 describe("TradersLink AI price-action volume quality", () => {
+  it("never selects a future one-minute or five-minute reference candle", () => {
+    for (const field of ["oneMinuteCandles", "intradayCandles"] as const) {
+      const current = { timestamp: DATA_AS_OF, open: 1.3, high: 1.4, low: 1.2, close: 1.35, volume: 1000 };
+      const future = { ...current, timestamp: DATA_AS_OF + 60000, close: 1.38 };
+      const context = { ...priceAction(), oneMinuteCandles: [], intradayCandles: [], [field]: [current, future] };
+      const quote = resolveTradersLinkAiReadReferenceQuote(context, 1.25, DATA_AS_OF);
+      assert.equal(quote.price, current.close, field);
+      assert.equal(quote.dataAsOf, DATA_AS_OF, field);
+      context[field] = [future];
+      const fallback = resolveTradersLinkAiReadReferenceQuote(context, 1.25, DATA_AS_OF);
+      assert.equal(fallback.price, 1.25, field);
+      assert.equal(fallback.dataAsOf, DATA_AS_OF, field);
+    }
+  });
   it("uses the candle observation time and rejects a stale intraday close as the current quote", () => {
     const freshContext = priceAction();
     const latest = freshContext.intradayCandles.at(-1)!;
@@ -1649,6 +1663,36 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(supported.downsideCheckpoints[0]?.price, 0.7);
     assert.match(supported.downsideCheckpoints[0]?.condition ?? "", /supplied support zone/);
     assert.equal(calls, 2, "one request per distinct supplied packet, no corrective calls");
+  });
+
+  it("uses valid one-minute observations for checkpoints without accepting future malformed or conflicting bars", async () => {
+    let calls = 0;
+    for (const side of ["upside", "downside"] as const) {
+      const bar = side === "upside"
+        ? { timestamp: DATA_AS_OF - 30 * 60000, open: 1.72, high: 1.8, low: 1.7, close: 1.75, volume: 1000 }
+        : { timestamp: DATA_AS_OF - 30 * 60000, open: 0.8, high: 0.85, low: 0.7, close: 0.81, volume: 1000 };
+      for (const scenario of [
+        { bars: [bar], retained: true },
+        { bars: [bar, { ...bar }], retained: true },
+        { bars: [{ ...bar, timestamp: DATA_AS_OF + 60000 }], retained: false },
+        { bars: [{ ...bar, close: bar.high + 1 }], retained: false },
+        { bars: [bar, { ...bar, high: bar.high + 0.01 }], retained: false },
+        { bars: [{ ...bar, high: bar.high + 0.01 }, bar], retained: false },
+      ]) {
+        const draft = modelRead();
+        draft.targets = side === "upside" ? [{ label: "Next area", price: 1.8, condition: "Continuation area" }] : [];
+        draft.downsideCheckpoints = side === "downside" ? [{ label: "Lower area", price: 0.7, condition: "After failure" }] : [];
+        const service = new OpenAITradersLinkAiReadService({ apiKey: "test-key", model: "test-model",
+          fetchImpl: async () => { calls++; return new Response(JSON.stringify({ output: [{ type: "message",
+            content: [{ type: "output_text", text: JSON.stringify(draft) }] }] }), { status: 200 }); } });
+        const read = await service.generate({ snapshot: snapshot(), priceAction: { ...priceAction(), oneMinuteCandles: scenario.bars },
+          research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
+        const points = side === "upside" ? read.targets : read.downsideCheckpoints;
+        assert.equal(points.length, scenario.retained ? 1 : 0, side);
+        if (scenario.retained) assert.match(points[0]!.condition, /observed one-minute candle/);
+      }
+    }
+    assert.equal(calls, 12, "one request for each packet; no paid corrections");
   });
 
   it("excludes future malformed and conflicting candles from checkpoint evidence while retaining valid duplicates", async () => {

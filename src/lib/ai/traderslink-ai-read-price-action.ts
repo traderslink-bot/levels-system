@@ -886,17 +886,17 @@ export function resolveTradersLinkAiReadReferenceQuote(
   fallbackPrice: number,
   fallbackDataAsOf: number,
 ): TradersLinkAiReadReferenceQuote {
+  const referenceTime = Math.max(fallbackDataAsOf, context.fetchedAt);
   const oneMinute = normalizeCandles(
     context.oneMinuteCandles ?? [],
-    Math.max(fallbackDataAsOf, context.fetchedAt),
-  );
+    referenceTime,
+  ).filter(candle => candle.timestamp <= referenceTime);
   const intraday = normalizeCandles(
     context.intradayCandles,
-    Math.max(fallbackDataAsOf, context.fetchedAt),
-  );
+    referenceTime,
+  ).filter(candle => candle.timestamp <= referenceTime);
   const latestOneMinute = oneMinute.at(-1);
   const latestFiveMinute = intraday.at(-1);
-  const referenceTime = Math.max(fallbackDataAsOf, context.fetchedAt);
   if (latestOneMinute && referenceTime - latestOneMinute.timestamp <= 10 * 60 * 1_000) {
     return {
       price: latestOneMinute.close,
