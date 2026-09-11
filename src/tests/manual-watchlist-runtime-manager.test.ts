@@ -38,6 +38,55 @@ function waitForAsyncWork(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+test("multipart approved delivery resumes after verified uncertainty without duplicate parts or AI calls", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "multipart-review-"));
+  try {
+    const store = new TradersLinkAiReadReviewStore(directory);
+    store.begin("cycle", "PDSB", true, "owner");
+    store.saveDraft({ cycleId: "cycle", expectedHead: 1, actor: "generator", generationId: "g", payload: { symbol: "PDSB" } });
+    store.approve("cycle", 2, 2, "owner", { website: {}, discordChunks: ["first", "second", "third"] });
+    const website = store.claimDelivery("cycle", 3, 3, "website");
+    store.recordDelivery("cycle", 4, 3, "website", "acknowledged", website.deliveryKey);
+    const attempts: Array<{ content: string; deliveryKey: string }> = [];
+    const receipt = (messageId: string) => ({ messageId, channelId: "23456789012345678" });
+    let aiCalls = 0;
+    const gateway = {
+      routeApprovedAnalysisChunk: async (chunk: { content: string; deliveryKey: string }) => {
+        attempts.push({ ...chunk });
+        if (chunk.content === "second") throw new Error("Simulated uncertain transport");
+        return receipt(chunk.content === "first" ? "12345678901234567" : "34567890123456789");
+      },
+      verifyApprovedAnalysisMessage: async (chunk: { content: string; deliveryKey: string }, id: string) => {
+        assert.equal(chunk.content, "second"); assert.equal(chunk.deliveryKey, attempts[1]!.deliveryKey); return receipt(id);
+      },
+    };
+    // Real methods and durable store, without starting a monitoring runtime.
+    const managerFor = (reviewStore: TradersLinkAiReadReviewStore): ManualWatchlistRuntimeManager => {
+      const manager = Object.create(ManualWatchlistRuntimeManager.prototype);
+      manager.watchlistStore = { getEntry: () => ({ active: true, publicationReview: { cycleId: "cycle", required: true } }) };
+      manager.options = { tradersLinkAiReadReviewStore: reviewStore, discordAlertRouter: gateway,
+        tradersLinkAiReadService: { generate: () => { aiCalls++; throw new Error("Must not regenerate"); } } };
+      return manager;
+    };
+    const input = { symbol: "PDSB", cycleId: "cycle", approvalRevision: 3 };
+    await assert.rejects(managerFor(store).publishApprovedTradersLinkAiReadToDiscord(input), /uncertain transport/);
+    const restored = new TradersLinkAiReadReviewStore(directory), resumed = managerFor(restored);
+    await assert.rejects(resumed.publishApprovedTradersLinkAiReadToDiscord(input), /awaiting confirmation/);
+    assert.deepEqual(attempts.map(attempt => attempt.content), ["first", "second"]);
+    await resumed.verifyTradersLinkAiReadDiscordReceipt({ ...input, expectedHead: restored.read("cycle")!.head,
+      index: 1, messageId: "45678901234567890", actor: "platform-owner:test" });
+    assert.equal(attempts.length, 2, "verification does not send remaining parts");
+    await resumed.publishApprovedTradersLinkAiReadToDiscord(input);
+    await managerFor(new TradersLinkAiReadReviewStore(directory)).publishApprovedTradersLinkAiReadToDiscord(input);
+    assert.deepEqual(attempts.map(attempt => attempt.content), ["first", "second", "third"]);
+    assert.equal(new Set(attempts.map(attempt => attempt.deliveryKey)).size, 3);
+    const final = restored.read("cycle")!;
+    assert.equal(final.events.filter(event => event.body.kind === "discord_chunk" && event.body.status === "acknowledged").length, 3);
+    assert.equal(final.events.filter(event => event.body.kind === "delivery" && event.body.channel === "discord" && event.body.status === "acknowledged").length, 1);
+    assert.equal(aiCalls, 0);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 test("private activation saves an AI draft without website publication or Discord thread creation", async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-activation-"));
   try {
