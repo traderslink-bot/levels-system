@@ -74,6 +74,7 @@ export function officialWatchlistFiveWeekdayWindowStart(targetSessionDate: strin
   if (!validDateKey(targetSessionDate)) return null;
   const [year, month, day] = targetSessionDate.split("-").map(Number);
   const cursor = new Date(Date.UTC(year!, month! - 1, day!, 12));
+  if (cursor.getUTCDay() === 0 || cursor.getUTCDay() === 6) return null;
   let remaining = DEFAULT_BUSINESS_DAYS - 1;
   while (remaining > 0) {
     cursor.setUTCDate(cursor.getUTCDate() - 1);
@@ -173,7 +174,8 @@ function normalizeEligibleResponse(args: {
   const windowStartDateEt = exactString(eligibility?.windowStartDateEt);
   const windowEndDateEt = exactString(eligibility?.windowEndDateEt);
   const includedWeekdaysEt = Array.isArray(eligibility?.includedWeekdaysEt)
-    ? eligibility.includedWeekdaysEt.filter((value): value is string => typeof value === "string")
+    && eligibility.includedWeekdaysEt.every((value): value is string => typeof value === "string")
+    ? [...eligibility.includedWeekdaysEt].sort()
     : [];
   const expectedWindowStart = officialWatchlistFiveWeekdayWindowStart(args.targetSessionDate);
   if (
@@ -189,14 +191,19 @@ function normalizeEligibleResponse(args: {
     includedWeekdaysEt.length !== DEFAULT_BUSINESS_DAYS ||
     includedWeekdaysEt[0] !== expectedWindowStart ||
     includedWeekdaysEt.at(-1) !== args.targetSessionDate ||
-    includedWeekdaysEt.some((value) => !validDateKey(value)) ||
+    new Set(includedWeekdaysEt).size !== DEFAULT_BUSINESS_DAYS ||
+    includedWeekdaysEt.some((value) => !validDateKey(value) ||
+      [0, 6].includes(new Date(`${value}T12:00:00Z`).getUTCDay())) ||
     !article
   ) {
     return unavailable(args.symbol, args.generatedAtMs, "invalid_contract");
   }
 
   const articleId = exactString(article.articleId);
-  const revision = exactString(article.revision);
+  // Platform stores revision as a positive integer; older wire fixtures used strings.
+  const revision = typeof article.revision === "number" && Number.isSafeInteger(article.revision) && article.revision > 0
+    ? String(article.revision)
+    : exactString(article.revision);
   const contentSha256 = exactString(article.contentSha256)?.toLowerCase() ?? null;
   const ticker = exactString(article.ticker);
   const publicUrl = safePublicTradersLinkUrl(article.publicUrl);
@@ -214,7 +221,7 @@ function normalizeEligibleResponse(args: {
   const observedAt = optionalString(article.observedAt);
   if (
     !articleId ||
-    !revision ||
+    !revision || !/^[1-9]\d*$/.test(revision) ||
     !contentSha256 ||
     !/^[a-f0-9]{64}$/.test(contentSha256) ||
     ticker !== args.symbol ||
@@ -227,6 +234,7 @@ function normalizeEligibleResponse(args: {
     recency !== expectedRecency ||
     publishedDate < expectedWindowStart! ||
     publishedDate > args.targetSessionDate ||
+    !includedWeekdaysEt.includes(publishedDate) ||
     (observedAt !== undefined && !validIsoTimestamp(observedAt)) ||
     article.sourceClass !== "traderslink_processed"
   ) {

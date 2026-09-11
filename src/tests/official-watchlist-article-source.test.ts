@@ -19,11 +19,11 @@ function eligiblePayload(): Record<string, unknown> {
       timeZone: "America/New_York",
       windowStartDateEt: "2026-09-02",
       windowEndDateEt: TARGET_SESSION_DATE,
-      includedWeekdaysEt: ["2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05", TARGET_SESSION_DATE],
+      includedWeekdaysEt: [TARGET_SESSION_DATE, "2026-09-07", "2026-09-04", "2026-09-03", "2026-09-02"],
     },
     article: {
       articleId: "article-pdsb",
-      revision: "4",
+      revision: 4,
       contentSha256: CONTENT_SHA,
       ticker: "PDSB",
       publicUrl: "https://traderslink.pro/news/PDSB/pdsb-catalyst",
@@ -42,6 +42,25 @@ function eligiblePayload(): Record<string, unknown> {
 }
 
 describe("OfficialWatchlistArticleSource", () => {
+  it("rejects malformed weekday membership and invalid revisions without authorizing fallback", async () => {
+    const baseline = eligiblePayload();
+    for (const patch of [
+      { eligibility: { ...(baseline.eligibility as object), includedWeekdaysEt: [TARGET_SESSION_DATE, "2026-09-05", "2026-09-04", "2026-09-03", "2026-09-02"] } },
+      { eligibility: { ...(baseline.eligibility as object), includedWeekdaysEt: [TARGET_SESSION_DATE, "2026-09-04", "2026-09-04", "2026-09-03", "2026-09-02"] } },
+      { article: { ...(baseline.article as object), revision: 0 } },
+      { article: { ...(baseline.article as object), revision: 1.5 } },
+      { article: { ...(baseline.article as object), publishedAt: "2026-09-05T15:00:00Z", publishedDateEt: "2026-09-05", recency: "older_within_window" } },
+    ]) {
+      const lookup = createOfficialWatchlistArticleSourceLookup({
+        env: { TRADERSLINK_WATCHLIST_INGEST_URL: "https://app.traderslink.pro/api/live-watchlist/ingest", TRADERSLINK_WATCHLIST_PUBLISHER_TOKEN: "mock" },
+        fetchImpl: async () => Response.json({ ...baseline, ...patch }),
+      });
+      const result = await lookup({ symbol: "PDSB", targetSessionDate: TARGET_SESSION_DATE });
+      assert.equal(result.status, "lookup_unavailable");
+      assert.equal(result.research.count, 0);
+    }
+  });
+
   it("accepts the canonical Platform article contract and preserves processed content", async () => {
     const requests: Array<{ url: string; authorization: string | null }> = [];
     const lookup = createOfficialWatchlistArticleSourceLookup({
