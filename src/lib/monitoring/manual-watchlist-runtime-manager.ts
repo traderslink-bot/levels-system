@@ -3576,6 +3576,14 @@ export class ManualWatchlistRuntimeManager {
     }
     const symbol = context.symbol ? normalizeSymbol(context.symbol) : "";
     const entry = symbol ? this.watchlistStore.getEntry(symbol) : undefined;
+    if (context.requestedTrigger === "activation" && !this.tradersLinkAiReadGenerationSettings.automaticUpdatesEnabled && entry?.publicationReview?.cycleId) {
+      const savedReview = this.options.tradersLinkAiReadReviewStore?.read(entry.publicationReview.cycleId);
+      if (!savedReview || savedReview.events.some(event => event.body.kind === "generation" || event.body.kind === "original")) {
+        return { allowed: false, session,
+          reason: savedReview ? "An initial analysis request is already recorded. Use manual refresh for another analysis." : "Owner review history is unavailable.",
+          topRegularActivationOverrideApplied: false };
+      }
+    }
     if (entry?.publicationReview?.required && context.requestedTrigger &&
       context.requestedTrigger !== "manual" && context.requestedTrigger !== "activation" &&
       !this.isWatchlistPublicationApproved({ symbol, cards: {} })) {

@@ -99,6 +99,17 @@ test("private activation saves an AI draft without website publication or Discor
     manager.setTradersLinkAiReadReviewBeforePublishing(true);
     assert.equal(aiCalls, 1);
     assert.equal(discord.ensured.length, 0);
+    assert.equal(manager.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger: "activation" }).allowed, false);
+    assert.equal(await internal.generateTradersLinkAiRead("PDSB", true, "activation"), null);
+    assert.equal(aiCalls, 1, "held original draft cannot be charged again as an initial activation");
+    const coldWatchlist = new WatchlistStore();
+    coldWatchlist.upsertManualEntry(structuredClone(watchlistStore.getEntry("PDSB")!));
+    const reconstructed = new ManualWatchlistRuntimeManager({ ...internal.options,
+      watchlistStore: coldWatchlist, tradersLinkAiReadReviewStore: new TradersLinkAiReadReviewStore(directory) });
+    assert.equal(reconstructed.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger: "activation" }).allowed, false);
+    assert.equal(await (reconstructed as any).generateTradersLinkAiRead("PDSB", true, "activation"), null);
+    assert.equal(reconstructed.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger: "manual" }).allowed, true);
+    assert.equal(aiCalls, 1);
     assert.equal(discord.announcements.length, 0);
     assert.equal(entry.pendingTradersLinkAiReadGeneration, undefined);
     assert.equal(entry.tradersLinkAiReadBoundaryState, undefined);
@@ -4912,6 +4923,13 @@ test("Automatic AI updates OFF blocks every follow-up trigger but preserves init
     undefined, { symbol: "GATE", requestedTrigger },
   );
   assert.equal(manager.getTradersLinkAiReadGenerationSettings().automaticUpdatesEnabled, false);
+  for (const timestamp of ["2026-07-23T12:00:00Z", "2026-07-23T15:00:00Z", "2026-07-23T21:00:00Z"]) {
+    const at = Date.parse(timestamp);
+    for (const requestedTrigger of ["automatic", "startup", "scheduled", "price_move", "range_edge", "boundary_cross", "visibility_enabled"] as const) {
+      assert.equal(manager.getTradersLinkAiReadGenerationAvailability(at, { symbol: "GATE", requestedTrigger }).allowed, false, timestamp + " " + requestedTrigger);
+    }
+    assert.equal(manager.getTradersLinkAiReadGenerationAvailability(at, { symbol: "GATE", requestedTrigger: "manual" }).allowed, true);
+  }
   assert.equal(availability("activation").allowed, true);
   assert.equal(availability("manual").allowed, true);
   for (const trigger of ["automatic", "startup", "scheduled", "price_move", "range_edge", "boundary_cross", "visibility_enabled"] as const) {
