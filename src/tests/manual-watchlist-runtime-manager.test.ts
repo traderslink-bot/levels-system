@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TradersLinkAiReadReviewStore } from "../lib/ai/traderslink-ai-read-review-store.js";
 import { DiscordConfirmedRejection } from "../lib/alerts/discord-confirmed-rejection.js";
+import { DurableLiveWatchlistPublisher } from "../lib/live-watchlist/live-watchlist-publish-outbox.js";
 import test from "node:test";
 
 import type { DiscordThreadRoutingResult } from "../lib/alerts/alert-types.js";
@@ -91,7 +92,7 @@ test("reviewed ticker removal never builds or publishes a private level snapshot
   const manager = Object.create(ManualWatchlistRuntimeManager.prototype) as any;
   const sent: unknown[] = [];
   manager.watchlistStore = new WatchlistStore();
-  manager.watchlistStore.upsertManualEntry({ symbol: "PDSB", active: false,
+  manager.watchlistStore.upsertManualEntry({ symbol: "PDSB", active: false, activatedAt: 100,
     publicationReview: { cycleId: "held", required: true } });
   manager.options = { levelStore: { getLevels: () => ({ symbol: "PDSB" }) } };
   manager.buildLevelSnapshotPayload = () => { throw new Error("Private snapshot must not be read during removal"); };
@@ -101,6 +102,36 @@ test("reviewed ticker removal never builds or publishes a private level snapshot
   } };
   await manager.publishWebsiteTickerDeactivation("pdsb", 123);
   assert.deepEqual(sent, [{ symbol: "PDSB", status: "deactivated", updatedAt: 123, cards: {} }]);
+});
+
+test("outbox replay cannot remove a re-added ticker and does not block unrelated publication", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "removal-replay-"));
+  try {
+    const path = join(directory, "outbox.json");
+    const removal = { symbol: "PDSB", status: "deactivated" as const, updatedAt: 123, cards: {} };
+    const offline = new DurableLiveWatchlistPublisher({ publish: async () => { throw new Error("offline"); } }, path);
+    await assert.rejects(offline.publish(removal), /offline/);
+    const manager = Object.create(ManualWatchlistRuntimeManager.prototype) as any;
+    manager.watchlistStore = new WatchlistStore();
+    manager.options = {};
+    manager.watchlistStore.upsertManualEntry({ symbol: "PDSB", active: true, activatedAt: 200,
+      aiReadAdmission: { timestamp: 200, session: "regular", initialGenerationEnabled: false } });
+    manager.watchlistStore.upsertManualEntry({ symbol: "FTFT", active: true });
+    const sent: unknown[] = [];
+    const replay = new DurableLiveWatchlistPublisher({ publish: async patch => { sent.push(patch); } }, path,
+      patch => manager.isWatchlistPublicationApproved(patch));
+    const unrelated = { symbol: "FTFT", updatedAt: 201, cards: {} };
+    await replay.publish(unrelated);
+    assert.deepEqual(sent, [unrelated]);
+    assert.equal(replay.pendingCount(), 1);
+    manager.watchlistStore.deactivateSymbol("PDSB");
+    await replay.replayPending();
+    assert.deepEqual(sent, [unrelated], "old removal stays stale even after the new activation is later removed");
+    const currentRemoval = { ...removal, updatedAt: 250 };
+    await replay.publish(currentRemoval);
+    assert.deepEqual(sent, [unrelated, currentRemoval]);
+    assert.equal(replay.pendingCount(), 1, "stale evidence is retained, not acknowledged as delivered");
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
 test("activation publishes normally with zero AI calls when master or session is off in all three sessions", async () => {

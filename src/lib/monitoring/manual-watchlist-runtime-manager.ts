@@ -3466,8 +3466,13 @@ export class ManualWatchlistRuntimeManager {
 
   isWatchlistPublicationApproved(patch: WatchlistPublicationCheck): boolean {
     if (!("symbol" in patch)) return true;
-    if (isWatchlistRemovalPatch(patch)) return true;
     const entry = this.watchlistStore.getEntry(patch.symbol);
+    if ("status" in patch && patch.status === "deactivated" && entry) {
+      const admittedAt = entry.aiReadAdmission?.timestamp ?? entry.activatedAt;
+      if (entry.active || !("updatedAt" in patch) ||
+        (admittedAt !== undefined && patch.updatedAt < admittedAt)) return false;
+    }
+    if (isWatchlistRemovalPatch(patch)) return true;
     if (!entry) return false;
     return isWatchlistPatchApproved(patch, entry.publicationReview,
       (id) => this.options.tradersLinkAiReadReviewStore?.read(id) ?? null);
