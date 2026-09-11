@@ -68,6 +68,23 @@ test("conflicting branches retain the stronger matching candidate rather than al
   assert.equal(padded.value, shallow, "an unrelated high-ranked citation must not boost the deep branch");
 });
 
+test("candidate price matching uses rounding precision rather than percentage distance", () => {
+  const shifted = validatePullbackSection("shallow", { ...shallow, zoneLow: 3.71, zoneHigh: 3.81 }, context);
+  assert.equal(shifted.value, null);
+  assert.ok(shifted.issues.some(issue => issue.code === "zone_evidence_mismatch"));
+  assert.deepEqual(validatePullbackSection("deep", deep, context).value, deep);
+  const pennyContext = { ...context, referencePrice: 0.5, momentumFailure: 0.3,
+    candidates: [{ id: "penny", zoneLow: 0.44004, zoneHigh: 0.45004 }] };
+  const penny = { ...shallow, zoneLow: 0.44, zoneHigh: 0.45, confirmationPrice: 0.46,
+    invalidationPrice: 0.43, firstObjectivePrice: 0.55, evidenceIds: ["penny"] };
+  assert.deepEqual(validatePullbackSection("shallow", penny, pennyContext).value, penny);
+  const mismatch = validatePullbackSection("shallow", { ...penny, zoneLow: 0.441, zoneHigh: 0.451 }, pennyContext);
+  assert.ok(mismatch.issues.some(issue => issue.code === "zone_evidence_mismatch"));
+  const rounded = validatePullbackSection("shallow", shallow, { ...context,
+    candidates: [{ id: "shallow-base", zoneLow: 3.704, zoneHigh: 3.804 }] });
+  assert.deepEqual(rounded.value, shallow);
+});
+
 test("invalid shallow does not remove or relabel an independently valid deep zone", () => {
   const result = validatePullbackSection("shallow", { ...shallow, zoneHigh: 4.1 }, context);
   assert.equal(result.value, null);

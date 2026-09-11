@@ -31,6 +31,14 @@ function positive(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
+// Matching a cited observation is a precision question, not a volatility or
+// setup-spacing allowance. Keep the two decisions independent.
+function matchesObservedPrice(actual: number, observed: number): boolean {
+  if (!positive(actual) || !positive(observed)) return false;
+  const tolerance = observed < 1 ? 0.00005 : 0.005;
+  return Math.abs(actual - observed) <= tolerance + Number.EPSILON * Math.max(1, actual, observed);
+}
+
 export function validateBreakoutOrdering(
   mustClear: TradersLinkAiReadLevel,
   continuation: TradersLinkAiReadLevel,
@@ -87,11 +95,10 @@ function evidenceIssues(
   if (!ids.length) add("missing_evidence", "evidenceIds");
   const candidates = new Map(context.candidates.map((candidate) => [candidate.id, candidate]));
   if (ids.some((id) => !candidates.has(id))) add("unknown_evidence", "evidenceIds");
-  const tolerance = Math.max(context.referencePrice * 0.005, 0.0001);
   if (!ids.some((id) => {
     const candidate = candidates.get(id);
-    return candidate && Math.abs(candidate.zoneLow - low) <= tolerance &&
-      Math.abs(candidate.zoneHigh - high) <= tolerance;
+    return candidate && matchesObservedPrice(low, candidate.zoneLow) &&
+      matchesObservedPrice(high, candidate.zoneHigh);
   })) add("zone_evidence_mismatch", "zone");
   return issues;
 }
@@ -147,10 +154,9 @@ export function validatePullbackPair(
   if (shallow && deep && shallow.zoneLow - deep.zoneHigh < separation) {
     // The packet orders candidates by measured structural support. Only a
     // cited candidate matching the actual zone can give that branch its rank.
-    const tolerance = Math.max(referencePrice * 0.005, 0.0001);
     const rank = (scenario: TradersLinkAiReadPullbackScenario) => {
       const index = rankedCandidates.findIndex(candidate => scenario.evidenceIds.includes(candidate.id) &&
-        Math.abs(candidate.zoneLow - scenario.zoneLow) <= tolerance && Math.abs(candidate.zoneHigh - scenario.zoneHigh) <= tolerance);
+        matchesObservedPrice(scenario.zoneLow, candidate.zoneLow) && matchesObservedPrice(scenario.zoneHigh, candidate.zoneHigh));
       return index < 0 ? Number.POSITIVE_INFINITY : index;
     };
     const retainShallow = rank(shallow) < rank(deep);
