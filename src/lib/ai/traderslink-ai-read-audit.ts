@@ -13,6 +13,12 @@ export type AiReadAuditEvent = {
 
 export type AiReadAuditResult = { saved: boolean; reason?: "oversize" | "capacity" | "storage_error" };
 
+function terminalEvent(event: AiReadAuditEvent): boolean {
+  return event.phase === "transport_error" || event.phase === "prepared_payload" ||
+    (event.phase === "validation" && event.payload !== null && typeof event.payload === "object" &&
+      "valid" in event.payload && event.payload.valid === false);
+}
+
 /** Diagnostic artifacts only. Owner revisions must use separate durable storage. */
 export class TradersLinkAiReadAuditStore {
   private readonly directory: string;
@@ -43,11 +49,13 @@ export class TradersLinkAiReadAuditStore {
   private makeSpace(requiredBytes: number, currentKey: string, now: number): boolean {
     const files = this.files();
     let total = files.reduce((sum, file) => sum + file.bytes, 0);
-    const completedKeys = new Set(files.filter((f) => f.name.endsWith(".complete")).map((f) => f.name.slice(0, 64)));
-    const candidates = files.filter((f) => f.name.endsWith(".json") && completedKeys.has(f.name.slice(0, 64)) &&
+    const candidates = files.filter((f) => f.name.endsWith(".json") &&
       !f.name.startsWith(currentKey)).sort((a, b) => a.modified - b.modified);
     for (const file of candidates) {
       if (now - file.modified <= this.retentionMs && total + requiredBytes <= this.maxTotalBytes) continue;
+      // A marker can be missing after a crash or stale after a resumed capture.
+      // Inspect only candidates that need eviction; never infer completion from age.
+      if (!this.completedCapture(file.name)) continue;
       // Names come only from the strict generated-file allowlist above. Never
       // walk another directory or prune owner version/history records here.
       unlinkSync(join(this.directory, file.name));
@@ -57,6 +65,24 @@ export class TradersLinkAiReadAuditStore {
       total -= file.bytes + (markerFile?.bytes ?? 0);
     }
     return total + requiredBytes <= this.maxTotalBytes;
+  }
+
+  private completedCapture(name: string): boolean {
+    try {
+      const path = join(this.directory, name);
+      const stat = lstatSync(path);
+      if (!stat.isFile() || stat.isSymbolicLink() || stat.size > this.maxArtifactBytes) return false;
+      const record = JSON.parse(readFileSync(path, "utf8"));
+      if (record.version !== 1 || !Array.isArray(record.events) || record.events.length === 0 ||
+        record.events.some((event: AiReadAuditEvent) => !event || typeof event.generationId !== "string" ||
+          `${this.key(event.generationId)}.json` !== name)) return false;
+      for (let index = record.events.length - 1; index >= 0; index--) {
+        const event = record.events[index] as AiReadAuditEvent;
+        if (terminalEvent(event)) return true;
+        if (event.phase === "request") return false;
+      }
+      return false;
+    } catch { return false; }
   }
 
   save(event: AiReadAuditEvent): AiReadAuditResult {
@@ -92,12 +118,10 @@ export class TradersLinkAiReadAuditStore {
       try { writeFileSync(fd, serialized, "utf8"); fsyncSync(fd); } finally { closeSync(fd); }
       renameSync(temporaryPath, path);
       temporaryPath = undefined;
-      const failedValidation = event.phase === "validation" && event.payload !== null &&
-        typeof event.payload === "object" && "valid" in event.payload && event.payload.valid === false;
       // Section/normalization/usage records are intermediate: success is not
       // terminal until the prepared payload exists. Never prune an in-flight
       // capture merely because it has emitted its first validation decision.
-      if (event.phase === "transport_error" || failedValidation || event.phase === "prepared_payload") {
+      if (terminalEvent(event)) {
         const marker = join(this.directory, `${key}.complete`);
         if (!existsSync(marker)) writeFileSync(marker, "1", { flag: "wx", mode: 0o600 });
       }

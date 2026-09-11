@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -84,4 +84,33 @@ test("a corrupt existing audit fails visibly without overwriting it", () => with
   writeFileSync(path, "broken");
   assert.deepEqual(store.save(event("a", "response")), { saved: false, reason: "storage_error" });
   assert.equal(readFileSync(path, "utf8"), "broken");
+}));
+
+test("retention recovers a missing completion marker from terminal events", () => withStore((directory) => {
+  const store = new TradersLinkAiReadAuditStore({ directory, retentionMs: 1 });
+  assert.equal(store.save(event("complete", "prepared_payload")).saved, true);
+  const marker = readdirSync(directory).find(name => name.endsWith(".complete"))!;
+  unlinkSync(join(directory, marker));
+  const restarted = new TradersLinkAiReadAuditStore({ directory, retentionMs: 1 });
+  assert.equal(restarted.save({ ...event("next"), at: Date.now() + 1000 }).saved, true);
+  assert.equal(restarted.read("complete"), null);
+}));
+
+test("stale marker cannot evict a capture resumed after its terminal event", () => withStore((directory) => {
+  const store = new TradersLinkAiReadAuditStore({ directory, retentionMs: 1 });
+  assert.equal(store.save(event("resumed", "prepared_payload")).saved, true);
+  assert.equal(store.save(event("resumed", "request")).saved, true);
+  assert.equal(store.save({ ...event("next"), at: Date.now() + 1000 }).saved, true);
+  assert.equal(store.read("resumed")?.events.length, 2);
+}));
+
+test("capacity can reclaim a terminal capture whose marker was lost without touching owner history", () => withStore((directory) => {
+  const store = new TradersLinkAiReadAuditStore({ directory, maxTotalBytes: 300 });
+  writeFileSync(join(directory, "owner-revisions.json"), "preserve");
+  assert.equal(store.save(event("done", "prepared_payload")).saved, true);
+  unlinkSync(join(directory, readdirSync(directory).find(name => name.endsWith(".complete"))!));
+  assert.equal(store.save({ ...event("next"), payload: "x".repeat(100) }).saved, true);
+  assert.equal(store.read("done"), null);
+  assert.equal(store.read("next")?.events.length, 1);
+  assert.equal(readFileSync(join(directory, "owner-revisions.json"), "utf8"), "preserve");
 }));
