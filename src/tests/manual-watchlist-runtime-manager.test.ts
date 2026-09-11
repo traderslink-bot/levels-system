@@ -160,11 +160,35 @@ test("legacy public ticker manual replacement is persisted for review before dis
     assert.equal(cycle.draft?.body.kind, "original");
     assert.equal(cycle.approved, null);
     assert.equal(manager.isWatchlistPublicationApproved({ symbol: "PDSB", cards: {} }), true);
+    const beforeSettings = manager.getTradersLinkAiReadGenerationSettings();
+    const beforeBoundary = manager.getTradersLinkAiReadBoundaryRefreshSettings();
+    manager.setTradersLinkAiReadGenerationSettings({ ...beforeSettings, automaticUpdatesEnabled: true });
+    assert.deepEqual(manager.getTradersLinkAiReadBoundaryRefreshSettings(), beforeBoundary);
+    for (const requestedTrigger of ["activation", "startup", "scheduled", "price_move", "range_edge", "boundary_cross", "visibility_enabled", "automatic"] as const) {
+      assert.equal(manager.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger }).allowed, false);
+      assert.equal(await internal.generateTradersLinkAiRead("PDSB", true, requestedTrigger), null);
+    }
+    assert.equal(calls, 1, "a pending replacement cannot trigger another automatic paid request");
+    assert.equal(manager.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger: "manual" }).allowed, true);
+    publisher.cardPatches.length = 0; // Settings emitted only non-analysis lifecycle visibility patches.
     manager.setTradersLinkAiReadReviewBeforePublishing(false);
     await manager.refreshTradersLinkAiRead("PDSB");
     assert.equal(calls, 2);
     assert.equal(manager.getTradersLinkAiReadReview("PDSB")!.cycleId, cycle.cycleId);
     assert.equal(publisher.cardPatches.length, 0, "turning review OFF cannot release an existing held cycle");
+    const latest = manager.getTradersLinkAiReadReview("PDSB")!;
+    reviewStore.approve(latest.cycleId, latest.head, latest.draft!.revision, "owner");
+    assert.equal(manager.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger: "automatic" }).allowed, true);
+    manager.setTradersLinkAiReadGenerationSettings({ ...beforeSettings, automaticUpdatesEnabled: false });
+    assert.equal(manager.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger: "automatic" }).allowed, false);
+    assert.deepEqual(manager.getTradersLinkAiReadBoundaryRefreshSettings(), beforeBoundary);
+    manager.setTradersLinkAiReadGenerationSettings({ ...beforeSettings, automaticUpdatesEnabled: true });
+    const failed = { generationId: "failed-replacement", runId: "run-failed", trigger: "automatic", model: "test", dataAsOf: now };
+    reviewStore.recordGeneration(latest.cycleId, { ...failed, status: "started" });
+    reviewStore.recordGeneration(latest.cycleId, { ...failed, status: "failed" });
+    assert.equal(manager.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger: "automatic" }).allowed, false);
+    assert.equal(manager.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger: "manual" }).allowed, true);
+    assert.equal(manager.isWatchlistPublicationApproved({ symbol: "PDSB", cards: {} }), true);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 

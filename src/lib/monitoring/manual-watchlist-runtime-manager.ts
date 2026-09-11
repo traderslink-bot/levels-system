@@ -3479,7 +3479,7 @@ export class ManualWatchlistRuntimeManager {
   }
 
   setTradersLinkAiReadReviewBeforePublishing(enabled: boolean): void {
-    // Applies to future activations only. Existing review cycles remain frozen.
+    // Applies to future admissions/replacements. Existing review cycles remain frozen.
     this.reviewBeforePublishingEnabled = enabled;
   }
 
@@ -3584,10 +3584,19 @@ export class ManualWatchlistRuntimeManager {
           topRegularActivationOverrideApplied: false };
       }
     }
-    if (entry?.publicationReview?.required && context.requestedTrigger &&
-      context.requestedTrigger !== "manual" && context.requestedTrigger !== "activation" &&
-      !this.isWatchlistPublicationApproved({ symbol, cards: {} })) {
-      return { allowed: false, session, reason: "Ticker is awaiting owner review.", topRegularActivationOverrideApplied: false };
+    if (entry?.publicationReview?.required && context.requestedTrigger && context.requestedTrigger !== "manual") {
+      const review = this.options.tradersLinkAiReadReviewStore?.read(entry.publicationReview.cycleId);
+      const approval = review?.approved?.body;
+      // Existing public data is not approval of the newest request. A failed
+      // generation also waits for an owner decision instead of retrying on ticks.
+      const pendingRequest = review?.events.some(event => event.body.kind === "generation" &&
+        event.revision > (review.approved?.revision ?? 0));
+      const pendingDraft = review?.draft && (approval?.kind !== "approve" ||
+        review.draft.revision !== approval.draftRevision);
+      if (!review || review.cancelled || review.symbol !== symbol || pendingRequest || pendingDraft ||
+        (context.requestedTrigger !== "activation" && !this.isWatchlistPublicationApproved({ symbol, cards: {} }))) {
+        return { allowed: false, session, reason: "Ticker is awaiting owner review.", topRegularActivationOverrideApplied: false };
+      }
     }
     if (
       context.requestedTrigger &&
