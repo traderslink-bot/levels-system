@@ -95,6 +95,7 @@ test(`canonical article manager flow: ${sourceStatus} uses fresh lookup and expl
     assert.equal(received.length, 2, "one generation per explicit manual refresh");
     assert.equal(fallbackCalls, sourceStatus === "no_eligible_article" ? 2 : 0);
     for (const [index, research] of received.entries()) {
+      assert.equal(research.officialArticleSourceStatus, sourceStatus);
       assert.equal(research.count, sourceStatus === "lookup_unavailable" ? 0 : 1);
       if (sourceStatus === "eligible") {
         assert.equal(research.articles[0].processedContent, `Processed content revision ${index + 1}`);

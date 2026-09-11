@@ -4313,6 +4313,7 @@ export class ManualWatchlistRuntimeManager {
       } else if (officialSource.status === "lookup_unavailable") {
         console.warn(`[TradersLinkAiRead] Canonical article lookup unavailable for ${symbol}: ${officialSource.error}`);
       }
+      research = { ...research, officialArticleSourceStatus: officialSource.status };
 
       let priceAction: TradersLinkAiReadPriceActionContext;
       try {

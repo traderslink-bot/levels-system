@@ -438,6 +438,31 @@ describe("TradersLink AI price-action volume quality", () => {
 });
 
 describe("OpenAITradersLinkAiReadService", () => {
+  it("restricts Stock Titan web search to explicit no-article authority in the same request", async () => {
+    for (const status of [undefined, "eligible", "lookup_unavailable", "no_eligible_article"] as const) {
+      for (const hasProcessedArticle of [false, true]) {
+        const requests: any[] = [];
+        const service = new OpenAITradersLinkAiReadService({ apiKey: "test-key", model: "test-model", webSearchEnabled: true,
+          fetchImpl: async (_url, init) => {
+            requests.push(JSON.parse(String(init?.body)));
+            return Response.json({ output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(modelRead()) }] }] });
+          },
+        });
+        await service.generate({ snapshot: snapshot(), priceAction: priceAction(), research: {
+          ticker: "TGHL", businessDays: 5, officialArticleSourceStatus: status,
+          count: hasProcessedArticle ? 1 : 0,
+          articles: hasProcessedArticle ? [{ ticker: "TGHL", title: "Processed news", url: "https://traderslink.pro/news/test",
+            processedContent: "Canonical content" }] : [],
+        } });
+        assert.equal(requests.length, 1);
+        const allowed = status === "no_eligible_article" && !hasProcessedArticle;
+        assert.deepEqual(requests[0].tools, [{ type: "web_search", ...(!allowed ? { filters: { blocked_domains: ["stocktitan.net"] } } : {}) }]);
+        const input = JSON.parse(requests[0].input[1].content[0].text);
+        assert.equal(input.primaryCatalystResearch.stockTitanSearchAllowed, allowed);
+      }
+    }
+  });
+
   it("requires core price evidence while retaining explicitly derived thresholds in one request", async () => {
     let calls = 0;
     let draft = modelRead();
@@ -610,7 +635,7 @@ describe("OpenAITradersLinkAiReadService", () => {
 
     const requestBody = requestBodies[0];
     assert.ok(requestBody);
-    assert.deepEqual(requestBody.tools, [{ type: "web_search" }]);
+    assert.deepEqual(requestBody.tools, [{ type: "web_search", filters: { blocked_domains: ["stocktitan.net"] } }]);
     assert.deepEqual(requestBody.include, ["web_search_call.action.sources"]);
     assert.equal(
       (requestBody.text as { format: { strict: boolean } }).format.strict,
@@ -1644,7 +1669,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(savedAttempt.usageReported, true);
     assert.equal(savedAttempt.usage.totalTokens, 120);
     assert.ok(Math.abs(savedAttempt.usage.estimatedTotalCostUsd - 0.00014) < 1e-10);
-    assert.deepEqual(requestBodies[0]!.tools, [{ type: "web_search" }]);
+    assert.deepEqual(requestBodies[0]!.tools, [{ type: "web_search", filters: { blocked_domains: ["stocktitan.net"] } }]);
     assert.deepEqual(attempts, [
       { attemptType: "primary", status: "invalid_output", totalTokens: 120 },
     ]);

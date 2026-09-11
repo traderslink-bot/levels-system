@@ -40,6 +40,8 @@ export type RecentWebsiteArticle = {
 };
 
 export type RecentWebsiteArticleLookupResult = {
+  /** Private authority from the authenticated Platform lookup, never a public card field. */
+  officialArticleSourceStatus?: "eligible" | "no_eligible_article" | "lookup_unavailable";
   ticker: string;
   businessDays: number;
   generatedAt?: string;
