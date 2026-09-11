@@ -457,7 +457,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     const proof = decisions.findLast(decision => decision.stage === "core_evidence");
     assert.deepEqual(proof?.anchors, draft.coreEvidence);
     assert.deepEqual(proof?.issues, []);
-    (draft.coreEvidence as any).momentumFailure.anchorPrice = 0.5;
+    (draft.coreEvidence as any).momentumFailure.anchorPrice = 0.94;
     await assert.rejects(service.generate(input), /momentumFailure has no supported observed anchor/);
     assert.equal(calls, 3, "one provider request per explicit generation, no automatic corrections");
   });

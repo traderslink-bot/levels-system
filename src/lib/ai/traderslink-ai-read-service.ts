@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { unambiguousPriceCandles } from "./traderslink-ai-read-observations.js";
+import { observedPriceMatcher, unambiguousPriceCandles } from "./traderslink-ai-read-observations.js";
 import { validateCoreEvidence } from "./traderslink-ai-read-core-evidence.js";
 import { buildBreakoutEvidence, selectBreakoutCandidate, validateBreakoutEvidence, retainBreakoutTargets, type BreakoutCandidate, type BreakoutTarget } from "./traderslink-ai-read-breakout-selection.js";
 import { join } from "node:path";
@@ -2673,8 +2673,11 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       normalized.riskSummary = [];
       assertTradersLinkAiTradeMap(normalized, referenceQuote.price, input.priceAction, dataAsOf);
       const coreAnchors = (parsed as Record<string, unknown>).coreEvidence;
-      const coreIssues = validateCoreEvidence(normalized, coreAnchors, price =>
-        observableCandleEvidence(price, referenceQuote.price, input.priceAction, dataAsOf) !== null);
+      const anchorMatches = coreAnchors === undefined
+        ? (price: number) => observableCandleEvidence(price, referenceQuote.price, input.priceAction, dataAsOf) !== null
+        : observedPriceMatcher([input.priceAction.oneMinuteCandles ?? [], input.priceAction.intradayCandles,
+          input.priceAction.dailyCandles], input.priceAction.priorRegularClose, dataAsOf);
+      const coreIssues = validateCoreEvidence(normalized, coreAnchors, anchorMatches);
       if (coreAnchors !== undefined || coreIssues.length) {
         capture("validation", { stage: "core_evidence", anchors: coreAnchors ?? null, issues: coreIssues });
       }

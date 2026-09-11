@@ -22,3 +22,12 @@ export function unambiguousPriceCandles(candles: readonly Candle[], cutoff: numb
   return [...byTime.values()].filter(candle => !ambiguous.has(candle.timestamp))
     .sort((a, b) => a.timestamp - b.timestamp);
 }
+
+/** Numerical display precision only; candle width never enlarges anchor matching. */
+export function observedPriceMatcher(series: readonly (readonly Candle[])[], priorClose: number | null, cutoff: number): (price: number) => boolean {
+  const prices = series.flatMap(candles => unambiguousPriceCandles(candles, cutoff)
+    .flatMap(candle => [candle.open, candle.high, candle.low, candle.close]));
+  if (priorClose !== null && Number.isFinite(priorClose) && priorClose > 0) prices.push(priorClose);
+  return price => Number.isFinite(price) && price > 0 && prices.some(observed =>
+    Math.abs(observed - price) <= (price < 1 ? 0.00005 : 0.005) + Number.EPSILON);
+}
