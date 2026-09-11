@@ -12,7 +12,7 @@ test("analysis identity fingerprints only explicit source or compiled modules wi
     const first = captureAnalysisCodeIdentity(options);
     assert.equal(first.complete, true);
     assert.equal(first.deployedCommit, "a".repeat(40));
-    assert.equal(first.modules.length, 7);
+    assert.equal(first.modules.length, 8);
     assert.match(first.sha256!, /^[a-f0-9]{64}$/);
     assert.equal(first.sha256, captureAnalysisCodeIdentity(options).sha256);
     assert.ok(requested.every(path => path.startsWith("/private/runtime/ai/traderslink-ai-read-") && path.endsWith(`.${extension}`)));

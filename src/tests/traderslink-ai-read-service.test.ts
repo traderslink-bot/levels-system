@@ -1979,15 +1979,14 @@ describe("OpenAITradersLinkAiReadService", () => {
     const identity = (events[0]!.payload as any).codeIdentity;
     assert.equal(identity.scope, "analysis-module-files-at-service-load");
     assert.equal(identity.complete, true);
-    assert.equal(identity.modules.length, 7);
+    assert.equal(identity.modules.length, 8);
     assert.match(identity.sha256, /^[a-f0-9]{64}$/);
     assert.equal(Object.hasOwn(JSON.parse(sentBody), "codeIdentity"), false);
     assert.equal((events[1]!.payload as { body: string }).body, responseBody);
     assert.doesNotMatch(JSON.stringify(events), /private-test-credential|Authorization/);
   });
 
-  it("characterizes the remaining legacy checkpoint text rejection before dependency migration", async () => {
-    // This is a known-gap characterization, not partial-publication acceptance.
+  it("omits bad legacy checkpoint text without rejecting the independent setup", async () => {
     // Both prices have synthetic observed support, isolating text from evidence.
     for (const field of ["targets", "downsideCheckpoints"] as const) {
       const tape = priceAction();
@@ -2001,9 +2000,25 @@ describe("OpenAITradersLinkAiReadService", () => {
         fetchImpl: async () => { requests += 1; return new Response(JSON.stringify({ output: [{ type: "message",
           content: [{ type: "output_text", text: JSON.stringify(draft) }] }] }), { status: 200 }); },
       });
-      await assert.rejects(service.generate({ snapshot: snapshot(), priceAction: tape,
-        research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } }), /zero shares traded/);
+      const read = await service.generate({ snapshot: snapshot(), priceAction: tape,
+        research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
+      assert.deepEqual(read[field], []);
+      assert.equal(read.breakoutContinuation.price, 1.68);
       assert.equal(requests, 1);
+      const root = field === "targets" ? "breakoutContinuation" : "momentumFailure";
+      const prices = field === "targets" ? [2.2, 2.3, 2.4] : [0.85, 0.8, 0.75];
+      tape.dailyCandles.push({ timestamp: DATA_AS_OF - 23 * 86400000,
+        open: 1, high: 2.4, low: 0.75, close: 1.5, volume: 100000 });
+      draft[field] = [
+        { id: "bad", dependsOn: [root], label: "Bad", price: prices[0], condition: "Premarket volume was zero." },
+        { id: "dependent", dependsOn: ["bad"], label: "Dependent", price: prices[1], condition: "After the earlier checkpoint holds." },
+        { id: "independent", dependsOn: [root], label: "Independent", price: prices[2], condition: "The observed daily boundary remains relevant." },
+      ];
+      const independent = await service.generate({ snapshot: snapshot(), priceAction: tape,
+        research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
+      assert.deepEqual(independent[field].map(point => point.price), [prices[2]]);
+      assert.equal(Object.hasOwn(independent[field][0]!, "id"), false);
+      assert.equal(requests, 2, "two explicit generations, one request each");
     }
   });
 

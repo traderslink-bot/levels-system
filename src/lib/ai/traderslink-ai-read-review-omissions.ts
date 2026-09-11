@@ -52,6 +52,15 @@ export function remainingGeneratedSectionOmissions(review: ReviewState, draftRev
       const removedRisks = decision.issues.filter(raw => String(object(raw)?.path).startsWith("riskSummary.")).length;
       removedCounts.riskSummary += removedRisks;
     }
+    if (decision.stage === "checkpoint_dependencies") {
+      if ((decision.field === "targets" || decision.field === "downsideCheckpoints") && Array.isArray(decision.issues)) {
+        removedCounts[decision.field] += decision.issues.length;
+      }
+      if (populated(at(decision.omittedNarrative, "currentRead")) &&
+        (hidden("currentRead") || !populated(payload.currentRead))) omissions.add("currentRead");
+      const risks = at(decision.omittedNarrative, "riskSummary");
+      if (Array.isArray(risks)) removedCounts.riskSummary += risks.length;
+    }
     if (decision.stage === "checkpoint_spacing" || decision.stage === "observable_evidence_normalization") {
       for (const key of ["targets", "downsideCheckpoints"] as const) {
         const before = at(decision.before, key), after = at(decision.after, key);

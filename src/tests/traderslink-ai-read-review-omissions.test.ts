@@ -14,6 +14,14 @@ function review(payload: Record<string, unknown>, decisions: Record<string, unkn
 test("natural optional absence does not imply a validation omission", () => {
   assert.deepEqual(remainingGeneratedSectionOmissions(review(original, []), 1), []);
 });
+
+test("checkpoint dependency omissions remain visible until owner replacements are saved", () => {
+  const decisions = [{ stage: "checkpoint_dependencies", field: "downsideCheckpoints", issues: [{}, {}] }];
+  const baseline = { ...original, downsideCheckpoints: [{ price: 0.4 }] };
+  assert.deepEqual(remainingGeneratedSectionOmissions(review(baseline, decisions), 1), ["downsideCheckpoints"]);
+  const corrected = { ...baseline, downsideCheckpoints: [{ price: 0.4 }, { price: 0.35 }, { price: 0.3 }] };
+  assert.deepEqual(remainingGeneratedSectionOmissions(review(baseline, decisions, corrected), 2), []);
+});
 test("reconciles rejected sections and objectives with the selected owner's revision, not another generation", () => {
   const decisions = [{ stage: "optional_sections", issues: [
     { path: "pullbackPlans.shallow.zoneHigh", action: "omit_section" },

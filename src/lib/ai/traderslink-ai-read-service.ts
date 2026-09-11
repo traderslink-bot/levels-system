@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { retainAnalysisCheckpoints } from "./traderslink-ai-read-checkpoint-dependencies.js";
 import { captureAnalysisCodeIdentity } from "./traderslink-ai-read-code-identity.js";
 import { observedPriceMatcher, unambiguousPriceCandles } from "./traderslink-ai-read-observations.js";
 import { validateCoreEvidence, validateUpperEvidence } from "./traderslink-ai-read-core-evidence.js";
@@ -265,6 +266,13 @@ const EVIDENCE_IDS_SCHEMA = {
   maxItems: 6,
 } as const;
 
+const CHECKPOINT_SCHEMA = {
+  ...TARGET_SCHEMA,
+  properties: { ...TARGET_SCHEMA.properties, id: { type: "string" },
+    dependsOn: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 4 } },
+  required: [...TARGET_SCHEMA.required, "id", "dependsOn"],
+} as const;
+
 const BREAKOUT_CANDIDATE_SCHEMA = {
   type: ["object", "null"], additionalProperties: false,
   properties: {
@@ -512,12 +520,12 @@ const AI_READ_SCHEMA = {
     },
     targets: {
       type: "array",
-      items: TARGET_SCHEMA,
+      items: CHECKPOINT_SCHEMA,
       maxItems: 4,
     },
     downsideCheckpoints: {
       type: "array",
-      items: TARGET_SCHEMA,
+      items: CHECKPOINT_SCHEMA,
       maxItems: 4,
     },
     pullbackPlans: PULLBACK_PLANS_SCHEMA,
@@ -589,6 +597,7 @@ Interpretation contract:
 - Prefer trader-usable zones and psychologically meaningful prices over false precision. For prices at or above $1, use cents unless a finer tick is essential; below $1, use no more than four decimals.
 - The required downside ordering is currentPrice >= needsToHold >= cautionBelow >= momentumFailure. Equal prices are allowed when one tape boundary serves two roles; null is better than inventing a second boundary. For example, never return needsToHold at $3.85 and cautionBelow at $3.95. momentumFailure is the decisive failure level that exposes lower support. mustClear is the first resistance/pivot needed to improve the setup, and breakoutContinuation is the meaningfully higher confirmation pivot that opens the listed targets.
 - targets are ordered upside continuation checkpoints after breakout confirmation. downsideCheckpoints are ordered lower structural areas exposed after momentumFailure. Include the meaningful lower areas a day trader would need if the long thesis fails, such as $1.20 then $1.05; do not bury those prices only in prose. These are scenario checkpoints, not predictions. The final upside target should be above the supplied current price and the final downside checkpoint below it whenever evidence supports a usable mapped range; do not return an already-crossed price as the outer edge of a fresh map.
+- Give each top-level target and downside checkpoint a unique id and explicit dependsOn IDs. Use breakoutContinuation as the upside root and momentumFailure as the downside root. If a checkpoint only needs that root, name only the root; if it requires an earlier checkpoint, name that checkpoint as well. Do not reference future, unknown or opposite-side IDs. Candidate-specific breakout targets retain their separate primary/alternate dependency roots. These IDs stay internal, not in the visible analysis.
 - Do not stop the upside map at a nearby first target when the supplied daily history shows a distinct, evidence-backed continuation boundary within roughly 50% of current price. Include that boundary as the final target when it remains practical and is not contradicted by intervening price action; otherwise return fewer targets rather than inventing range.
 - When confirmedPriorPlanBoundary is supplied, price has already confirmed an exit from the prior published map. Build one new plan for the current regime; do not recreate or switch back to the old plan. Preserve that prior boundary as useful retest/reclaim context in the new plan when it remains relevant: an upper exit normally turns the old ceiling into a downside hold/retest reference, while a lower exit normally turns the old floor into an upside reclaim reference. Do not relabel it as the current session high/low or force it into a role contradicted by the new tape.
 - Compare the current-session high with material highs and supply from the immediately preceding regular and after-hours sessions. Do not automatically stop the upside map at today's premarket high when a recent prior-session high remains a practical outer checkpoint, and do not mechanically include an obsolete isolated spike. If the nearer current-session high is the better final target, explain from the tape why the higher prior-session boundary is not presently actionable.
@@ -2635,6 +2644,43 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         modelRead.targets = selection.selected?.targets ?? [];
         capture("validation", { stage: "breakout_selection", decisions: selection.decisions, parsingIssues: candidateParsingIssues, primaryMirrorMismatch,
           selectedCandidateId: selection.selected?.id ?? null, ...(omittedNarrative ? { omittedNarrative } : {}) });
+      }
+      for (const field of ["targets", "downsideCheckpoints"] as const) {
+        // Candidate-specific upside already uses its own IDs/selection path.
+        if (field === "targets" && Object.hasOwn(parsed as object, "breakoutCandidates")) continue;
+        const raw = (parsed as Record<string, unknown>)[field];
+        const hasDependencies = Array.isArray(raw) && raw.some(row => row && typeof row === "object" && (Object.hasOwn(row, "id") || Object.hasOwn(row, "dependsOn")));
+        const hasInvalidText = Array.isArray(raw) && raw.some(row => {
+          if (!row || typeof row.label !== "string" || typeof row.condition !== "string") return false;
+          try { assertTradeText(row.label, referenceQuote.price, input.priceAction, dataAsOf);
+            assertTradeText(row.condition, referenceQuote.price, input.priceAction, dataAsOf); return false; }
+          catch { return true; }
+        });
+        // Preserve the existing price-only legacy normalization when no new
+        // dependency metadata or text omission requires dependency handling.
+        if (!hasDependencies && !hasInvalidText) continue;
+        const root = field === "targets" ? "breakoutContinuation" : "momentumFailure";
+        const result = retainAnalysisCheckpoints({ raw, root,
+          rootPrice: modelRead[root].price ?? referenceQuote.price,
+          direction: field === "targets" ? "up" : "down",
+          spacing: tacticalTradeMapSpacing(referenceQuote.price, input.priceAction),
+          validate: target => {
+            try {
+              assertTradeText(target.label, referenceQuote.price, input.priceAction, dataAsOf);
+              assertTradeText(target.condition, referenceQuote.price, input.priceAction, dataAsOf);
+            } catch (error) { return error instanceof Error ? error.message : String(error); }
+            const check = normalizeObservableTapeEvidence({ ...modelRead, [field]: [target] },
+              referenceQuote.price, input.priceAction, dataAsOf, input.snapshot);
+            return check[field].length ? null : "Checkpoint price has no supporting observation.";
+          },
+        });
+        modelRead[field] = result.retained;
+        if (result.issues.length) {
+          const omittedNarrative = { currentRead: modelRead.currentRead, riskSummary: [...modelRead.riskSummary] };
+          modelRead.currentRead = ""; modelRead.riskSummary = [];
+          capture("validation", { stage: "checkpoint_dependencies", field, issues: result.issues,
+            omittedNarrative, changedPaths: [field, "currentRead", "riskSummary"] });
+        }
       }
       const spacedRead = pruneRedundantScenarioCheckpoints(modelRead, referenceQuote.price, input.priceAction);
       const normalized = normalizeObservableTapeEvidence(

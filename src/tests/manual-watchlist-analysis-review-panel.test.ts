@@ -24,6 +24,7 @@ test("request inspector renders lazily with explicit truncation and unavailable 
         { path: "pullbackPlans.shallow", code: "unsupported_text", action: "omit_section" },
       ] } },
       { phase: "validation", payload: { stage: "breakout_selection", selectedCandidateId: "alternate" } },
+      { phase: "validation", payload: { stage: "checkpoint_dependencies", field: "downsideCheckpoints", issues: [{ reason: "Required dependency unavailable." }] } },
       { phase: "validation", payload: { stage: "core_evidence", issues: [], anchors: {
         momentumFailure: { anchorPrice: 0.95, basis: "threshold_below", explanation: "Proposed buffer below the daily low." },
       } } },
@@ -37,6 +38,7 @@ test("request inspector renders lazily with explicit truncation and unavailable 
   new Script(render + "\nrenderAudit(audit);").runInNewContext(context);
   assert.equal(elements.filter(element => element.tag === "pre").length, 0);
   assert.ok(elements.some(element => element.text === "Analysis checks"));
+  assert.ok(elements.some(element => element.text === "Downside checkpoint — omitted: Required dependency unavailable."));
   assert.ok(elements.some(element => element.text === "Shallow pullback — omitted: the explanation failed an analysis text check; see the validation record for the exact reason."));
   assert.ok(elements.some(element => element.text === "These checks describe the generated analysis. Owner edits are saved separately."));
   assert.ok(elements.some(element => element.text === "Momentum failure — threshold below observed anchor $0.95. Proposed buffer below the daily low."));

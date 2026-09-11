@@ -306,6 +306,11 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     [...diagnosticEvents, ...savedValidationEvents].forEach(event => {
       if (event.phase !== "validation" || !event.payload || typeof event.payload !== "object") return;
       const result = event.payload;
+      if (result.stage === "checkpoint_dependencies" && Array.isArray(result.issues)) result.issues.forEach(issue => {
+        if (!issue || typeof issue.reason !== "string") return;
+        checks.push((result.field === "targets" ? "Upside checkpoint" : "Downside checkpoint") +
+          " — omitted: " + issue.reason.slice(0, 600));
+      });
       if ((result.stage === "core_evidence" || result.stage === "must_clear_evidence") && Array.isArray(result.issues)) {
         const names = { needsToHold: "Needs to hold", cautionBelow: "Caution below", momentumFailure: "Momentum failure", mustClear: "Must-clear level" };
         if (result.issues.length) result.issues.forEach(issue => {
