@@ -136,8 +136,9 @@ test("legacy public ticker manual replacement is persisted for review before dis
       liveWatchlistPublisher: publisher, tradersLinkAiReadReviewStore: reviewStore, now: () => now,
       tradersLinkAiReadService: {
         getConfiguredModel: () => "test", getReasoningEffort: () => "medium",
-        generate: async ({ generationId }: any) => {
+        generate: async ({ generationId, onValidationDecision }: any) => {
           calls += 1;
+          onValidationDecision({ stage: "optional_sections", issues: [{ path: "pullbackPlans.shallow", action: "omit_section" }] });
           const review = watchlistStore.getEntry("PDSB")!.publicationReview!;
           assert.equal(review.required, true, "gate exists before paid dispatch");
           assert.equal(reviewStore.read(review.cycleId)?.preserveExistingPublication, true);
@@ -158,6 +159,7 @@ test("legacy public ticker manual replacement is persisted for review before dis
     assert.equal(discord.announcements.length, 0);
     const cycle = manager.getTradersLinkAiReadReview("PDSB")!;
     assert.equal(cycle.draft?.body.kind, "original");
+    assert.equal((cycle.draft?.body as any).validationDecisions[0].stage, "optional_sections");
     assert.equal(cycle.approved, null);
     assert.equal(manager.isWatchlistPublicationApproved({ symbol: "PDSB", cards: {} }), true);
     const beforeSettings = manager.getTradersLinkAiReadGenerationSettings();

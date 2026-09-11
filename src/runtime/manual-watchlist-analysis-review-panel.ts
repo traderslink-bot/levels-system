@@ -279,6 +279,9 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     const sectionNames = { "pullbackPlans.shallow": "Shallow pullback", "pullbackPlans.deep": "Deep pullback", failureRecovery: "Failure / recovery", breakoutContinuation: "Breakout continuation", mustClear: "Must-clear level", targets: "Where the trade could go next", downsideCheckpoints: "Downside checkpoints" };
     const reasons = { invalid_number: "a required price is missing or invalid", low_confidence: "generation confidence is low", zone_order: "zone prices are reversed", reference_order: "price ordering does not fit the analysis price", missing_evidence: "no supporting observation was cited", unknown_evidence: "a cited observation was not in the packet", zone_evidence_mismatch: "zone prices do not match the cited base", invalidation_order: "invalidation does not sit below the zone", confirmation_order: "confirmation prices are out of order", objective_order: "the optional objective is out of order", momentum_failed: "the analysis price is already at or below momentum failure", failure_order: "invalidation conflicts with momentum failure", reclaim_order: "reclaim does not clear the recovery zone", restore_order: "setup restoration does not clear reclaim", zone_overlap: "the zones overlap or lack separation" };
     const diagnosticEvents = Array.isArray(audit.diagnostic && audit.diagnostic.events) ? audit.diagnostic.events : [];
+    const savedValidationEvents = (Array.isArray(audit.selectedEvents) ? audit.selectedEvents : []).flatMap(event =>
+      event && event.body && event.body.kind === "original" && Array.isArray(event.body.validationDecisions)
+        ? event.body.validationDecisions.map(payload => ({ phase: "validation", payload })) : []);
     const attempts = new Map();
     diagnosticEvents.forEach(event => {
       const result = event && event.phase === "validation" && event.payload;
@@ -291,7 +294,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     const totalCost = summedCost !== null && Number.isFinite(summedCost) ? summedCost : null;
     const costText = totalCost === null ? "Unavailable" : totalCost > 0 && totalCost < 0.000001 ? "less than $0.000001" : "$" + totalCost.toFixed(6);
     node("p", "Estimated cost: " + costText + (totalCost === null ? "" : " USD for recorded requests"), container);
-    diagnosticEvents.forEach(event => {
+    [...diagnosticEvents, ...savedValidationEvents].forEach(event => {
       if (event.phase !== "validation" || !event.payload || typeof event.payload !== "object") return;
       const result = event.payload;
       if (result.stage === "optional_overview" && Array.isArray(result.issues)) result.issues.forEach(issue => {

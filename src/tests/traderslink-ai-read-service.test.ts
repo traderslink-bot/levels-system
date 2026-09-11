@@ -1627,6 +1627,26 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(draft.downsideCheckpoints[0]?.price, 0.7);
   });
 
+  it("provides redacted review validation provenance without a diagnostic store or extra request", async () => {
+    const decisions: Record<string, unknown>[] = [];
+    const draft = modelRead();
+    draft.downsideCheckpoints = [{ label: "Unsupported outer checkpoint privatecredentialvalue", price: 0.7,
+      condition: "Relevant only if the original setup fails." }];
+    let calls = 0;
+    const service = new OpenAITradersLinkAiReadService({ apiKey: "privatecredentialvalue", model: "test-model",
+      fetchImpl: async () => { calls++; return new Response(JSON.stringify({ output: [{ type: "message",
+        content: [{ type: "output_text", text: JSON.stringify(draft) }] }] }), { status: 200 }); } });
+    const read = await service.generate({ snapshot: snapshot(), priceAction: priceAction(),
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
+      onValidationDecision: decision => decisions.push(decision) });
+    assert.equal(calls, 1);
+    assert.deepEqual(read.downsideCheckpoints, []);
+    assert.ok(decisions.some(decision => decision.stage === "observable_evidence_normalization"));
+    assert.ok(decisions.every(decision => decision.stage !== "api_attempt"));
+    assert.doesNotMatch(JSON.stringify(decisions), /privatecredentialvalue/);
+    assert.match(JSON.stringify(decisions), /\[redacted\]/);
+  });
+
   it("drops duplicate scenario checkpoints instead of paying for a correction", async () => {
     const duplicateCheckpointRead = modelRead();
     const duplicateMomentumFailure = duplicateCheckpointRead.momentumFailure as { price: number };

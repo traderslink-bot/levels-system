@@ -7,7 +7,7 @@ import { isConfirmedDiscordRejectionStatus } from "../alerts/discord-confirmed-r
 type ReviewBody =
   | { kind: "generation"; generationId: string; status: "started" | "completed" | "failed"; runId: string; trigger: string; model: string; dataAsOf: number }
   | { kind: "begin"; symbol: string; reviewRequired: boolean; preserveExistingPublication?: boolean }
-  | { kind: "original"; generationId: string; payload: Record<string, unknown> }
+  | { kind: "original"; generationId: string; payload: Record<string, unknown>; validationDecisions?: Record<string, unknown>[] }
   | { kind: "edit"; parentDraft: number; payload: Record<string, unknown> }
   | { kind: "approve"; draftRevision: number; publication?: ReviewPublication }
   | { kind: "discord_chunk"; approvalRevision: number; index: number; status: "started" | "acknowledged" | "rejected"; deliveryKey: string; httpStatus?: number; receipt?: { messageId: string; channelId: string } }
@@ -163,7 +163,7 @@ export class TradersLinkAiReadReviewStore {
     return this.append(cycleId, state.head, "runtime:generator", { kind: "generation", ...input });
   }
 
-  saveDraft(input: { cycleId: string; expectedHead: number; actor: string; payload: Record<string, unknown>; generationId?: string }): ReviewEvent {
+  saveDraft(input: { cycleId: string; expectedHead: number; actor: string; payload: Record<string, unknown>; generationId?: string; validationDecisions?: Record<string, unknown>[] }): ReviewEvent {
     const state = this.read(input.cycleId);
     if (!state || input.payload.symbol !== state.symbol) throw new Error("Review ticker mismatch.");
     if (input.generationId !== undefined && (!input.generationId || input.generationId.length > 200)) throw new Error("Invalid generation ID.");
@@ -171,11 +171,13 @@ export class TradersLinkAiReadReviewStore {
       event.body.kind === "original" && event.body.generationId === input.generationId) : undefined;
     if (original?.body.kind === "original") {
       if (json(original.body.payload) !== json(input.payload)) throw new Error("Generation ID already has different original content.");
+      if (json(original.body.validationDecisions ?? null) !== json(input.validationDecisions ?? null)) throw new Error("Generation ID already has different validation decisions.");
       return original;
     }
     if (!input.generationId && !state.draft) throw new Error("No original analysis to edit.");
     return this.append(input.cycleId, input.expectedHead, input.actor, input.generationId
-      ? { kind: "original", generationId: input.generationId, payload: input.payload }
+      ? { kind: "original", generationId: input.generationId, payload: input.payload,
+        ...(input.validationDecisions ? { validationDecisions: input.validationDecisions } : {}) }
       : { kind: "edit", parentDraft: state.draft!.revision, payload: input.payload });
   }
 

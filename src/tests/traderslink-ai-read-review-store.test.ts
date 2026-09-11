@@ -14,6 +14,21 @@ function setup() {
 afterEach(() => { for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true }); });
 const payload = { symbol: "PDSB", currentRead: "Original analysis", price: 0.5 };
 
+test("validation decisions survive restart and edits without permitting original provenance replacement", () => {
+  const { directory, store } = setup();
+  store.begin("decisions", "PDSB", true, "owner");
+  const validationDecisions = [{ stage: "optional_sections", issues: [{ path: "pullbackPlans.shallow", action: "omit_section" }] }];
+  const originalInput = { cycleId: "decisions", expectedHead: 1, actor: "generator", generationId: "g1", payload, validationDecisions };
+  const original = store.saveDraft(originalInput);
+  assert.equal(store.saveDraft(originalInput).hash, original.hash);
+  assert.throws(() => store.saveDraft({ ...originalInput, validationDecisions: [] }), /different validation decisions/);
+  store.saveDraft({ cycleId: "decisions", expectedHead: 2, actor: "owner", payload: { ...payload, price: 0.45 } });
+  const restored = new TradersLinkAiReadReviewStore(directory).read("decisions")!;
+  assert.deepEqual((restored.events[1]!.body as any).validationDecisions, validationDecisions);
+  assert.equal((restored.draft!.body as any).validationDecisions, undefined);
+  assert.equal(restored.events[1]!.hash, original.hash);
+});
+
 test("history pages every cycle once without mixing ticker identities", () => {
   const { store } = setup();
   for (let index = 0; index < 203; index++) store.begin("history-" + index, index % 2 ? "TNON" : "PDSB", true, "owner");

@@ -127,6 +127,7 @@ export type TradersLinkAiReadGenerationInput = {
   generationId?: string;
   onAttempt?: (attempt: TradersLinkAiReadAttempt) => void;
   onAuditCapture?: (result: AiReadAuditResult) => void;
+  onValidationDecision?: (decision: Record<string, unknown>) => void;
 };
 
 export type TradersLinkAiReadAttempt = {
@@ -2375,6 +2376,13 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       `${symbol}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const clientRequestId = `${generationId}-request-1`;
     const capture = (phase: AiReadAuditEvent["phase"], payload: unknown): void => {
+      // Review provenance must not depend on optional/expiring diagnostics.
+      if (phase === "validation" && payload && typeof payload === "object" &&
+        "stage" in payload && payload.stage !== "api_attempt" && input.onValidationDecision) {
+        const serialized = JSON.stringify(payload);
+        const sanitized = this.options.apiKey ? serialized.split(this.options.apiKey).join("[redacted]") : serialized;
+        input.onValidationDecision(JSON.parse(sanitized) as Record<string, unknown>);
+      }
       if (!this.options.auditStore) return;
       let result: AiReadAuditResult;
       try {

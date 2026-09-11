@@ -55,6 +55,12 @@ test("request inspector renders lazily with explicit truncation and unavailable 
   assert.equal(elements.some(element => element.text === "Analysis checks"), false, "missing diagnostics must not imply a clean check result");
   assert.ok(elements.some(element => element.text === "API requests: Unavailable in this audit"));
   assert.ok(elements.some(element => element.text === "Estimated cost: Unavailable"));
+  (context.audit.selectedEvents[0]!.body as any).validationDecisions = [{ stage: "optional_sections", issues: [
+    { path: "pullbackPlans.shallow", code: "reference_order", action: "omit_section" },
+  ] }];
+  new Script(render + "\nrenderAudit(audit);").runInNewContext(context);
+  assert.ok(elements.some(element => element.text === "Shallow pullback — omitted: zone is not sufficiently below the analysis price."));
+  assert.ok(elements.some(element => element.text === "API requests: Unavailable in this audit"), "saved validation is not usage evidence");
 });
 
 test("receipt controls show only uncertain parts of the current approval and clear stale IDs", () => {

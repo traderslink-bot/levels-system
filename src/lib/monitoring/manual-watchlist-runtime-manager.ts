@@ -4346,6 +4346,7 @@ export class ManualWatchlistRuntimeManager {
         this.options.tradersLinkAiReadReviewStore.recordGeneration(reviewCycleId, { ...generationAudit, status: "started" });
       }
       let read: TradersLinkAiReadPayload;
+      const validationDecisions: Record<string, unknown>[] = [];
       try {
         this.recordTradersLinkAiReadRunOutcome({
           symbol,
@@ -4359,6 +4360,7 @@ export class ManualWatchlistRuntimeManager {
           dataAsOf,
         });
         read = await service.generate({
+          onValidationDecision: (decision) => { validationDecisions.push(decision); },
           snapshot,
           research,
           priceAction,
@@ -4432,7 +4434,7 @@ export class ManualWatchlistRuntimeManager {
         if (!reviewStore || !cycle) throw new Error("Owner review storage is unavailable.");
         reviewStore.saveDraft({
           cycleId: cycle.cycleId, expectedHead: cycle.head, actor: "runtime:generator",
-          generationId: read.generationId, payload: read as unknown as Record<string, unknown>,
+          generationId: read.generationId, payload: read as unknown as Record<string, unknown>, validationDecisions,
         });
         if (latestEntry?.publicationReview?.cycleId === cycle.cycleId && latestEntry.active) {
           this.watchlistStore.patchEntry(symbol, { tradersLinkAiReadFailure: null, operationStatus: "analysis awaiting owner review" });
