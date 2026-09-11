@@ -1223,10 +1223,12 @@ function observableCandleEvidence(
   price: number,
   currentPrice: number,
   priceAction: TradersLinkAiReadPriceActionContext,
+  dataAsOf: number,
 ): string | null {
+  if (!Number.isFinite(dataAsOf) || !Number.isFinite(price) || price <= 0) return null;
   const priorCloseTolerance = Math.max(currentPrice * 0.005, 0.0001);
   if (
-    priceAction.priorRegularClose !== null &&
+    priceAction.priorRegularClose !== null && Number.isFinite(priceAction.priorRegularClose) && priceAction.priorRegularClose > 0 &&
     Math.abs(priceAction.priorRegularClose - price) <= priorCloseTolerance
   ) {
     return "This price is the observed prior close.";
@@ -1237,16 +1239,33 @@ function observableCandleEvidence(
     label: "intraday" | "daily",
     rangeWeight: number,
   ): string | null => {
-    if (candles.length === 0) {
+    const byTime = new Map<number, typeof candles[number]>();
+    const ambiguous = new Set<number>();
+    for (const candle of candles) {
+      if (!Number.isFinite(candle.timestamp) || candle.timestamp <= 0 || candle.timestamp > dataAsOf) continue;
+      const values = [candle.open, candle.high, candle.low, candle.close];
+      if (!values.every(value => Number.isFinite(value) && value > 0) ||
+        candle.low > Math.min(candle.open, candle.close) || candle.high < Math.max(candle.open, candle.close)) {
+        ambiguous.add(candle.timestamp); continue;
+      }
+      const prior = byTime.get(candle.timestamp);
+      if (prior && (["open", "high", "low", "close"] as const).some(field =>
+        prior[field] !== candle[field])) ambiguous.add(candle.timestamp);
+      if (!prior) byTime.set(candle.timestamp, candle);
+    }
+    const ordered = [...byTime.values()].filter(candle => !ambiguous.has(candle.timestamp))
+      .sort((a, b) => a.timestamp - b.timestamp);
+    const usable = label === "intraday" ? ordered.slice(-48) : ordered;
+    if (usable.length === 0) {
       return null;
     }
-    const averageRange = candles.reduce(
+    const averageRange = usable.reduce(
       (sum, candle) => sum + Math.max(0, candle.high - candle.low),
       0,
-    ) / candles.length;
+    ) / usable.length;
     const tolerance = Math.max(currentPrice * 0.005, averageRange * rangeWeight, 0.0001);
     let nearest: { field: "high" | "low" | "open" | "close"; distance: number } | null = null;
-    for (const candle of candles) {
+    for (const candle of usable) {
       for (const field of ["high", "low", "open", "close"] as const) {
         const distance = Math.abs(candle[field] - price);
         if (distance <= tolerance && (!nearest || distance < nearest.distance)) {
@@ -1259,7 +1278,7 @@ function observableCandleEvidence(
       : null;
   };
 
-  return nearestEvidence(priceAction.intradayCandles.slice(-48), "intraday", 0.35) ??
+  return nearestEvidence(priceAction.intradayCandles, "intraday", 0.35) ??
     nearestEvidence(priceAction.dailyCandles, "daily", 0.1);
 }
 
@@ -1267,13 +1286,14 @@ function normalizeObservableTapeEvidence(
   read: ModelRead,
   currentPrice: number,
   priceAction: TradersLinkAiReadPriceActionContext,
+  dataAsOf: number,
   snapshot?: LevelSnapshotPayload,
 ): ModelRead {
   const appendEvidence = (text: string, price: number | null): string => {
     if (price === null || TAPE_EVIDENCE_LANGUAGE.test(text)) {
       return text;
     }
-    const evidence = observableCandleEvidence(price, currentPrice, priceAction);
+    const evidence = observableCandleEvidence(price, currentPrice, priceAction, dataAsOf);
     return evidence ? `${text.trim()} ${evidence}`.trim() : text;
   };
   const normalizeLevel = (level: ModelRead["needsToHold"]): ModelRead["needsToHold"] => ({
@@ -1284,7 +1304,7 @@ function normalizeObservableTapeEvidence(
     if (item.price === null || TAPE_EVIDENCE_LANGUAGE.test(`${item.label} ${item.condition}`)) {
       return item;
     }
-    const evidence = observableCandleEvidence(item.price, currentPrice, priceAction);
+    const evidence = observableCandleEvidence(item.price, currentPrice, priceAction, dataAsOf);
     return evidence
       ? { ...item, condition: `${item.condition.trim()} ${evidence}`.trim() }
       : null;
@@ -1293,7 +1313,7 @@ function normalizeObservableTapeEvidence(
     items.map(normalizeScenario).filter((item): item is T => item !== null);
   const normalizeDownside = (item: ModelRead["downsideCheckpoints"][number]) => {
     if (item.price === null) return null;
-    const observed = observableCandleEvidence(item.price, currentPrice, priceAction);
+    const observed = observableCandleEvidence(item.price, currentPrice, priceAction, dataAsOf);
     const supportedZone = snapshot?.supportZones.some(zone => {
       const low = zone.lowPrice ?? zone.representativePrice;
       const high = zone.highPrice ?? zone.representativePrice;
@@ -2552,7 +2572,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
           const checkedTargets = retainBreakoutTargets({ candidateId: id, continuationPrice: level.price,
             targets, spacing: tacticalTradeMapSpacing(referenceQuote.price, input.priceAction),
             validate: target => TAPE_EVIDENCE_LANGUAGE.test(`${target.label} ${target.condition}`) ||
-              (target.price !== null && observableCandleEvidence(target.price, referenceQuote.price, input.priceAction) !== null) });
+              (target.price !== null && observableCandleEvidence(target.price, referenceQuote.price, input.priceAction, dataAsOf) !== null) });
           candidateParsingIssues.push(...checkedTargets.issues.map(issue => ({ path: `breakoutCandidates.${id}.targets.${issue.id}`, reason: issue.reason })));
           return { id, level: normalizeLevel(value.level, "Breakout continuation"),
             targets: checkedTargets.retained.map(({ id: _id, dependsOn: _dependencies, ...target }) => target),
@@ -2587,6 +2607,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         spacedRead,
         referenceQuote.price,
         input.priceAction,
+        dataAsOf,
         input.snapshot,
       );
       for (const [stage, before, after] of [

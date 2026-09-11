@@ -1646,6 +1646,32 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(calls, 2, "one request per distinct supplied packet, no corrective calls");
   });
 
+  it("excludes future malformed and conflicting candles from checkpoint evidence while retaining valid duplicates", async () => {
+    const bar = { timestamp: DATA_AS_OF - 30 * 86400000, open: 0.8, high: 0.85, low: 0.7, close: 0.81, volume: 1000 };
+    const cases = [
+      { bars: [bar], retained: true },
+      { bars: [bar, { ...bar }], retained: true },
+      { bars: [{ ...bar, timestamp: DATA_AS_OF + 60000 }], retained: false },
+      { bars: [{ ...bar, open: 0.6 }], retained: false },
+      { bars: [bar, { ...bar, low: 0.75 }], retained: false },
+      { bars: [{ ...bar, low: 0.75 }, bar], retained: false },
+      { bars: [bar, { ...bar, close: NaN }], retained: false },
+    ];
+    let calls = 0;
+    for (const scenario of cases) {
+      const draft = modelRead();
+      draft.downsideCheckpoints = [{ label: "Lower checkpoint", price: 0.7, condition: "Only if momentum fails." }];
+      const tape = priceAction(); tape.dailyCandles.push(...scenario.bars);
+      const service = new OpenAITradersLinkAiReadService({ apiKey: "test-key", model: "test-model",
+        fetchImpl: async () => { calls++; return new Response(JSON.stringify({ output: [{ type: "message",
+          content: [{ type: "output_text", text: JSON.stringify(draft) }] }] }), { status: 200 }); } });
+      const read = await service.generate({ snapshot: snapshot(), priceAction: tape,
+        research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
+      assert.equal(read.downsideCheckpoints.length, scenario.retained ? 1 : 0);
+    }
+    assert.equal(calls, cases.length);
+  });
+
   it("provides redacted review validation provenance without a diagnostic store or extra request", async () => {
     const decisions: Record<string, unknown>[] = [];
     const draft = modelRead();
