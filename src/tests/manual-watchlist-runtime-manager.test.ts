@@ -134,6 +134,41 @@ test("outbox replay cannot remove a re-added ticker and does not block unrelated
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
+test("outbox replay cannot revive a removed ticker or apply data from its previous admission", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "old-data-replay-"));
+  try {
+    const path = join(directory, "outbox.json");
+    const card = { symbol: "PDSB", status: "live" as const, updatedAt: 123, cards: {} };
+    const quote = { type: "tickerData" as const, symbol: "PDSB", updatedAt: 124,
+      latestPrice: 0.5, nearestSupport: null, nearestResistance: null };
+    const fail = async () => { throw new Error("offline"); };
+    const offline = new DurableLiveWatchlistPublisher({ publish: fail, publishTickerData: fail }, path);
+    await assert.rejects(offline.publish(card), /offline/);
+    await assert.rejects(offline.publishTickerData(quote), /offline/);
+    const manager = Object.create(ManualWatchlistRuntimeManager.prototype) as any;
+    manager.watchlistStore = new WatchlistStore();
+    manager.options = {};
+    manager.watchlistStore.upsertManualEntry({ symbol: "PDSB", active: false, lifecycle: "inactive" });
+    const sent: unknown[] = [];
+    const send = async (patch: unknown) => { sent.push(patch); };
+    const replay = new DurableLiveWatchlistPublisher({ publish: send, publishTickerData: send }, path,
+      patch => manager.isWatchlistPublicationApproved(patch));
+    await replay.replayPending();
+    assert.deepEqual(sent, []);
+    manager.watchlistStore.upsertManualEntry({ symbol: "PDSB", active: false, lifecycle: "activating",
+      aiReadAdmission: { timestamp: 200, session: "regular", initialGenerationEnabled: false } });
+    await replay.replayPending();
+    assert.deepEqual(sent, []);
+    const newCard = { ...card, updatedAt: 201 };
+    await replay.publish(newCard);
+    manager.watchlistStore.patchEntry("PDSB", { active: true, lifecycle: "active" });
+    const newQuote = { ...quote, updatedAt: 202 };
+    await replay.publishTickerData(newQuote);
+    assert.deepEqual(sent, [newCard, newQuote]);
+    assert.equal(replay.pendingCount(), 1, "old card stays held; existing quote coalescing replaces the old quote with the new one");
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 test("activation publishes normally with zero AI calls when master or session is off in all three sessions", async () => {
   for (const method of ["activateSymbol", "queueActivation"] as const) for (const [session, timestamp] of [["premarket", "2026-07-23T12:00:00Z"], ["regular", "2026-07-23T15:00:00Z"], ["postmarket", "2026-07-23T21:00:00Z"]] as const) {
     for (const watchlistGroup of ["main", "top_regular"] as const) for (const [master, sessionEnabled] of [[false, true], [true, false], [false, false]]) for (const changeDuringPreparation of [false, true]) {

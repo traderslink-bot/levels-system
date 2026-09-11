@@ -3474,6 +3474,14 @@ export class ManualWatchlistRuntimeManager {
     }
     if (isWatchlistRemovalPatch(patch)) return true;
     if (!entry) return false;
+    if (!("status" in patch && patch.status === "deactivated")) {
+      // Ordinary activation publishes its first snapshot before becoming
+      // active. Outside that preparation state, late data cannot revive a
+      // removed ticker. Admission time also fences out an older post's outbox.
+      if (!entry.active && entry.lifecycle !== "activating") return false;
+      if (entry.aiReadAdmission && "updatedAt" in patch &&
+        (!Number.isFinite(patch.updatedAt) || patch.updatedAt < entry.aiReadAdmission.timestamp)) return false;
+    }
     return isWatchlistPatchApproved(patch, entry.publicationReview,
       (id) => this.options.tradersLinkAiReadReviewStore?.read(id) ?? null);
   }
