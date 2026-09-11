@@ -185,7 +185,11 @@ test("legacy public ticker manual replacement is persisted for review before dis
     manager.setTradersLinkAiReadGenerationSettings({ ...beforeSettings, automaticUpdatesEnabled: true });
     const failed = { generationId: "failed-replacement", runId: "run-failed", trigger: "automatic", model: "test", dataAsOf: now };
     reviewStore.recordGeneration(latest.cycleId, { ...failed, status: "started" });
+    assert.deepEqual(manager.listTradersLinkAiReadReviews(), [{ symbol: "PDSB",
+      status: "Preparing replacement — previous version available", canReview: true }]);
     reviewStore.recordGeneration(latest.cycleId, { ...failed, status: "failed" });
+    assert.deepEqual(manager.listTradersLinkAiReadReviews(), [{ symbol: "PDSB",
+      status: "Replacement failed — previous version available", canReview: true }]);
     assert.equal(manager.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger: "automatic" }).allowed, false);
     assert.equal(manager.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger: "manual" }).allowed, true);
     assert.equal(manager.isWatchlistPublicationApproved({ symbol: "PDSB", cards: {} }), true);
@@ -388,6 +392,8 @@ test(`private activation saves an AI draft without website publication or Discor
     const attempt = rejected.events.filter((event) => event.body.kind === "generation").at(-1)!;
     assert.equal(attempt.body.kind, "generation");
     assert.equal((attempt.body as any).status, "failed");
+    assert.deepEqual(manager.listTradersLinkAiReadReviews(), [{ symbol: "PDSB",
+      status: "Replacement failed — previous version available", canReview: true }]);
     assert.equal(rejected.events.filter((event) => event.body.kind === "original").length, 2);
     assert.equal(publisher.cardPatches.length, 2);
     assert.equal(aiCalls, 3);

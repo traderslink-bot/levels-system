@@ -4731,6 +4731,16 @@ export class ManualWatchlistRuntimeManager {
       try {
         const review = this.getTradersLinkAiReadReview(entry.symbol);
         if (!review || review.cancelled) return { symbol: entry.symbol, status: "Review unavailable", canReview: false };
+        const generation = review.events.findLast(event => event.body.kind === "generation");
+        if (generation?.body.kind === "generation" && generation.revision > (review.draft?.revision ?? 0) &&
+          generation.revision > (review.approved?.revision ?? 0)) {
+          if (generation.body.status === "failed") return { symbol: entry.symbol,
+            status: review.draft ? "Replacement failed — previous version available" : "Analysis failed — held for review",
+            canReview: Boolean(review.draft) };
+          if (generation.body.status === "started") return { symbol: entry.symbol,
+            status: review.draft ? "Preparing replacement — previous version available" : "Preparing analysis",
+            canReview: Boolean(review.draft) };
+        }
         if (!review.draft) return { symbol: entry.symbol, status: entry.tradersLinkAiReadFailure ? "Analysis failed — held for review" : "Preparing analysis", canReview: false };
         const approved = review.approved;
         let status = "Ready for review";
