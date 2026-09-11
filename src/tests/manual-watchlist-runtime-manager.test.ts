@@ -3773,6 +3773,7 @@ test("ManualWatchlistRuntimeManager publishes live volume in website ticker data
   const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
   persistence.storedEntries = [];
   const manager = new ManualWatchlistRuntimeManager({
+    now: () => Date.parse("2026-07-23T15:00:00Z"),
     candleFetchService: {} as any,
     levelStore,
     monitor: monitor as any,
@@ -3797,6 +3798,12 @@ test("ManualWatchlistRuntimeManager publishes live volume in website ticker data
   await manager.activateSymbol({ symbol: "CAST" });
   await waitForAsyncWork();
 
+  let followUpRequests = 0;
+  (manager as any).options.tradersLinkAiReadService = {
+    getConfiguredModel: () => "test", getReasoningEffort: () => "medium",
+    generate: async () => { followUpRequests += 1; throw new Error("Unexpected paid follow-up in quote test"); },
+  };
+  assert.equal(manager.getTradersLinkAiReadGenerationSettings().automaticUpdatesEnabled, false);
   liveWatchlistPublisher.tickerDataPatches = [];
   monitor.onPriceUpdate?.({
     symbol: "CAST",
@@ -3810,6 +3817,11 @@ test("ManualWatchlistRuntimeManager publishes live volume in website ticker data
   assert.equal(liveWatchlistPublisher.tickerDataPatches[0]?.symbol, "CAST");
   assert.equal(liveWatchlistPublisher.tickerDataPatches[0]?.latestPrice, 2.12);
   assert.equal(liveWatchlistPublisher.tickerDataPatches[0]?.volume, 123_456);
+  monitor.onPriceUpdate?.({ symbol: "CAST", timestamp: 4000, lastPrice: 2.2, volume: 234_567 });
+  await waitForAsyncWork();
+  assert.equal(liveWatchlistPublisher.tickerDataPatches.at(-1)?.latestPrice, 2.2);
+  assert.equal(liveWatchlistPublisher.tickerDataPatches.at(-1)?.volume, 234_567);
+  assert.equal(followUpRequests, 0, "live quote and volume refresh must not generate another analysis when updates are OFF");
 });
 
 test("ManualWatchlistRuntimeManager keeps stronger duplicate metadata in live website ticker levels", async () => {
