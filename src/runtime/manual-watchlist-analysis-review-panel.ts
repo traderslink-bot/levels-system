@@ -275,6 +275,30 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     node("h4", audit.symbol + " · Request audit", container);
     node("p", "Generation: " + audit.generationId, container);
     node("p", audit.diagnosticStatus === "available" ? "Available captured diagnostics are shown below." : "Input/response diagnostics are unavailable. Saved request and version records remain below.", container);
+    const checks = [];
+    const sectionNames = { "pullbackPlans.shallow": "Shallow pullback", "pullbackPlans.deep": "Deep pullback", failureRecovery: "Failure / recovery", breakoutContinuation: "Breakout continuation", mustClear: "Must-clear level", targets: "Where the trade could go next", downsideCheckpoints: "Downside checkpoints" };
+    const reasons = { invalid_number: "a required price is missing or invalid", low_confidence: "generation confidence is low", zone_order: "zone prices are reversed", reference_order: "price ordering does not fit the analysis price", missing_evidence: "no supporting observation was cited", unknown_evidence: "a cited observation was not in the packet", zone_evidence_mismatch: "zone prices do not match the cited base", invalidation_order: "invalidation does not sit below the zone", confirmation_order: "confirmation prices are out of order", objective_order: "the optional objective is out of order", momentum_failed: "the analysis price is already at or below momentum failure", failure_order: "invalidation conflicts with momentum failure", reclaim_order: "reclaim does not clear the recovery zone", restore_order: "setup restoration does not clear reclaim", zone_overlap: "the zones overlap or lack separation" };
+    const diagnosticEvents = Array.isArray(audit.diagnostic && audit.diagnostic.events) ? audit.diagnostic.events : [];
+    diagnosticEvents.forEach(event => {
+      if (event.phase !== "validation" || !event.payload || typeof event.payload !== "object") return;
+      const result = event.payload;
+      if (result.stage === "optional_sections" && Array.isArray(result.issues)) result.issues.forEach(issue => {
+        if (!issue || typeof issue.path !== "string") return;
+        const key = Object.keys(sectionNames).find(name => issue.path === name || issue.path.startsWith(name + "."));
+        const section = key ? sectionNames[key] : "Analysis section";
+        const reason = issue.code === "reference_order" && issue.path.startsWith("pullbackPlans.") ? "zone is not sufficiently below the analysis price" : issue.code === "momentum_failed" ? "the analysis price is too close to or below momentum failure" : (Object.hasOwn(reasons, issue.code) ? reasons[issue.code] : "see the validation record for details");
+        checks.push(section + " — " + (issue.action === "omit_objective" ? "optional objective omitted: " : "omitted: ") + reason + ".");
+      });
+      if (result.stage === "breakout_selection") checks.push(result.selectedCandidateId === "alternate" ? "Breakout continuation — backup selected from the same AI response." : result.selectedCandidateId === "primary" ? "Breakout continuation — primary selected." : "Breakout continuation — no candidate selected; see the validation record for reasons.");
+      if (result.stage === "outer_daily_resistance" && result.action === "omit_objective") checks.push("Farther daily resistance — optional addition omitted; the previously validated analysis was retained. See the validation record for the price and reason.");
+    });
+    if (checks.length) {
+      node("h4", "Analysis checks", container);
+      const list = node("ul", undefined, container);
+      const unique = Array.from(new Set(checks));
+      unique.slice(0, 80).forEach(text => node("li", text, list));
+      if (unique.length > 80) node("p", "More checks are available in the validation records below.", container);
+    }
     const show = (label, value) => {
       const details = node("details", undefined, container); node("summary", label, details);
       let rendered = false;
@@ -288,7 +312,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
       });
     };
     const labels = { request: "Input packet", response: "AI response", validation: "Validation results", prepared_payload: "Prepared analysis", transport_error: "Request error" };
-    ((audit.diagnostic && audit.diagnostic.events) || []).forEach((event, index) => show((labels[event.phase] || "Diagnostic record") + " · " + (index + 1), event.payload));
+    diagnosticEvents.forEach((event, index) => show((labels[event.phase] || "Diagnostic record") + " · " + (index + 1), event.payload));
     (audit.selectedEvents || []).forEach((event) => show("Version " + event.revision + " · " + event.body.kind, event));
   }
   byId("inspect").onclick = () => run(async () => {

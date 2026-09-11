@@ -17,11 +17,23 @@ test("request inspector renders lazily with explicit truncation and unavailable 
     },
     audit: { symbol: "PDSB", generationId: "g1", diagnosticStatus: "available", diagnostic: { events: [
       { phase: "response", payload: "<script>untrusted()</script>" + "x".repeat(100000) },
-      { phase: "validation", payload: { stage: "optional_sections", issues: ["omitted"] } },
+      { phase: "validation", payload: { stage: "optional_sections", issues: [
+        { path: "pullbackPlans.shallow.zoneHigh", code: "reference_order", action: "omit_section" },
+        { path: "pullbackPlans.deep.firstObjectivePrice", code: "objective_order", action: "omit_objective" },
+        { path: "failureRecovery.zone", code: "future_code", action: "omit_section" },
+      ] } },
+      { phase: "validation", payload: { stage: "breakout_selection", selectedCandidateId: "alternate" } },
+      { phase: "validation", payload: { stage: "outer_daily_resistance", action: "omit_objective", omitted: [{ price: 2.3 }] } },
     ] }, selectedEvents: [{ revision: 2, body: { kind: "original" } }] },
   };
   new Script(render + "\nrenderAudit(audit);").runInNewContext(context);
   assert.equal(elements.filter(element => element.tag === "pre").length, 0);
+  assert.ok(elements.some(element => element.text === "Analysis checks"));
+  assert.ok(elements.some(element => element.text === "Shallow pullback — omitted: zone is not sufficiently below the analysis price."));
+  assert.ok(elements.some(element => element.text === "Deep pullback — optional objective omitted: the optional objective is out of order."));
+  assert.ok(elements.some(element => element.text === "Failure / recovery — omitted: see the validation record for details."));
+  assert.ok(elements.some(element => element.text === "Breakout continuation — backup selected from the same AI response."));
+  assert.ok(elements.some(element => element.text?.startsWith("Farther daily resistance — optional addition omitted;")));
   const detail = elements.find(element => element.tag === "details");
   detail.open = true; detail.toggle(); detail.toggle();
   const pre = elements.filter(element => element.tag === "pre");
@@ -35,6 +47,7 @@ test("request inspector renders lazily with explicit truncation and unavailable 
   assert.ok(elements.some(element => element.text?.includes("diagnostics are unavailable")));
   assert.ok(elements.some(element => element.text === "Version 2 · original"));
   assert.equal(elements.filter(element => element.tag === "details").length, 1);
+  assert.equal(elements.some(element => element.text === "Analysis checks"), false, "missing diagnostics must not imply a clean check result");
 });
 
 test("receipt controls show only uncertain parts of the current approval and clear stale IDs", () => {
