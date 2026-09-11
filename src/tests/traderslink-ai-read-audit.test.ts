@@ -49,11 +49,32 @@ test("capacity cannot evict unfinished captures or unrelated owner records", () 
 
 test("old completed diagnostic captures may expire but unfinished ones remain", () => withStore((directory) => {
   const store = new TradersLinkAiReadAuditStore({ directory, retentionMs: 1 });
-  store.save(event("complete", "validation"));
+  store.save({ ...event("complete", "validation"), payload: { valid: false, error: "Rejected core" } });
   store.save(event("unfinished"));
   assert.equal(store.save({ ...event("new"), at: Date.now() + 1000 }).saved, true);
   assert.equal(store.read("complete"), null);
   assert.ok(store.read("unfinished"));
+}));
+
+test("intermediate section checks and successful validation cannot mark a request complete", () => withStore((directory) => {
+  const store = new TradersLinkAiReadAuditStore({ directory, retentionMs: 1 });
+  for (const [id, payload] of [
+    ["sections", { stage: "optional_sections", issues: [] }],
+    ["validated", { valid: true, normalized: {} }],
+    ["attempt", { stage: "api_attempt", status: "success" }],
+  ] as const) {
+    assert.equal(store.save({ ...event(id, "validation"), payload }).saved, true);
+  }
+  assert.equal(readdirSync(directory).filter(name => name.endsWith(".complete")).length, 0);
+  assert.equal(store.save({ ...event("later"), at: Date.now() + 1000 }).saved, true);
+  for (const id of ["sections", "validated", "attempt"]) assert.ok(store.read(id));
+  assert.equal(store.save(event("validated", "prepared_payload")).saved, true);
+  assert.equal(store.save(event("transport", "transport_error")).saved, true);
+  assert.equal(store.save({ ...event("final"), at: Date.now() + 2000 }).saved, true);
+  assert.equal(store.read("validated"), null);
+  assert.equal(store.read("transport"), null);
+  assert.ok(store.read("sections"));
+  assert.ok(store.read("attempt"));
 }));
 
 test("a corrupt existing audit fails visibly without overwriting it", () => withStore((directory) => {

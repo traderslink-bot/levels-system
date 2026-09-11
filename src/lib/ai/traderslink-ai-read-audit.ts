@@ -92,7 +92,12 @@ export class TradersLinkAiReadAuditStore {
       try { writeFileSync(fd, serialized, "utf8"); fsyncSync(fd); } finally { closeSync(fd); }
       renameSync(temporaryPath, path);
       temporaryPath = undefined;
-      if (event.phase === "transport_error" || event.phase === "validation" || event.phase === "prepared_payload") {
+      const failedValidation = event.phase === "validation" && event.payload !== null &&
+        typeof event.payload === "object" && "valid" in event.payload && event.payload.valid === false;
+      // Section/normalization/usage records are intermediate: success is not
+      // terminal until the prepared payload exists. Never prune an in-flight
+      // capture merely because it has emitted its first validation decision.
+      if (event.phase === "transport_error" || failedValidation || event.phase === "prepared_payload") {
         const marker = join(this.directory, `${key}.complete`);
         if (!existsSync(marker)) writeFileSync(marker, "1", { flag: "wx", mode: 0o600 });
       }
