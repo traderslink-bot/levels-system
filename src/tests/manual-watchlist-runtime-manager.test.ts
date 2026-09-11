@@ -40,6 +40,26 @@ function waitForAsyncWork(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+test("AI audit retains five request counts after the latest generation fails", () => {
+  const watchlistStore = new WatchlistStore();
+  watchlistStore.upsertManualEntry({ symbol: "PDSB", active: true });
+  const events: any[] = [];
+  for (let index = 1; index <= 5; index++) {
+    events.push({ symbol: "PDSB", generationId: `g${index}`, occurredAt: index * 10, stage: "request", outcome: "request_started" });
+    events.push({ symbol: "PDSB", generationId: `g${index}`, occurredAt: index * 10 + 1, stage: "attempt", outcome: index === 5 ? "failed" : "success" });
+  }
+  const manager = new ManualWatchlistRuntimeManager({
+    candleFetchService: {} as any, levelStore: new LevelStore(), monitor: new FakeMonitor() as any,
+    discordAlertRouter: new FakeDiscordAlertRouter() as any, opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+    watchlistStore, watchlistStatePersistence: new FakeWatchlistStatePersistence() as any,
+    tradersLinkAiReadRunLedger: { load: () => [...events].reverse(), summarize: () => ({}) } as any,
+  });
+  const audit = manager.getTradersLinkAiReadAudit({ symbol: "PDSB", includeFullHistory: true });
+  assert.equal(audit.currentEntries[0]!.requestCount, 5);
+  assert.equal(audit.currentEntries[0]!.attemptCount, 5);
+  assert.equal(audit.recentEvents.length, 10);
+});
+
 for (const sourceStatus of ["eligible", "no_eligible_article", "lookup_unavailable"] as const) {
 test(`canonical article manager flow: ${sourceStatus} uses fresh lookup and explicit fallback authority`, async () => {
   const directory = mkdtempSync(join(tmpdir(), "article-manager-review-"));

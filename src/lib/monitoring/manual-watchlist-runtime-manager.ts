@@ -3804,9 +3804,6 @@ export class ManualWatchlistRuntimeManager {
         const latestFailedEvent = entryEvents.find((event) =>
           event.outcome === "failed" && event.occurredAt >= lastPublishedAt,
         );
-        const currentGenerationEvents = latestFailedEvent?.generationId
-          ? entryEvents.filter((event) => event.generationId === latestFailedEvent.generationId)
-          : entryEvents;
         const status = (entry.tradersLinkAiReadCardVisible === false
           ? "hidden"
           : !entry.active
@@ -3837,8 +3834,8 @@ export class ManualWatchlistRuntimeManager {
             ? { lastReadGeneratedAt: entry.tradersLinkAiReadBoundaryState.generatedAt }
             : {}),
           ...(entry.activatedAt ? { activatedAt: entry.activatedAt } : {}),
-          attemptCount: currentGenerationEvents.filter((event) => event.stage === "attempt").length,
-          requestCount: currentGenerationEvents.filter(
+          attemptCount: entryEvents.filter((event) => event.stage === "attempt").length,
+          requestCount: entryEvents.filter(
             (event) => event.stage === "request" && event.outcome === "request_started",
           ).length,
           ...(latestFailedEvent

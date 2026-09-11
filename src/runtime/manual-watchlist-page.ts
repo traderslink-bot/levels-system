@@ -1670,9 +1670,18 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 
     function groupAiReadAuditOperations(events) {
       const groups = new Map();
+      const generationsByRun = new Map();
       for (const event of events) {
-        const key = event.generationId
-          ? "generation:" + event.generationId
+        if (!event.runId || !event.generationId) continue;
+        const ids = generationsByRun.get(event.runId) || new Set();
+        ids.add(event.generationId);
+        generationsByRun.set(event.runId, ids);
+      }
+      for (const event of events) {
+        const linked = generationsByRun.get(event.runId);
+        const generationId = event.generationId || (linked?.size === 1 ? [...linked][0] : null);
+        const key = generationId
+          ? "generation:" + generationId
           : event.runId
             ? "run:" + event.runId
             : "event:" + String(event.eventId || event.occurredAt || Math.random());
