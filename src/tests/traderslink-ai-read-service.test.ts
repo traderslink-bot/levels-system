@@ -1627,6 +1627,25 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(draft.downsideCheckpoints[0]?.price, 0.7);
   });
 
+  it("does not accept downside evidence words without a supplied price observation or support zone", async () => {
+    const draft = modelRead();
+    draft.downsideCheckpoints = [{ label: "Repeated tests held here", price: 0.7,
+      condition: "Volume confirms the shelf." }];
+    let calls = 0;
+    const service = new OpenAITradersLinkAiReadService({ apiKey: "test-key", model: "test-model",
+      fetchImpl: async () => { calls++; return new Response(JSON.stringify({ output: [{ type: "message",
+        content: [{ type: "output_text", text: JSON.stringify(draft) }] }] }), { status: 200 }); } });
+    const input = { snapshot: snapshot(), priceAction: priceAction(), research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } };
+    const unsupported = await service.generate(input);
+    assert.deepEqual(unsupported.downsideCheckpoints, []);
+    assert.equal(calls, 1);
+    input.snapshot.supportZones.push({ ...input.snapshot.supportZones[0]!, representativePrice: 0.7, lowPrice: 0.69, highPrice: 0.71 });
+    const supported = await service.generate(input);
+    assert.equal(supported.downsideCheckpoints[0]?.price, 0.7);
+    assert.match(supported.downsideCheckpoints[0]?.condition ?? "", /supplied support zone/);
+    assert.equal(calls, 2, "one request per distinct supplied packet, no corrective calls");
+  });
+
   it("provides redacted review validation provenance without a diagnostic store or extra request", async () => {
     const decisions: Record<string, unknown>[] = [];
     const draft = modelRead();
@@ -1703,7 +1722,8 @@ describe("OpenAITradersLinkAiReadService", () => {
     });
     await service.generate({ snapshot: snapshot(), priceAction: priceAction(),
       research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
-    assert.deepEqual(events.map((event) => event.phase), ["request", "response", "validation", "validation", "prepared_payload"]);
+    assert.deepEqual(events.map((event) => event.phase), ["request", "response", "validation", "validation", "validation", "prepared_payload"]);
+    assert.ok(events.some(event => event.phase === "validation" && (event.payload as any).stage === "observable_evidence_normalization"));
     const attempt = events.find(event => event.phase === "validation" && (event.payload as any).stage === "api_attempt")?.payload as any;
     assert.equal(attempt.attemptSequence, 1);
     assert.equal(attempt.status, "success");
@@ -1747,7 +1767,7 @@ describe("OpenAITradersLinkAiReadService", () => {
       onAuditCapture: (result) => captures.push(result) });
     assert.equal(read.symbol, "TGHL");
     assert.equal(requests, 1);
-    assert.equal(captures.length, 5);
+    assert.equal(captures.length, 6);
     assert.ok(captures.every((result) => !result.saved));
   });
 

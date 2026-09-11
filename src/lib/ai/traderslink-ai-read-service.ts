@@ -1267,6 +1267,7 @@ function normalizeObservableTapeEvidence(
   read: ModelRead,
   currentPrice: number,
   priceAction: TradersLinkAiReadPriceActionContext,
+  snapshot?: LevelSnapshotPayload,
 ): ModelRead {
   const appendEvidence = (text: string, price: number | null): string => {
     if (price === null || TAPE_EVIDENCE_LANGUAGE.test(text)) {
@@ -1290,6 +1291,21 @@ function normalizeObservableTapeEvidence(
   };
   const normalizeScenarios = <T extends ModelRead["targets"][number]>(items: T[]): T[] =>
     items.map(normalizeScenario).filter((item): item is T => item !== null);
+  const normalizeDownside = (item: ModelRead["downsideCheckpoints"][number]) => {
+    if (item.price === null) return null;
+    const observed = observableCandleEvidence(item.price, currentPrice, priceAction);
+    const supportedZone = snapshot?.supportZones.some(zone => {
+      const low = zone.lowPrice ?? zone.representativePrice;
+      const high = zone.highPrice ?? zone.representativePrice;
+      return Number.isFinite(low) && Number.isFinite(high) && low > 0 && low <= high &&
+        item.price! >= low && item.price! <= high;
+    });
+    if (!observed && !supportedZone) return null;
+    // Sounding like tape evidence is not price evidence. Retain the supplied
+    // support-map boundary even when it lies outside the candle lookback.
+    const evidence = observed ?? "This price aligns with a supplied support zone.";
+    return { ...item, condition: `${item.condition.trim()} ${evidence}`.trim() };
+  };
 
   return {
     ...read,
@@ -1299,7 +1315,7 @@ function normalizeObservableTapeEvidence(
     mustClear: normalizeLevel(read.mustClear),
     breakoutContinuation: normalizeLevel(read.breakoutContinuation),
     targets: normalizeScenarios(read.targets),
-    downsideCheckpoints: normalizeScenarios(read.downsideCheckpoints),
+    downsideCheckpoints: read.downsideCheckpoints.map(normalizeDownside).filter((item): item is NonNullable<typeof item> => item !== null),
   };
 }
 
@@ -1573,7 +1589,8 @@ function assertTradersLinkAiTradeMap(
     if (checkpoint.price === null) {
       continue;
     }
-    if (!TAPE_EVIDENCE_LANGUAGE.test(`${checkpoint.label} ${checkpoint.condition}`)) {
+    if (!TAPE_EVIDENCE_LANGUAGE.test(`${checkpoint.label} ${checkpoint.condition}`) &&
+      !checkpoint.condition.includes("This price aligns with a supplied support zone.")) {
       fail(`downside checkpoint ${checkpoint.price} does not cite observable price-action evidence`);
     }
     if (previousDownside - checkpoint.price < tacticalSpacing) {
@@ -2570,6 +2587,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         spacedRead,
         referenceQuote.price,
         input.priceAction,
+        input.snapshot,
       );
       for (const [stage, before, after] of [
         ["checkpoint_spacing", modelRead, spacedRead],
