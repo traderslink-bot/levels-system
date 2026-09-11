@@ -6,6 +6,27 @@ export type WatchlistPublicationCheck = LiveWatchlistPublishedPatch | Pick<LiveW
 
 export type WatchlistPublicationReview = { cycleId: string; required: boolean };
 
+export type WatchlistAiReadAdmission = {
+  timestamp: number;
+  session: "premarket" | "regular" | "postmarket" | "closed";
+  initialGenerationEnabled: boolean;
+};
+
+/** Legacy absence stays compatible; damaged admission records cannot enable spend. */
+export function normalizeAiReadAdmission(value: unknown): WatchlistAiReadAdmission | undefined {
+  if (value === undefined) return undefined;
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const candidate = value as Record<string, unknown>;
+    if (typeof candidate.timestamp === "number" && Number.isFinite(candidate.timestamp) && candidate.timestamp > 0 &&
+      ["premarket", "regular", "postmarket", "closed"].includes(candidate.session as string) &&
+      typeof candidate.initialGenerationEnabled === "boolean") {
+      return { timestamp: candidate.timestamp, session: candidate.session as WatchlistAiReadAdmission["session"],
+        initialGenerationEnabled: candidate.initialGenerationEnabled && candidate.session !== "closed" };
+    }
+  }
+  return { timestamp: 0, session: "closed", initialGenerationEnabled: false };
+}
+
 /** Missing is a legacy ticker; malformed is never interpreted as bypass. */
 export function normalizePublicationReview(value: unknown): WatchlistPublicationReview | undefined {
   if (value === undefined) return undefined;

@@ -3,12 +3,29 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, test } from "node:test";
-import { hasWatchlistPublicationApproval, isWatchlistPatchApproved, normalizePublicationReview, requiresInitialWatchlistReview } from "../lib/ai/traderslink-ai-read-review-policy.js";
+import { hasWatchlistPublicationApproval, isWatchlistPatchApproved, normalizeAiReadAdmission, normalizePublicationReview, requiresInitialWatchlistReview } from "../lib/ai/traderslink-ai-read-review-policy.js";
 import { TradersLinkAiReadReviewStore } from "../lib/ai/traderslink-ai-read-review-store.js";
 import { WatchlistStore } from "../lib/monitoring/watchlist-store.js";
 import { WatchlistStatePersistence } from "../lib/monitoring/watchlist-state-persistence.js";
 
 const directories: string[] = [];
+test("admission decision survives store and disk reload; malformed data cannot enable an initial request", () => {
+  const directory = mkdtempSync(join(tmpdir(), "admission-policy-"));
+  directories.push(directory);
+  const persistence = new WatchlistStatePersistence({ filePath: join(directory, "state.json") });
+  const store = new WatchlistStore();
+  const admission = { timestamp: Date.now(), session: "regular" as const, initialGenerationEnabled: false };
+  store.upsertManualEntry({ symbol: "PDSB", active: true, aiReadAdmission: admission });
+  persistence.save(store.getEntries());
+  const restarted = new WatchlistStore();
+  restarted.setEntries(persistence.load());
+  assert.deepEqual(restarted.getEntry("PDSB")?.aiReadAdmission, admission);
+  assert.equal(normalizeAiReadAdmission(undefined), undefined);
+  for (const invalid of [null, {}, { ...admission, timestamp: NaN }, { ...admission, initialGenerationEnabled: "true" }]) {
+    assert.equal(normalizeAiReadAdmission(invalid)?.initialGenerationEnabled, false);
+  }
+  assert.equal(normalizeAiReadAdmission({ ...admission, session: "closed", initialGenerationEnabled: true })?.initialGenerationEnabled, false);
+});
 test("legacy replacement preserves only non-analysis updates without inventing approval, including after restart", () => {
   const directory = mkdtempSync(join(tmpdir(), "replacement-policy-"));
   directories.push(directory);

@@ -335,6 +335,7 @@ export type WatchlistTradersLinkAiReadFailure = {
 export type WatchlistGroup = "top_regular" | "main" | "postmarket";
 
 export type WatchlistEntry = {
+  aiReadAdmission?: import("../ai/traderslink-ai-read-review-policy.js").WatchlistAiReadAdmission;
   symbol: string;
   publicationReview?: import("../ai/traderslink-ai-read-review-policy.js").WatchlistPublicationReview;
   active: boolean;

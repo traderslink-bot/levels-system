@@ -735,6 +735,8 @@ export type ManualWatchlistActivationInput = {
   selectionGainPct?: number;
   reuseExistingSameDayContext?: boolean;
   preservedActivatedAt?: number;
+  /** Internal snapshot; public admission methods always replace caller input. */
+  aiReadAdmission?: WatchlistEntry["aiReadAdmission"];
 };
 
 export type ManualWatchlistDeactivationSource = "manual" | "auto" | "clear";
@@ -3577,6 +3579,10 @@ export class ManualWatchlistRuntimeManager {
     }
     const symbol = context.symbol ? normalizeSymbol(context.symbol) : "";
     const entry = symbol ? this.watchlistStore.getEntry(symbol) : undefined;
+    if (context.requestedTrigger === "activation" && entry?.aiReadAdmission?.initialGenerationEnabled === false) {
+      return { allowed: false, session, reason: "Initial AI generation was disabled when this ticker was added. Use manual refresh.",
+        topRegularActivationOverrideApplied: false };
+    }
     if (context.requestedTrigger === "activation" && !this.tradersLinkAiReadGenerationSettings.automaticUpdatesEnabled && entry?.publicationReview?.cycleId) {
       const savedReview = this.options.tradersLinkAiReadReviewStore?.read(entry.publicationReview.cycleId);
       if (!savedReview || savedReview.events.some(event => event.body.kind === "generation" || event.body.kind === "original")) {
@@ -12209,6 +12215,7 @@ export class ManualWatchlistRuntimeManager {
 
       const entry = this.watchlistStore.upsertManualEntry({
         symbol,
+        aiReadAdmission: input.aiReadAdmission,
         tags: watchlistTagsForActivation(input),
         watchlistGroup: watchlistGroupForActivation(input),
         note: input.note,
@@ -12288,7 +12295,8 @@ export class ManualWatchlistRuntimeManager {
       const activationAiReadSchedule = decideTradersLinkAiReadActivationSchedule(
         this.aiReadState.get(symbol) ?? null,
       );
-      if (activationAiReadSchedule.force) {
+      if (activationAiReadSchedule.force && this.getTradersLinkAiReadGenerationAvailability(undefined,
+        { symbol, requestedTrigger: activationAiReadSchedule.trigger }).allowed) {
         const activatedAt = (this.watchlistStore.getEntry(symbol) ?? activatedEntry).activatedAt;
         this.recordTradersLinkAiReadRunOutcome({
           symbol,
@@ -13157,7 +13165,18 @@ export class ManualWatchlistRuntimeManager {
 
   async activateSymbol(input: ManualWatchlistActivationInput): Promise<WatchlistEntry> {
     if (this.shouldPreparePrivateActivation(input)) return this.preparePrivateActivation(input);
-    return this.performActivation(input, this.watchlistStore.getEntries());
+    return this.performActivation({ ...input, aiReadAdmission: this.captureAiReadAdmission() }, this.watchlistStore.getEntries());
+  }
+
+  private captureAiReadAdmission(): NonNullable<WatchlistEntry["aiReadAdmission"]> {
+    const timestamp = this.options.now?.() ?? Date.now();
+    const session = classifyUsEquityMarketSession(timestamp).session;
+    const settings = this.tradersLinkAiReadGenerationSettings;
+    return { timestamp, session, initialGenerationEnabled: requiresInitialWatchlistReview({
+      reviewEnabled: true, generationEnabled: settings.enabled, session,
+      premarketEnabled: settings.premarketEnabled, regularEnabled: settings.regularEnabled,
+      postmarketEnabled: settings.postmarketEnabled,
+    }) };
   }
 
   private shouldPreparePrivateActivation(input: ManualWatchlistActivationInput): boolean {
@@ -13188,6 +13207,7 @@ export class ManualWatchlistRuntimeManager {
       note: input.note, active: true, lifecycle: "active", activatedAt: now, discordThreadId: null,
       lastError: null,
       publicationReview: { cycleId, required: true }, refreshPending: false,
+      aiReadAdmission: this.captureAiReadAdmission(),
       pendingTradersLinkAiReadGeneration: null, operationStatus: "preparing private analysis",
     });
     this.watchlistStore.patchEntry(symbol, { tradersLinkAiReadBoundaryState: undefined, tradersLinkAiReadFailure: null });
@@ -13252,6 +13272,7 @@ export class ManualWatchlistRuntimeManager {
     const activationInput: ManualWatchlistActivationInput = {
       ...input,
       symbol,
+      aiReadAdmission: this.captureAiReadAdmission(),
       reuseExistingSameDayContext,
       ...(reuseExistingSameDayContext && existing?.activatedAt !== undefined
         ? { preservedActivatedAt: existing.activatedAt }
@@ -13349,6 +13370,7 @@ export class ManualWatchlistRuntimeManager {
     });
     const queuedEntry = this.watchlistStore.upsertManualEntry({
       symbol,
+      aiReadAdmission: activationInput.aiReadAdmission,
       tags: watchlistTagsForActivation(input),
       watchlistGroup: watchlistGroupForActivation(input),
       note: input.note,

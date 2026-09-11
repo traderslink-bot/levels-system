@@ -89,8 +89,9 @@ test("multipart approved delivery resumes after verified uncertainty without dup
 
 test("activation publishes normally with zero AI calls when master or session is off in all three sessions", async () => {
   for (const method of ["activateSymbol", "queueActivation"] as const) for (const [session, timestamp] of [["premarket", "2026-07-23T12:00:00Z"], ["regular", "2026-07-23T15:00:00Z"], ["postmarket", "2026-07-23T21:00:00Z"]] as const) {
-    for (const watchlistGroup of ["main", "top_regular"] as const) for (const [master, sessionEnabled] of [[false, true], [true, false], [false, false]]) {
-      const now = Date.parse(timestamp), store = new WatchlistStore(), levels = new LevelStore();
+    for (const watchlistGroup of ["main", "top_regular"] as const) for (const [master, sessionEnabled] of [[false, true], [true, false], [false, false]]) for (const changeDuringPreparation of [false, true]) {
+      let now = Date.parse(timestamp);
+      const store = new WatchlistStore(), levels = new LevelStore();
       const discord = new FakeDiscordAlertRouter(), publisher = new FakeLiveWatchlistPublisher();
       let calls = 0;
       const manager = new ManualWatchlistRuntimeManager({
@@ -98,7 +99,14 @@ test("activation publishes normally with zero AI calls when master or session is
         discordAlertRouter: discord as any, opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
         watchlistStore: store, watchlistStatePersistence: new FakeWatchlistStatePersistence() as any,
         liveWatchlistPublisher: publisher, now: () => now, initialReviewBeforePublishingEnabled: true,
-        seedSymbolLevels: async symbol => { levels.setLevels(buildLevelOutput(symbol)); },
+        seedSymbolLevels: async symbol => {
+          if (changeDuringPreparation) {
+            now = Date.parse("2026-07-24T15:00:00Z");
+            manager.setTradersLinkAiReadGenerationSettings({ ...manager.getTradersLinkAiReadGenerationSettings(),
+              enabled: true, premarketEnabled: true, regularEnabled: true, postmarketEnabled: true });
+          }
+          levels.setLevels(buildLevelOutput(symbol));
+        },
         tradersLinkAiReadService: { getConfiguredModel: () => "test", getReasoningEffort: () => "medium",
           generate: async () => { calls++; throw new Error("Disabled generation must not be invoked"); } } as any,
       });
@@ -112,13 +120,18 @@ test("activation publishes normally with zero AI calls when master or session is
       await (manager as any).pendingActivations.get("PDSB")?.promise;
       await waitForAsyncWork();
       const entry = store.getEntry("PDSB")!;
-      const label = `${method} ${watchlistGroup} ${session} master=${master} session=${sessionEnabled}`;
+      const label = `${method} ${watchlistGroup} ${session} master=${master} session=${sessionEnabled} transition=${changeDuringPreparation}`;
+      assert.deepEqual(entry.aiReadAdmission, { timestamp: Date.parse(timestamp), session, initialGenerationEnabled: false }, label);
       assert.equal(entry.active, true, label);
       assert.equal(entry.publicationReview?.required ?? false, false, label);
       assert.equal(discord.ensured.length, 1, label);
       assert.ok(discord.levelSnapshots.length > 0, label);
       assert.ok(publisher.cardPatches.length > 0, label);
       assert.equal(calls, 0, label);
+      if (changeDuringPreparation) {
+        assert.equal(manager.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger: "activation" }).allowed, false, label);
+        assert.equal(manager.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger: "manual" }).allowed, true, label);
+      }
     }
   }
 });
