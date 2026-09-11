@@ -1986,6 +1986,27 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.doesNotMatch(JSON.stringify(events), /private-test-credential|Authorization/);
   });
 
+  it("characterizes the remaining legacy checkpoint text rejection before dependency migration", async () => {
+    // This is a known-gap characterization, not partial-publication acceptance.
+    // Both prices have synthetic observed support, isolating text from evidence.
+    for (const field of ["targets", "downsideCheckpoints"] as const) {
+      const tape = priceAction();
+      tape.dailyCandles.push({ timestamp: DATA_AS_OF - 22 * 86400000,
+        open: 1, high: 2.2, low: 0.85, close: 1.5, volume: 100000 });
+      const draft = modelRead();
+      draft[field] = [{ label: "Observed checkpoint", price: field === "targets" ? 2.2 : 0.85,
+        condition: "Premarket volume was zero." }];
+      let requests = 0;
+      const service = new OpenAITradersLinkAiReadService({ apiKey: "test-key", model: "test-model",
+        fetchImpl: async () => { requests += 1; return new Response(JSON.stringify({ output: [{ type: "message",
+          content: [{ type: "output_text", text: JSON.stringify(draft) }] }] }), { status: 200 }); },
+      });
+      await assert.rejects(service.generate({ snapshot: snapshot(), priceAction: tape,
+        research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } }), /zero shares traded/);
+      assert.equal(requests, 1);
+    }
+  });
+
   it("does not prepare a news-only analysis or pay for a second request", async () => {
     const draft = modelRead();
     for (const key of ["needsToHold", "cautionBelow", "momentumFailure", "mustClear", "breakoutContinuation"]) draft[key] = { label: "", price: null, rationale: "" };
