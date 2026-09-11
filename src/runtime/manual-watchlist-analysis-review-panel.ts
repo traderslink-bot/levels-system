@@ -18,7 +18,9 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     <label for="analysis-review-symbol">Ticker</label>
     <input id="analysis-review-symbol" maxlength="20" autocomplete="off" />
     <button type="button" id="analysis-review-load">Review ticker</button>
+    <button type="button" id="analysis-review-history-load" class="secondary">Ticker history</button>
   </div>
+  <div id="analysis-review-cycles" aria-label="Saved ticker histories"></div>
   <p id="analysis-review-status" role="status" aria-live="polite"></p>
   <div id="analysis-review-editor"></div>
   <div class="inline-control" id="analysis-review-actions" hidden>
@@ -46,6 +48,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   const pullbackFields = ["zoneLow", "zoneHigh", "confirmationPrice", "confirmation", "invalidationPrice", "firstObjectivePrice", "rationale"];
   const recoveryFields = ["recoveryZoneLow", "recoveryZoneHigh", "firstReclaimPrice", "setupRestorePrice", "firstObjectivePrice", "rationale"];
   let review = null, patch = null, preview = null, dirty = false, busy = false, controlsLoaded = false;
+  let historical = false;
   const node = (tag, text, parent) => { const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (parent) parent.append(el); return el; };
   const message = (text) => { status.textContent = text; };
   const changed = () => { dirty = true; preview = null; previewContent.replaceChildren(); byId("approve").disabled = true; };
@@ -124,6 +127,12 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     });
     byId("export-area").hidden = generationIds.size === 0;
     if (generationIds.size) generations.value = Array.from(generationIds).at(-1);
+    if (historical) {
+      patch = null; dirty = false; actions.hidden = true;
+      if (review) renderReviewHistory(review.events, editor);
+      message("Historical record — read only. Export a request to inspect its saved analysis and revisions.");
+      return;
+    }
     if (!draft || !draft.body.payload) {
       patch = null; dirty = false; actions.hidden = true;
       if (review) renderReviewHistory(review.events, editor);
@@ -167,12 +176,38 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     for (const key of ["catalystRealityCheck", "dilutionRisk", "listingStatus"]) fields(section(key), patch[key], ["summary", "dayTradeRelevance"]);
     renderReviewHistory(review.events, editor);
   }
-  byId("load").onclick = () => { if (dirty && !window.confirm("Discard unsaved edits and load this ticker?")) return; run(async () => { const result = await request(""); review = result.review; renderEditor(); if (review && review.draft) message("Saved analysis loaded."); }); };
+  byId("load").onclick = () => { if (dirty && !window.confirm("Discard unsaved edits and load this ticker?")) return; run(async () => { const result = await request(""); review = result.review; historical = false; renderEditor(); if (review && review.draft) message("Saved analysis loaded."); }); };
+  async function loadHistory(symbol, after) {
+    const result = await request("/history", undefined, { symbol, ...(after ? { after } : {}) });
+    const list = byId("cycles");
+    if (!after) list.replaceChildren();
+    const previousMore = list.querySelector("[data-history-more]");
+    if (previousMore) previousMore.remove();
+    node("h4", symbol + " · Saved histories", list);
+    result.cycles.forEach((cycle) => {
+      const button = node("button", "Inspect " + new Date(cycle.startedAt).toLocaleString(), list);
+      button.type = "button";
+      button.onclick = () => {
+        if (dirty && !window.confirm("Discard unsaved edits and open this historical record?")) return;
+        run(async () => {
+          const selected = await request("", undefined, { symbol, cycleId: cycle.cycleId });
+          review = selected.review; historical = true; renderEditor();
+        });
+      };
+    });
+    if (result.nextCursor) {
+      const more = node("button", "Load more histories", list); more.type = "button"; more.dataset.historyMore = "1";
+      more.onclick = () => run(() => loadHistory(symbol, result.nextCursor));
+    } else if (!result.cycles.length) node("p", after ? "No more matching histories." : "No saved histories for this ticker.", list);
+  }
+  byId("history-load").onclick = () => run(() => loadHistory(ticker.value.trim().toUpperCase()));
   byId("save").onclick = () => run(async () => {
+    if (historical) throw new Error("Historical records are read only.");
     const result = await request("/save", { symbol: review.symbol, cycleId: review.cycleId, expectedHead: review.head, patch });
     review = result.review; renderEditor(); message("Draft saved." + (result.warnings.length ? " " + result.warnings.join(" ") : ""));
   });
   byId("preview").onclick = () => run(async () => {
+    if (historical) throw new Error("Historical records are read only.");
     if (dirty) { message("Save your edits before previewing."); return; }
     preview = await request("/preview");
     if (preview.cycleId !== review.cycleId || preview.draftRevision !== review.draft.revision) { preview = null; throw new Error("The draft changed. Reload before previewing."); }
@@ -188,11 +223,13 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     message("Preview ready. Approve and publish sends this saved version.");
   });
   byId("approve").onclick = () => run(async () => {
+    if (historical) throw new Error("Historical records are read only.");
     if (!preview || dirty) throw new Error("Preview the saved version before approving.");
     const result = await request("/approve", { symbol: review.symbol, cycleId: preview.cycleId, expectedHead: preview.expectedHead, draftRevision: preview.draftRevision, previewHash: preview.previewHash });
     review = result.review; renderEditor(); message("Approved version published to the website and Discord.");
   });
   byId("retry").onclick = () => run(async () => {
+    if (historical) throw new Error("Historical records are read only.");
     if (!review || !review.approved) throw new Error("There is no approved version to deliver.");
     const result = await request("/retry-discord", { symbol: review.symbol, cycleId: review.cycleId, approvalRevision: review.approved.revision });
     review = result.review; message("Discord delivery confirmed.");
@@ -200,7 +237,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   byId("export").onclick = () => run(async () => {
     const generationId = byId("export-generation").value;
     if (!review || !generationId) throw new Error("Select a saved analysis to export.");
-    const result = await request("/export", undefined, { symbol: review.symbol, generationId });
+    const result = await request("/export", undefined, { symbol: review.symbol, generationId, ...(historical ? { cycleId: review.cycleId } : {}) });
     const url = URL.createObjectURL(new Blob([JSON.stringify(result.audit, null, 2)], { type: "application/json" }));
     const link = node("a"); link.href = url; link.download = review.symbol + "-analysis-audit.json"; document.body.append(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
@@ -219,7 +256,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
       const row = node("div", undefined, list); row.className = "inline-control";
       node("span", item.symbol + " · " + item.status, row);
       const button = node("button", (item.canReview ? "Review " : "Inspect ") + item.symbol, row); button.type = "button";
-      button.onclick = () => { if (dirty && !window.confirm("Discard unsaved edits and load this ticker?")) return; run(async () => { ticker.value = item.symbol; review = (await request("")).review; renderEditor(); if (review && review.draft) message("Saved analysis loaded."); }); };
+      button.onclick = () => { if (dirty && !window.confirm("Discard unsaved edits and load this ticker?")) return; run(async () => { ticker.value = item.symbol; review = (await request("")).review; historical = false; renderEditor(); if (review && review.draft) message("Saved analysis loaded."); }); };
     });
   };
   byId("queue-refresh").onclick = () => run(loadQueue);

@@ -14,6 +14,29 @@ function setup() {
 afterEach(() => { for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true }); });
 const payload = { symbol: "PDSB", currentRead: "Original analysis", price: 0.5 };
 
+test("history pages every cycle once without mixing ticker identities", () => {
+  const { store } = setup();
+  for (let index = 0; index < 203; index++) store.begin("history-" + index, index % 2 ? "TNON" : "PDSB", true, "owner");
+  const first = store.listCycles("pdsb");
+  assert.match(first.nextCursor!, /^[a-f0-9]{64}$/);
+  const second = store.listCycles("PDSB", first.nextCursor!);
+  assert.equal(second.nextCursor, null);
+  const cycles = [...first.cycles, ...second.cycles];
+  assert.equal(cycles.length, 102);
+  assert.equal(new Set(cycles.map(cycle => cycle.cycleId)).size, 102);
+  assert.ok(cycles.every(cycle => cycle.symbol === "PDSB" && cycle.startedAt === 123));
+  assert.deepEqual(store.listCycles("AEON").cycles, []);
+  assert.throws(() => store.listCycles("PDSB", "bad-cursor"), /Invalid review history/);
+});
+
+test("history does not silently skip corrupted origin metadata", () => {
+  const { store, directory } = setup();
+  store.begin("history", "PDSB", true, "owner");
+  const cycleDirectory = readdirSync(directory)[0]!;
+  writeFileSync(join(directory, cycleDirectory, "00000001.json"), JSON.stringify({ version: 1, body: { kind: "begin", symbol: "PDSB" } }));
+  assert.throws(() => store.listCycles("PDSB"), /integrity/);
+});
+
 test("preserves original, owner edit and exact approved revision through restart", () => {
   const { directory, store } = setup();
   store.begin("cycle", "PDSB", true, "owner");
@@ -75,6 +98,12 @@ test("cancelled activation cycle cannot be approved or reused for a re-add", () 
   store.begin("new", "PDSB", false, "owner");
   assert.equal(store.read("new")?.reviewRequired, false);
   assert.equal(store.read("old")?.reviewRequired, true);
+  const history = store.listCycles("pdsb");
+  assert.deepEqual(history.cycles.map(cycle => cycle.cycleId).sort(), ["new", "old"]);
+  assert.equal(history.nextCursor, null);
+  assert.deepEqual(store.listCycles("FTFT").cycles, []);
+  assert.equal(store.read("old")?.head, 3);
+  assert.throws(() => store.listCycles("PDSB", "../invalid"), /Invalid review history/);
 });
 
 test("corrupt durable history fails closed without overwriting it", () => {

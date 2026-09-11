@@ -79,6 +79,40 @@ test("pending review list is owner-only and read-only", async () => {
   assert.deepEqual(calls.map((call) => call.method), ["queue"]);
 });
 
+test("historical selection cannot fall through to a current preview or mutation", async () => {
+  const { manager, calls } = setup();
+  for (const [suffix, method] of [["/preview", "GET"], ["/history", "GET"], ["/queue", "GET"], ["/settings", "POST"], ["/approve", "POST"], ["/save", "POST"], ["/retry-discord", "POST"]]) {
+    const result = await dispatchAnalysisReviewRequest({ method, pathname: `/api/watchlist/analysis-review${suffix}`,
+      actor: "platform-owner:test-owner", searchParams: new URLSearchParams("symbol=PDSB&cycleId=old-cycle"), body: {} }, manager as any);
+    assert.equal(result.status, 400, suffix);
+  }
+  assert.equal(calls.length, 0);
+});
+
+test("historical reads and exports retain the explicit ticker and cycle selection", async () => {
+  const { manager, calls } = setup();
+  const selections: unknown[] = [];
+  const historicalManager = { ...manager,
+    getHistoricalTradersLinkAiReadReview: (symbol: string, cycleId: string) => { selections.push([symbol, cycleId]); return { cycleId }; },
+    listTradersLinkAiReadHistory: (symbol: string, after?: string) => { selections.push([symbol, after]); return { cycles: [], nextCursor: null }; },
+  };
+  const request = { method: "GET", pathname: "/api/watchlist/analysis-review", actor: "platform-owner:test-owner",
+    searchParams: new URLSearchParams("symbol=pdsb&cycleId=old-cycle") };
+  assert.equal((await dispatchAnalysisReviewRequest({ ...request, actor: "" }, historicalManager as any)).status, 403);
+  assert.deepEqual((await dispatchAnalysisReviewRequest(request, historicalManager as any)).body,
+    { review: { cycleId: "old-cycle" }, historical: true });
+  const controls = { get: () => ({ automaticUpdatesEnabled: false, reviewBeforePublishingEnabled: true }), save: () => ({}),
+    exportAudit: (...args: unknown[]) => { selections.push(args); return {}; } };
+  request.searchParams.set("generationId", "g-old");
+  assert.equal((await dispatchAnalysisReviewRequest({ ...request, pathname: request.pathname + "/export" }, historicalManager as any, controls)).status, 200);
+  const history = { ...request, pathname: request.pathname + "/history", searchParams: new URLSearchParams("symbol=PDSB&after=" + "a".repeat(64)) };
+  assert.equal((await dispatchAnalysisReviewRequest(history, historicalManager as any)).status, 200);
+  history.searchParams.set("after", "invalid");
+  assert.equal((await dispatchAnalysisReviewRequest(history, historicalManager as any)).status, 400);
+  assert.deepEqual(selections, [["PDSB", "old-cycle"], ["PDSB", "g-old", "old-cycle"], ["PDSB", "a".repeat(64)]]);
+  assert.equal(calls.length, 0);
+});
+
 test("export requires an explicit generation and the protected owner context", async () => {
   const { manager } = setup();
   const selections: string[] = [];

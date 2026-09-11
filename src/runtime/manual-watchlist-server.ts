@@ -1140,8 +1140,8 @@ async function main(): Promise<void> {
           actor: typeof actorHeader === "string" ? actorHeader : undefined,
         }, manager, {
           get: () => manager.getTradersLinkAiReadReviewControls(),
-          exportAudit: (symbol, generationId) => {
-            const review = manager.getTradersLinkAiReadReview(symbol);
+          exportAudit: (symbol, generationId, cycleId) => {
+            const review = cycleId ? manager.getHistoricalTradersLinkAiReadReview(symbol, cycleId) : manager.getTradersLinkAiReadReview(symbol);
             if (!review) throw new Error("Review history unavailable.");
             return exportAnalysisReview({ review, generationId,
               diagnostics: new TradersLinkAiReadAuditStore({ directory: join(durableDataDirectory, "ai-read-diagnostics") }),

@@ -51,6 +51,36 @@ export class TradersLinkAiReadReviewStore {
     return join(this.directory, digest(cycleId));
   }
 
+  listCycles(symbolInput: string, after?: string): {
+    cycles: Array<{ cycleId: string; symbol: string; startedAt: number }>;
+    nextCursor: string | null;
+  } {
+    const symbol = symbolInput.trim().toUpperCase();
+    if (!/^[A-Z0-9][A-Z0-9.\-]{0,19}$/.test(symbol) || (after !== undefined && !/^[a-f0-9]{64}$/.test(after))) throw new Error("Invalid review history request.");
+    if (!existsSync(this.directory)) return { cycles: [], nextCursor: null };
+    requireDirectory(this.directory);
+    const names = readdirSync(this.directory).filter(name => /^[a-f0-9]{64}$/.test(name) && (!after || name > after)).sort();
+    const page = names.slice(0, 200);
+    const cycles: Array<{ cycleId: string; symbol: string; startedAt: number }> = [];
+    for (const name of page) {
+      const directory = join(this.directory, name);
+      requireDirectory(directory);
+      const firstPath = join(directory, eventName(1));
+      // An empty directory can remain after a failed first append. It contains
+      // no accepted review history and must not create a selectable cycle.
+      if (!existsSync(firstPath)) continue;
+      const stat = lstatSync(firstPath);
+      if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 4096) throw new Error("Invalid review history metadata.");
+      const event = JSON.parse(readFileSync(firstPath, "utf8")) as ReviewEvent;
+      const { hash, ...unsigned } = event;
+      if (event.version !== 1 || event.revision !== 1 || event.previousHash !== null ||
+          typeof event.cycleId !== "string" || digest(event.cycleId) !== name ||
+          event.body?.kind !== "begin" || !Number.isFinite(event.at) || hash !== digest(json(unsigned))) throw new Error("Review history integrity failure.");
+      if (event.body.symbol === symbol) cycles.push({ cycleId: event.cycleId, symbol, startedAt: event.at });
+    }
+    return { cycles, nextCursor: names.length > page.length ? page.at(-1)! : null };
+  }
+
   read(cycleId: string): ReviewState | null {
     const directory = this.cycleDirectory(cycleId);
     if (!existsSync(this.directory)) return null;

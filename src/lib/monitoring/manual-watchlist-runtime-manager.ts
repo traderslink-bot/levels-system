@@ -4678,6 +4678,18 @@ export class ManualWatchlistRuntimeManager {
     return this.generateTradersLinkAiRead(symbol, true, "manual");
   }
 
+  listTradersLinkAiReadHistory(symbolInput: string, after?: string) {
+    const store = this.options.tradersLinkAiReadReviewStore;
+    if (!store) throw new Error("Owner review storage is unavailable.");
+    return store.listCycles(normalizeSymbol(symbolInput), after);
+  }
+
+  getHistoricalTradersLinkAiReadReview(symbolInput: string, cycleId: string) {
+    const review = this.options.tradersLinkAiReadReviewStore?.read(cycleId);
+    if (!review || review.symbol !== normalizeSymbol(symbolInput)) throw new Error("Owner review storage is unavailable.");
+    return review;
+  }
+
   getTradersLinkAiReadReview(symbolInput: string) {
     const entry = this.watchlistStore.getEntry(normalizeSymbol(symbolInput));
     if (!entry?.publicationReview) return null;

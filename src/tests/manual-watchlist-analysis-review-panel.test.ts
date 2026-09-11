@@ -29,7 +29,7 @@ test("failed requests render history without a draft and clear stale editor stat
   const editor = element(), previewContent = element(), generations = element(), exportArea = element(), actions = element();
   const texts: string[] = [];
   const context = {
-    editor, previewContent, actions, patch: { old: true }, dirty: true, preview: {},
+    editor, previewContent, actions, patch: { old: true }, dirty: true, preview: {}, historical: false,
     review: { draft: null, events: [
       { revision: 2, at: 1, body: { kind: "generation", generationId: "request-1", status: "started", trigger: "manual" } },
       { revision: 3, at: 2, body: { kind: "generation", generationId: "request-1", status: "failed", trigger: "manual" } },
@@ -57,4 +57,14 @@ test("failed requests render history without a draft and clear stale editor stat
   assert.ok(texts.includes("Recorded requests: 5"));
   assert.equal(generations.children.length, 5);
   for (let index = 1; index <= 5; index++) assert.equal(texts.filter(text => text.startsWith("Request " + index + " · Version")).length, 2);
+  context.historical = true;
+  (context.review as any).draft = { body: { payload: { currentRead: "Saved historical draft" } } };
+  context.dirty = true;
+  actions.hidden = false;
+  new Script(functions + "\nrenderEditor();").runInNewContext(context);
+  assert.equal(actions.hidden, true);
+  assert.equal(context.patch, null);
+  assert.equal(context.dirty, false);
+  assert.equal(exportArea.hidden, false);
+  assert.equal(generations.children.length, 5);
 });
