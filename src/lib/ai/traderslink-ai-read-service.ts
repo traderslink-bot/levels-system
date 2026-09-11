@@ -1353,8 +1353,13 @@ function outerDailyTargetStrengthRank(
   return value === "major" ? 2 : value === "strong" ? 1 : 0;
 }
 
-function outerDailyTargetCondition(candidate: LiveWatchlistLevelMapLevel): string {
-  return `Daily resistance — ${candidate.label}; supplied daily candle structure confirms this Potential Path level.`;
+function outerDailyTargetCondition(candidate: LiveWatchlistLevelMapLevel, priceAction: TradersLinkAiReadPriceActionContext, currentPrice: number, dataAsOf: number): string {
+  const tolerance = candidate.price < 1 ? 0.00005 : 0.005;
+  const observedHigh = buildBreakoutEvidence(priceAction, currentPrice, dataAsOf).some(evidence =>
+    evidence.timeframe === "daily" && Math.abs(evidence.price - candidate.price) <= tolerance + Number.EPSILON);
+  return observedHigh
+    ? "Daily resistance aligned with an observed daily candle high in the analysis packet."
+    : "Daily resistance from the level map; not confirmed by the analysis packet.";
 }
 
 function appendFactualOuterDailyResistanceTarget(
@@ -1362,6 +1367,7 @@ function appendFactualOuterDailyResistanceTarget(
   snapshot: LevelSnapshotPayload,
   currentPrice: number,
   priceAction: TradersLinkAiReadPriceActionContext,
+  dataAsOf: number,
 ): ModelRead {
   const breakoutContinuationPrice = read.breakoutContinuation.price;
   if (
@@ -1419,7 +1425,7 @@ function appendFactualOuterDailyResistanceTarget(
       {
         label: "Daily resistance",
         price: candidate.price,
-        condition: outerDailyTargetCondition(candidate),
+        condition: outerDailyTargetCondition(candidate, priceAction, currentPrice, dataAsOf),
       },
     ],
   };
@@ -2604,13 +2610,22 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         input.snapshot,
         referenceQuote.price,
         input.priceAction,
-      );
-      assertTradersLinkAiTradeMap(
-        withFactualOuterTarget,
-        referenceQuote.price,
-        input.priceAction,
         dataAsOf,
       );
+      if (withFactualOuterTarget !== normalized) {
+        try {
+          assertTradersLinkAiTradeMap(withFactualOuterTarget, referenceQuote.price, input.priceAction, dataAsOf);
+        } catch (error) {
+          // The original payload has already passed the same final validator.
+          // An optional deterministic extension must not invalidate that core
+          // or cause another paid request. Retain its exact rejection in audit.
+          capture("validation", { stage: "outer_daily_resistance", action: "omit_objective",
+            path: `targets.${normalized.targets.length}`,
+            omitted: withFactualOuterTarget.targets.slice(normalized.targets.length),
+            reason: error instanceof Error ? error.message : String(error) });
+          return normalized;
+        }
+      }
       return withFactualOuterTarget;
     };
     let availableSources = dedupeSources([

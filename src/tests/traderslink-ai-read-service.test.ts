@@ -1522,6 +1522,46 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.match(read.downsideCheckpoints[0]?.condition ?? "", /observed prior close/i);
   });
 
+  it("omits a rejected outer daily addition without rejecting the validated analysis or making another request", async () => {
+    const levels = snapshot();
+    levels.resistanceZones = [{ ...levels.resistanceZones[0]!, representativePrice: 2.3,
+      lowPrice: 2.29, highPrice: 2.31, sourceLabel: "daily confluence", strengthLabel: "strong" }];
+    let requests = 0;
+    const events: Array<{ phase: string; payload: unknown }> = [];
+    const service = new OpenAITradersLinkAiReadService({ apiKey: "test-key", model: "test-model",
+      auditStore: { save: event => { events.push(event); return { saved: true }; } },
+      fetchImpl: async () => { requests++; return new Response(JSON.stringify({ output: [{ type: "message",
+        content: [{ type: "output_text", text: JSON.stringify(modelRead()) }] }] }), { status: 200 }); } });
+    const read = await service.generate({ snapshot: levels, priceAction: priceAction(),
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
+    assert.equal(requests, 1);
+    assert.deepEqual(read.targets.map(target => target.price), [1.8]);
+    assert.equal(read.breakoutContinuation.price, 1.68);
+    const omission = events.find(event => event.phase === "validation" && (event.payload as any).stage === "outer_daily_resistance")?.payload as any;
+    assert.equal(omission.action, "omit_objective");
+    assert.equal(omission.omitted[0].price, 2.3);
+    assert.match(omission.reason, /observable price-action evidence/);
+    assert.ok(events.some(event => event.phase === "validation" && (event.payload as any).valid === true));
+  });
+
+  it("retains farther daily resistance backed by an observed high in the same packet", async () => {
+    const levels = snapshot();
+    levels.resistanceZones = [{ ...levels.resistanceZones[0]!, representativePrice: 2.3,
+      lowPrice: 2.29, highPrice: 2.31, sourceLabel: "daily confluence", strengthLabel: "strong" }];
+    const tape = priceAction();
+    tape.dailyCandles.push({ timestamp: DATA_AS_OF - 21 * 86400000, open: 2.1, high: 2.3, low: 2, close: 2.2, volume: 100000 });
+    let requests = 0;
+    const service = new OpenAITradersLinkAiReadService({ apiKey: "test-key", model: "test-model",
+      fetchImpl: async () => { requests++; return new Response(JSON.stringify({ output: [{ type: "message",
+        content: [{ type: "output_text", text: JSON.stringify(modelRead()) }] }] }), { status: 200 }); } });
+    const read = await service.generate({ snapshot: levels, priceAction: tape,
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
+    assert.equal(requests, 1);
+    assert.deepEqual(read.targets.map(target => target.price), [1.8, 2.3]);
+    assert.match(read.targets.at(-1)?.condition ?? "", /observed daily candle high/);
+    assert.doesNotMatch(read.targets.at(-1)?.condition ?? "", /confluence/);
+  });
+
   it("drops an unsupported optional checkpoint instead of rejecting the complete AI Read", async () => {
     const auditEvents: Array<{ phase: string; payload: unknown }> = [];
     const draft = modelRead();
