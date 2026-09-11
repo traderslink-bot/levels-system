@@ -28,7 +28,9 @@ test("admission decision survives store and disk reload; malformed data cannot e
   store.upsertManualEntry({ symbol: "PDSB", active: true, aiReadAdmission: admission });
   persistence.save(store.getEntries());
   const restarted = new WatchlistStore();
-  restarted.setEntries(persistence.load());
+  const persistedEntries = persistence.load();
+  assert.ok(persistedEntries);
+  restarted.setEntries(persistedEntries);
   assert.deepEqual(restarted.getEntry("PDSB")?.aiReadAdmission, admission);
   assert.equal(normalizeAiReadAdmission(undefined), undefined);
   for (const invalid of [null, {}, { ...admission, timestamp: NaN }, { ...admission, initialGenerationEnabled: "true" }]) {

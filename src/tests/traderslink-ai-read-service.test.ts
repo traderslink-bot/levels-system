@@ -279,7 +279,7 @@ describe("TradersLink AI price-action volume quality", () => {
     for (const field of ["oneMinuteCandles", "intradayCandles"] as const) {
       const current = { timestamp: DATA_AS_OF, open: 1.3, high: 1.4, low: 1.2, close: 1.35, volume: 1000 };
       const future = { ...current, timestamp: DATA_AS_OF + 60000, close: 1.38 };
-      const context = { ...priceAction(), oneMinuteCandles: [], intradayCandles: [], [field]: [current, future] };
+      const context: TradersLinkAiReadPriceActionContext = { ...priceAction(), oneMinuteCandles: [], intradayCandles: [], [field]: [current, future] };
       const quote = resolveTradersLinkAiReadReferenceQuote(context, 1.25, DATA_AS_OF);
       assert.equal(quote.price, current.close, field);
       assert.equal(quote.dataAsOf, DATA_AS_OF, field);
@@ -1881,6 +1881,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.ok(normalization.changedPaths.includes("downsideCheckpoints"));
     assert.equal(normalization.before.downsideCheckpoints[0].price, 0.7);
     assert.deepEqual(normalization.after.downsideCheckpoints, []);
+    assert.ok(Array.isArray(draft.downsideCheckpoints));
     assert.equal(draft.downsideCheckpoints[0]?.price, 0.7);
   });
 
