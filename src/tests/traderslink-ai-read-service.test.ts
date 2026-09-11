@@ -75,6 +75,9 @@ function priceAction(): TradersLinkAiReadPriceActionContext {
       volume: 500_000 + index * 10_000,
     };
   });
+  // Synthetic historical spike supports the fixture's 1.68 continuation.
+  // The continuation must not pass solely because its rationale says "range high".
+  dailyCandles[0] = { ...dailyCandles[0]!, open: 1.4, high: 1.68, close: 1.5 };
   return {
     source: "yahoo full-session OHLCV",
     fetchedAt: DATA_AS_OF,
@@ -132,7 +135,9 @@ function premarketPriceAction(): TradersLinkAiReadPriceActionContext {
     fetchedAt: PREMARKET_DATA_AS_OF,
     priorRegularClose: 0.28,
     intradayCandles,
-    dailyCandles: priceAction().dailyCandles,
+    dailyCandles: [...priceAction().dailyCandles, {
+      timestamp: PREMARKET_DATA_AS_OF - 86400000, open: 0.34, high: 0.3658, low: 0.32, close: 0.35, volume: 75000,
+    }],
   };
 }
 
@@ -194,7 +199,7 @@ function modelRead(): Record<string, unknown> {
     momentumFailure: { label: "Momentum failure", price: 1.2, rationale: "A clean loss of the prior regular-session low exposes the lower daily range." },
     mustClear: { label: "Confirmation threshold", price: 1.5, rationale: "Proposed confirmation above the observed daily high, not a tested price." },
     mustClearEvidence: { anchorPrice: 1.3, basis: "confirmation_above", explanation: "Proposed confirmation beyond the daily high." },
-    breakoutContinuation: { label: "Range-high continuation", price: 1.68, rationale: "Acceptance above the postmarket range high opens the extension targets." },
+    breakoutContinuation: { label: "Range-high continuation", price: 1.68, rationale: "Acceptance above the observed daily spike high opens the continuation path." },
     targets: [{ label: "First continuation area", price: 1.8, condition: "Only after $1.68 holds as support." }],
     downsideCheckpoints: [
       { label: "First lower support", price: 1.12, condition: "Exposed if the prior regular session low loses acceptance." },
@@ -826,6 +831,11 @@ describe("OpenAITradersLinkAiReadService", () => {
     };
 
     const read = await generate(draft);
+    const unsupportedContinuation = structuredClone(draft) as Record<string, any>;
+    unsupportedContinuation.breakoutContinuation.price = 999;
+    const partialContinuation = await generate(unsupportedContinuation);
+    assert.equal(partialContinuation.breakoutContinuation.price, null);
+    assert.ok(partialContinuation.pullbackPlans.deep, "independent deep setup survives an unsupported legacy continuation");
     const unsupportedClear = structuredClone(draft) as Record<string, any>;
     unsupportedClear.mustClearEvidence.anchorPrice = 999;
     const partialClear = await generate(unsupportedClear);
@@ -839,7 +849,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.ok(anchor);
     const withBackup = structuredClone(draft) as Record<string, any>;
     const supportedBackup = { level: { label: "Breakout continuation", price: anchor.price,
-      rationale: "Acceptance above the one-minute impulse high confirms continuation." },
+      rationale: "Continuation threshold at the cited observation." },
       targets: [], evidenceIds: [anchor.id], anchorPrice: anchor.price, basis: "observed_level" };
     withBackup.breakoutCandidates = {
       primary: { ...supportedBackup, level: { ...supportedBackup.level, price: currentPrice - 0.1 } },

@@ -1552,13 +1552,9 @@ function assertTradersLinkAiTradeMap(
     if (unsupportedAnalysisLanguage.test(combinedText)) {
       fail(`${label} uses unsupported precomputed-level or timeframe language`);
     }
-    if (["needsToHold", "cautionBelow", "momentumFailure", "mustClear"].includes(label)) {
-      if (!level.rationale.trim()) fail(`${label} has no explanation`);
-      continue; // Numeric anchor validation replaces the old word-only test.
-    }
-    if (!TAPE_EVIDENCE_LANGUAGE.test(level.rationale)) {
-      fail(`${label} does not cite observable price-action evidence`);
-    }
+    if (!level.rationale.trim()) fail(`${label} has no explanation`);
+    // Numeric observations/candidate anchors are checked by their own paths;
+    // including a tape-like keyword is neither proof nor a requirement.
   }
 
   for (const [label, level] of [
@@ -2595,7 +2591,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         const selection = selectBreakoutCandidate({ referencePrice: referenceQuote.price, mustClear: modelRead.mustClear,
           primary, alternate, validateEvidence: candidate => {
             const reasons = validateBreakoutEvidence(candidate, evidence);
-            if (!TAPE_EVIDENCE_LANGUAGE.test(candidate.level.rationale)) reasons.push("Breakout rationale lacks tape context.");
+            if (!candidate.level.rationale.trim()) reasons.push("Breakout explanation is missing.");
             return reasons;
           } });
         const primaryMirrorMismatch = selection.selected?.id === "primary" &&
@@ -2648,6 +2644,14 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       normalized.pullbackPlans = { shallow: pair.value, deep: pair.deepValue };
       normalized.failureRecovery = recovery.value;
       const breakout = validateBreakoutOrdering(normalized.mustClear, normalized.breakoutContinuation, referenceQuote.price);
+      if (!Object.hasOwn(parsed as object, "breakoutCandidates") && normalized.breakoutContinuation.price !== null &&
+        (!normalized.breakoutContinuation.rationale.trim() || observableCandleEvidence(normalized.breakoutContinuation.price,
+          referenceQuote.price, input.priceAction, dataAsOf) === null)) {
+        breakout.breakoutContinuation = { label: "", price: null, rationale: "" };
+        breakout.omitDependentUpside = true;
+        breakout.issues.push({ path: "breakoutContinuation", code: "missing_evidence", action: "omit_section" });
+        breakout.changedPaths.push("breakoutContinuation", "targets");
+      }
       const clearAnchor = (parsed as Record<string, unknown>).mustClearEvidence;
       const clearEvidenceIssues = validateUpperEvidence(normalized.mustClear, clearAnchor, clearAnchor === undefined
         ? price => observableCandleEvidence(price, referenceQuote.price, input.priceAction, dataAsOf) !== null
