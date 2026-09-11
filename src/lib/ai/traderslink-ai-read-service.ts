@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { unambiguousPriceCandles } from "./traderslink-ai-read-observations.js";
 import { buildBreakoutEvidence, selectBreakoutCandidate, validateBreakoutEvidence, retainBreakoutTargets, type BreakoutCandidate, type BreakoutTarget } from "./traderslink-ai-read-breakout-selection.js";
 import { join } from "node:path";
 import { TradersLinkAiReadAuditStore, type AiReadAuditEvent, type AiReadAuditResult } from "./traderslink-ai-read-audit.js";
@@ -1239,22 +1240,7 @@ function observableCandleEvidence(
     label: "intraday" | "daily" | "one-minute",
     rangeWeight: number,
   ): string | null => {
-    const byTime = new Map<number, typeof candles[number]>();
-    const ambiguous = new Set<number>();
-    for (const candle of candles) {
-      if (!Number.isFinite(candle.timestamp) || candle.timestamp <= 0 || candle.timestamp > dataAsOf) continue;
-      const values = [candle.open, candle.high, candle.low, candle.close];
-      if (!values.every(value => Number.isFinite(value) && value > 0) ||
-        candle.low > Math.min(candle.open, candle.close) || candle.high < Math.max(candle.open, candle.close)) {
-        ambiguous.add(candle.timestamp); continue;
-      }
-      const prior = byTime.get(candle.timestamp);
-      if (prior && (["open", "high", "low", "close"] as const).some(field =>
-        prior[field] !== candle[field])) ambiguous.add(candle.timestamp);
-      if (!prior) byTime.set(candle.timestamp, candle);
-    }
-    const ordered = [...byTime.values()].filter(candle => !ambiguous.has(candle.timestamp))
-      .sort((a, b) => a.timestamp - b.timestamp);
+    const ordered = unambiguousPriceCandles(candles, dataAsOf);
     const usable = label === "intraday" ? ordered.slice(-48) : ordered;
     if (usable.length === 0) {
       return null;

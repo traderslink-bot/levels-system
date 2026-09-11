@@ -235,6 +235,33 @@ function modelRead(): Record<string, unknown> {
 }
 
 describe("TradersLink AI price-action volume quality", () => {
+  it("keeps conflicting and future bars out of the model packet and breakout catalog", () => {
+    const context = priceAction();
+    const latest = context.intradayCandles.at(-1)!;
+    context.intradayCandles.push({ ...latest, close: latest.close - 0.001, volume: latest.volume + 1000 });
+    context.intradayCandles.push({ ...latest, timestamp: DATA_AS_OF + 60000 });
+    const packet = buildTradersLinkAiPriceActionPacket(context, 1.36, DATA_AS_OF) as {
+      recentFiveMinuteBars: Array<{ timestamp: number }>;
+    };
+    assert.ok(packet.recentFiveMinuteBars.length > 0);
+    assert.ok(packet.recentFiveMinuteBars.every(bar => bar.timestamp < latest.timestamp));
+    assert.ok(buildBreakoutEvidence(context, 1, DATA_AS_OF).every(observation => observation.observedAt < latest.timestamp));
+  });
+  it("does not choose a conflicting reference candle by volume or input order", () => {
+    const earlier = { timestamp: DATA_AS_OF - 60000, open: 1.3, high: 1.4, low: 1.2, close: 1.31, volume: 1000 };
+    const current = { ...earlier, timestamp: DATA_AS_OF, close: 1.35 };
+    const conflict = { ...current, close: 1.38, volume: 2000 };
+    for (const field of ["oneMinuteCandles", "intradayCandles"] as const) {
+      for (const bars of [[earlier, current, conflict], [conflict, current, earlier],
+        [earlier, current, { ...current, close: NaN }]]) {
+        const context = { ...priceAction(), oneMinuteCandles: [], intradayCandles: [], [field]: bars };
+        assert.equal(resolveTradersLinkAiReadReferenceQuote(context, 1.25, DATA_AS_OF).price, earlier.close);
+      }
+      const duplicates = { ...priceAction(), oneMinuteCandles: [], intradayCandles: [],
+        [field]: [current, { ...current, volume: 2000 }] };
+      assert.equal(resolveTradersLinkAiReadReferenceQuote(duplicates, 1.25, DATA_AS_OF).price, current.close);
+    }
+  });
   it("never selects a future one-minute or five-minute reference candle", () => {
     for (const field of ["oneMinuteCandles", "intradayCandles"] as const) {
       const current = { timestamp: DATA_AS_OF, open: 1.3, high: 1.4, low: 1.2, close: 1.35, volume: 1000 };

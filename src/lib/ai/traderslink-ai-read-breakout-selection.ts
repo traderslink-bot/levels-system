@@ -1,6 +1,7 @@
 import type { TradersLinkAiReadLevel, TradersLinkAiReadTarget } from "../live-watchlist/live-watchlist-types.js";
 import { validateBreakoutOrdering } from "./traderslink-ai-read-section-validation.js";
 import type { TradersLinkAiReadPriceActionContext } from "./traderslink-ai-read-price-action.js";
+import { unambiguousPriceCandles } from "./traderslink-ai-read-observations.js";
 
 export type BreakoutEvidence = { id: string; price: number; observedAt: number; timeframe: "intraday" | "one_minute" | "daily"; kind: "candle_high" };
 
@@ -10,26 +11,14 @@ export type BreakoutEvidence = { id: string; price: number; observedAt: number; 
  */
 export function buildBreakoutEvidence(context: TradersLinkAiReadPriceActionContext, referencePrice: number, dataAsOf: number): BreakoutEvidence[] {
   if (!Number.isFinite(referencePrice) || referencePrice <= 0 || !Number.isFinite(dataAsOf)) return [];
-  const observations = new Map<string, { evidence: BreakoutEvidence; high: number; low: number }>();
-  const ambiguous = new Set<string>();
+  const observations: BreakoutEvidence[] = [];
   for (const [timeframe, candles] of [["intraday", context.intradayCandles], ["one_minute", context.oneMinuteCandles ?? []], ["daily", context.dailyCandles]] as const) {
-    for (const candle of candles) {
-      if (!Number.isFinite(candle.timestamp) || candle.timestamp > dataAsOf || candle.timestamp <= 0) continue;
+    for (const candle of unambiguousPriceCandles(candles, dataAsOf)) {
       const id = `breakout:${timeframe}:${candle.timestamp}:high`;
-      // Do not select an arbitrary version of a conflicting supplied bar. Even
-      // a duplicate below the reference must participate in conflict detection.
-      if (!Number.isFinite(candle.high) || !Number.isFinite(candle.low) || candle.low <= 0 || candle.low > candle.high) {
-        ambiguous.add(id);
-        continue;
-      }
-      const prior = observations.get(id);
-      if (prior && (prior.high !== candle.high || prior.low !== candle.low)) ambiguous.add(id);
-      if (!prior) observations.set(id, { high: candle.high, low: candle.low,
-        evidence: { id, price: candle.high, observedAt: candle.timestamp, timeframe, kind: "candle_high" } });
+      observations.push({ id, price: candle.high, observedAt: candle.timestamp, timeframe, kind: "candle_high" });
     }
   }
-  return [...observations.values()].filter(({ evidence }) => !ambiguous.has(evidence.id) && evidence.price >= referencePrice)
-    .map(({ evidence }) => evidence);
+  return observations.filter(evidence => evidence.price >= referencePrice);
 }
 
 export function validateBreakoutEvidence(candidate: BreakoutCandidate, evidence: readonly BreakoutEvidence[]): string[] {

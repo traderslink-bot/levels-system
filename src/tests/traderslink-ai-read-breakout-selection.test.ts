@@ -31,7 +31,8 @@ test("frozen observations distinguish timeframes and exclude future or invalid h
     { timestamp: 100, high: 0.54, low: 0.5 }, { timestamp: 100, high: 0.54, low: 0.5 },
     { timestamp: 201, high: 0.6, low: 0.5 }, { timestamp: 150, high: 0.49, low: 0.4 },
     { timestamp: 160, high: 0.8, low: 0.9 },
-  ], dailyCandles: [{ timestamp: 100, high: 0.7, low: 0.4 }] };
+  ].map(bar => ({ ...bar, open: bar.low, close: bar.low, volume: 1000 })),
+    dailyCandles: [{ timestamp: 100, high: 0.7, low: 0.4, open: 0.5, close: 0.6, volume: 1000 }] };
   const evidence = buildBreakoutEvidence(context as any, 0.5, 200);
   assert.deepEqual(evidence.map(item => item.id), ["breakout:intraday:100:high", "breakout:daily:100:high"]);
   const primary = candidate("primary", 0.54);
@@ -49,7 +50,8 @@ test("conflicting observation versions are excluded independently of input order
     { timestamp: 100, high: 0.54, low: 0.48 }, { timestamp: 100, high: Number.NaN, low: 0.5 }]) {
     const bars = [{ timestamp: 100, high: 0.54, low: 0.5 }, conflicting, { timestamp: 101, high: 0.6, low: 0.5 }];
     for (const intradayCandles of [bars, [...bars].reverse()]) {
-      const evidence = buildBreakoutEvidence({ intradayCandles, dailyCandles: [] } as any, 0.5, 200);
+      const evidence = buildBreakoutEvidence({ intradayCandles: intradayCandles.map(bar => ({ ...bar,
+        open: bar.low, close: bar.low, volume: 1000 })), dailyCandles: [] } as any, 0.5, 200);
       assert.deepEqual(evidence.map(item => item.id), ["breakout:intraday:101:high"]);
       const primary = candidate("primary", 0.54), alternate = candidate("alternate", 0.6);
       primary.evidenceIds = ["breakout:intraday:100:high"];

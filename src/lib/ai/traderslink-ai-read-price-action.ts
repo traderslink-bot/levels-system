@@ -1,4 +1,5 @@
 import type { Candle } from "../market-data/candle-types.js";
+import { unambiguousPriceCandles } from "./traderslink-ai-read-observations.js";
 import { classifyIntradayCandleTimestamp } from "../market-data/candle-session-classifier.js";
 import type { LevelEngineOutput } from "../levels/level-types.js";
 
@@ -166,10 +167,10 @@ function isValidCandle(candle: Candle): boolean {
 }
 
 function normalizeCandles(candles: Candle[], dataAsOf: number): Candle[] {
-  const maximumTimestamp = dataAsOf + 5 * 60 * 1_000;
+  const eligibleTimes = new Set(unambiguousPriceCandles(candles, dataAsOf).map(candle => candle.timestamp));
   const byTimestamp = new Map<number, Candle>();
   for (const candle of candles) {
-    if (!isValidCandle(candle) || candle.timestamp > maximumTimestamp) {
+    if (!eligibleTimes.has(candle.timestamp) || !isValidCandle(candle)) {
       continue;
     }
     const existing = byTimestamp.get(candle.timestamp);
@@ -887,14 +888,14 @@ export function resolveTradersLinkAiReadReferenceQuote(
   fallbackDataAsOf: number,
 ): TradersLinkAiReadReferenceQuote {
   const referenceTime = Math.max(fallbackDataAsOf, context.fetchedAt);
-  const oneMinute = normalizeCandles(
+  const oneMinute = unambiguousPriceCandles(
     context.oneMinuteCandles ?? [],
     referenceTime,
-  ).filter(candle => candle.timestamp <= referenceTime);
-  const intraday = normalizeCandles(
+  );
+  const intraday = unambiguousPriceCandles(
     context.intradayCandles,
     referenceTime,
-  ).filter(candle => candle.timestamp <= referenceTime);
+  );
   const latestOneMinute = oneMinute.at(-1);
   const latestFiveMinute = intraday.at(-1);
   if (latestOneMinute && referenceTime - latestOneMinute.timestamp <= 10 * 60 * 1_000) {
