@@ -770,7 +770,12 @@ describe("OpenAITradersLinkAiReadService", () => {
       { id: "dependent", dependsOn: ["bad"], label: "Dependent", price: 2, condition: "Acceptance above the previous daily high opens this level" },
       { id: "independent", dependsOn: ["alternate"], label: "Independent daily high", price: 2.2, condition: "Observed daily rejection high" },
     ];
+    const unsupportedDependenciesRead = await generate(withDependencies);
+    assert.deepEqual(unsupportedDependenciesRead.targets, [], "daily-high words alone cannot ground the 2.20 price");
+    tape.dailyCandles.push({ timestamp: DATA_AS_OF - 22 * 86400000,
+      open: 2.1, high: 2.2, low: 2.05, close: 2.15, volume: 100000 });
     const dependenciesRead = await generate(withDependencies);
+    tape.dailyCandles.pop();
     assert.deepEqual(dependenciesRead.targets.map(target => target.price), [2.2]);
     assert.equal(Object.hasOwn(dependenciesRead.targets[0]!, "dependsOn"), false);
     const selectionAudit = generationAudit.find(event => event.phase === "validation" && event.payload?.stage === "breakout_selection");
@@ -1560,7 +1565,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     const read = await service.generate({ snapshot: levels, priceAction: priceAction(),
       research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
     assert.equal(requests, 1);
-    assert.deepEqual(read.targets.map(target => target.price), [1.8]);
+    assert.deepEqual(read.targets.map(target => target.price), []);
     assert.equal(read.breakoutContinuation.price, 1.68);
     const omission = events.find(event => event.phase === "validation" && (event.payload as any).stage === "outer_daily_resistance")?.payload as any;
     assert.equal(omission.action, "omit_objective");
@@ -1582,7 +1587,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     const read = await service.generate({ snapshot: levels, priceAction: tape,
       research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
     assert.equal(requests, 1);
-    assert.deepEqual(read.targets.map(target => target.price), [1.8, 2.3]);
+    assert.deepEqual(read.targets.map(target => target.price), [2.3]);
     assert.match(read.targets.at(-1)?.condition ?? "", /observed daily candle high/);
     assert.doesNotMatch(read.targets.at(-1)?.condition ?? "", /confluence/);
   });

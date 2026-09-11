@@ -1301,9 +1301,7 @@ function normalizeObservableTapeEvidence(
     rationale: appendEvidence(level.rationale, level.price),
   });
   const normalizeScenario = <T extends ModelRead["targets"][number]>(item: T): T | null => {
-    if (item.price === null || TAPE_EVIDENCE_LANGUAGE.test(`${item.label} ${item.condition}`)) {
-      return item;
-    }
+    if (item.price === null) return null;
     const evidence = observableCandleEvidence(item.price, currentPrice, priceAction, dataAsOf);
     return evidence
       ? { ...item, condition: `${item.condition.trim()} ${evidence}`.trim() }
@@ -1595,7 +1593,7 @@ function assertTradersLinkAiTradeMap(
     if (target.price === null) {
       continue;
     }
-    if (!TAPE_EVIDENCE_LANGUAGE.test(`${target.label} ${target.condition}`)) {
+    if (observableCandleEvidence(target.price, currentPrice, priceAction, dataAsOf) === null) {
       fail(`upside target ${target.price} does not cite observable price-action evidence`);
     }
     if (target.price - previousUpside < tacticalSpacing) {
@@ -2571,8 +2569,8 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
           });
           const checkedTargets = retainBreakoutTargets({ candidateId: id, continuationPrice: level.price,
             targets, spacing: tacticalTradeMapSpacing(referenceQuote.price, input.priceAction),
-            validate: target => TAPE_EVIDENCE_LANGUAGE.test(`${target.label} ${target.condition}`) ||
-              (target.price !== null && observableCandleEvidence(target.price, referenceQuote.price, input.priceAction, dataAsOf) !== null) });
+            validate: target => target.price !== null &&
+              observableCandleEvidence(target.price, referenceQuote.price, input.priceAction, dataAsOf) !== null });
           candidateParsingIssues.push(...checkedTargets.issues.map(issue => ({ path: `breakoutCandidates.${id}.targets.${issue.id}`, reason: issue.reason })));
           return { id, level: normalizeLevel(value.level, "Breakout continuation"),
             targets: checkedTargets.retained.map(({ id: _id, dependsOn: _dependencies, ...target }) => target),
