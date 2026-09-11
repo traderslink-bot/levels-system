@@ -237,7 +237,9 @@ test(`private activation saves an AI draft without website publication or Discor
       liveWatchlistPublisher: publisher, tradersLinkAiReadReviewStore: reviewStore, now: () => now,
       tradersLinkAiReadService: {
         getConfiguredModel: () => "test", getReasoningEffort: () => "medium",
-        generate: async ({ generationId }: any) => { aiCalls += 1; if (rejectNextRead) throw new Error("Mock rejected analysis"); return {
+        generate: async ({ generationId, onValidationDecision }: any) => { aiCalls += 1; if (rejectNextRead) throw new Error("Mock rejected analysis");
+          onValidationDecision({ stage: "optional_sections", issues: [{ path: "pullbackPlans.shallow.zoneHigh", action: "omit_section" }] });
+          return {
           symbol: "PDSB", generationId, currentPrice: 0.5, generatedAt: now, model: "test", currentRead: "Original",
           bias: "bullish", confidence: "medium", failureRecovery: null, riskSummary: [],
           catalystRealityCheck: { summary: "", dayTradeRelevance: "" },
@@ -314,7 +316,7 @@ test(`private activation saves an AI draft without website publication or Discor
     assert.equal(approvedDiscord.length, 1);
     assert.equal(discordAttempts.length, 2);
     assert.deepEqual(discordAttempts[0], discordAttempts[1]);
-    assert.deepEqual(manager.listTradersLinkAiReadReviews(), [{ symbol: "PDSB", status: "Published", canReview: true }]);
+    assert.deepEqual(manager.listTradersLinkAiReadReviews(), [{ symbol: "PDSB", status: "Published with omissions", canReview: true }]);
     assert.match(approvedDiscord[0]!, /Original/);
     assert.equal(aiCalls, 1);
     await manager.activateSymbol({ symbol: "PDSB", source: "manual" });

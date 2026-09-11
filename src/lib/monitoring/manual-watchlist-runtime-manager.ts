@@ -5,6 +5,7 @@ import { DiscordConfirmedRejection } from "../alerts/discord-confirmed-rejection
 import { applyOwnerAnalysisEdit } from "../ai/traderslink-ai-read-owner-edit.js";
 import { publicationPreviewHash, renderApprovedAnalysisDiscord, type ReviewPublication } from "../ai/traderslink-ai-read-publication-preview.js";
 import type { TradersLinkAiReadReviewStore } from "../ai/traderslink-ai-read-review-store.js";
+import { remainingGeneratedSectionOmissions } from "../ai/traderslink-ai-read-review-omissions.js";
 import { isWatchlistPatchApproved, requiresInitialWatchlistReview, type WatchlistPublicationCheck } from "../ai/traderslink-ai-read-review-policy.js";
 import { resolveTradersLinkAiReadReferenceQuote } from "../ai/traderslink-ai-read-price-action.js";
 
@@ -4751,7 +4752,9 @@ export class ManualWatchlistRuntimeManager {
         if (approved?.body.kind === "approve") {
           const confirmed = (channel: "website" | "discord") => review.events.some((event) => event.body.kind === "delivery" && event.body.approvalRevision === approved.revision && event.body.channel === channel && event.body.status === "acknowledged");
           if (approved.body.draftRevision !== review.draft.revision) status = "New draft — awaiting review";
-          else status = confirmed("website") && confirmed("discord") ? "Published" : "Approved — delivery needs attention";
+          else status = confirmed("website") && confirmed("discord")
+            ? (remainingGeneratedSectionOmissions(review, approved.body.draftRevision).length ? "Published with omissions" : "Published")
+            : "Approved — delivery needs attention";
         }
         return { symbol: entry.symbol, status, canReview: true };
       } catch { return { symbol: entry.symbol, status: "Review storage unavailable", canReview: false }; }
