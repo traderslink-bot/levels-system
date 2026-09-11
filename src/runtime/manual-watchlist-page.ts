@@ -1,4 +1,5 @@
 import { ANALYSIS_REVIEW_PANEL } from "./manual-watchlist-analysis-review-panel.js";
+import { WATCHLIST_ROW_REVIEW } from "./manual-watchlist-row-review.js";
 
 export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 <html lang="en">
@@ -592,6 +593,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 
   </main>
 
+  ${WATCHLIST_ROW_REVIEW}
   <script>
     const statusEl = document.getElementById("status");
     const openLiveWatchlistLinkEl = document.getElementById("open-live-watchlist-link");
@@ -2188,10 +2190,12 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    let activationStatusSymbol = null;
     async function activateEntry(symbol, note, retry, watchlistGroup) {
       try {
         const response = await fetch("/api/watchlist/activate", {
           method: "POST",
+          signal: AbortSignal.timeout(30000),
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             symbol,
@@ -2206,6 +2210,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         }
 
         const thread = payload.entry.discordThreadId || "pending";
+        activationStatusSymbol = payload.entry.symbol;
         setStatus(
           (retry ? "Retry started for " : "Activation started for ") +
             payload.entry.symbol +
@@ -2215,7 +2220,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         );
         return true;
       } catch (error) {
-        setStatus("Activation request failed: " + String(error), true);
+        setStatus("Activation acknowledgement unavailable. Check the ticker list before trying again; the request may already have been accepted. " + String(error), true);
         return false;
       }
     }
@@ -2294,6 +2299,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         const actions = document.createElement("div");
 
         actions.className = "entry-actions";
+        window.watchlistRowReview.attach(entry, actions);
         if (entry.discordThreadId) {
           const copyButton = document.createElement("button");
           copyButton.textContent = "Copy Thread";
@@ -2583,7 +2589,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     }
 
     async function fetchJson(url) {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: AbortSignal.timeout(20000), cache: "no-store" });
       const payload = await response.json();
       if (!response.ok) {
         throw new Error(payload?.error || "Request failed with HTTP " + response.status + ".");
@@ -2592,9 +2598,16 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     }
 
     async function loadEntries() {
-      const payload = await fetchJson("/api/watchlist");
+      const [payload] = await Promise.all([fetchJson("/api/watchlist"), window.watchlistRowReview.refresh()]);
       renderEntries(payload.activeEntries || []);
+      const activated = (payload.activeEntries || []).find((entry) => entry.symbol === activationStatusSymbol);
+      if (activated && activated.lifecycle !== "activating" && activated.lifecycle !== "restoring") {
+        activationStatusSymbol = null;
+        setStatus(activated.symbol + ": " + lifecycleLabel(activated.lifecycle) + ".", activated.lifecycle === "activation_failed");
+      }
     }
+
+    window.addEventListener("watchlist-review-updated", () => { void loadEntries().catch(error => setStatus(String(error), true)); });
 
     function formatAdapterCluster(cluster) {
       if (!cluster) return "none";
@@ -3549,8 +3562,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         }
         symbolEl.value = "";
         noteEl.value = "";
-        await loadEntries();
-        await loadRuntimeStatus(true);
+        // Acceptance unlocks the add form. Slow status reads must not keep
+        // the next ticker blocked; the normal refresh loop also reconciles it.
+        void loadEntries().catch((error) => setStatus("Ticker added; list refresh delayed: " + String(error), true));
+        void loadRuntimeStatus(true).catch(() => {});
       } catch (error) {
         setStatus("Activation refresh failed: " + String(error), true);
       } finally {
