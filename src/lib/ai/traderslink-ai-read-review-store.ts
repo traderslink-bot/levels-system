@@ -6,7 +6,7 @@ import { isConfirmedDiscordRejectionStatus } from "../alerts/discord-confirmed-r
 
 type ReviewBody =
   | { kind: "generation"; generationId: string; status: "started" | "completed" | "failed"; runId: string; trigger: string; model: string; dataAsOf: number }
-  | { kind: "begin"; symbol: string; reviewRequired: boolean }
+  | { kind: "begin"; symbol: string; reviewRequired: boolean; preserveExistingPublication?: boolean }
   | { kind: "original"; generationId: string; payload: Record<string, unknown> }
   | { kind: "edit"; parentDraft: number; payload: Record<string, unknown> }
   | { kind: "approve"; draftRevision: number; publication?: ReviewPublication }
@@ -20,6 +20,7 @@ export type ReviewEvent = {
 };
 export type ReviewState = {
   cycleId: string; symbol: string; reviewRequired: boolean; head: number;
+  preserveExistingPublication?: boolean;
   cancelled: boolean; draft: ReviewEvent | null; approved: ReviewEvent | null;
   events: ReviewEvent[];
 };
@@ -107,6 +108,7 @@ export class TradersLinkAiReadReviewStore {
     if (first.kind !== "begin") throw new Error("Missing review cycle origin.");
     return {
       cycleId, symbol: first.symbol, reviewRequired: first.reviewRequired, head: events.length,
+      preserveExistingPublication: first.preserveExistingPublication === true,
       cancelled: events.some((event) => event.body.kind === "cancel"),
       draft: events.findLast((event) => event.body.kind === "original" || event.body.kind === "edit") ?? null,
       approved: events.findLast((event) => event.body.kind === "approve") ?? null,
@@ -142,9 +144,10 @@ export class TradersLinkAiReadReviewStore {
     return JSON.parse(serialized) as ReviewEvent;
   }
 
-  begin(cycleId: string, symbol: string, reviewRequired: boolean, actor: string): ReviewEvent {
+  begin(cycleId: string, symbol: string, reviewRequired: boolean, actor: string, preserveExistingPublication = false): ReviewEvent {
     if (!/^[A-Z0-9][A-Z0-9.\-]{0,19}$/.test(symbol)) throw new Error("Invalid review symbol.");
-    return this.append(cycleId, 0, actor, { kind: "begin", symbol, reviewRequired });
+    return this.append(cycleId, 0, actor, { kind: "begin", symbol, reviewRequired,
+      ...(preserveExistingPublication ? { preserveExistingPublication: true } : {}) });
   }
 
   recordGeneration(cycleId: string, input: { generationId: string; status: "started" | "completed" | "failed"; runId: string; trigger: string; model: string; dataAsOf: number }): ReviewEvent {

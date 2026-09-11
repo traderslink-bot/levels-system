@@ -4056,7 +4056,7 @@ export class ManualWatchlistRuntimeManager {
     }
     const service = this.options.tradersLinkAiReadService;
     const publisher = this.liveWatchlistPublisher;
-    const entry = this.watchlistStore.getEntry(symbol);
+    let entry = this.watchlistStore.getEntry(symbol);
     if (!service || !publisher || !entry?.active || (entry.tradersLinkAiReadCardVisible === false && !entry.publicationReview?.required)) {
       this.recordTradersLinkAiReadRunOutcome({
         symbol,
@@ -4317,6 +4317,17 @@ export class ManualWatchlistRuntimeManager {
           runId, reason: activationChanged ? "Ticker activation changed before the AI request." : requestAvailability.reason ?? "AI Read generation is unavailable.",
         });
         return null;
+      }
+      // Legacy public tickers also require review of replacements. Persist
+      // the gate before dispatch, without inventing a past approved draft.
+      if (this.reviewBeforePublishingEnabled && !entry.publicationReview?.required) {
+        const reviewStore = this.options.tradersLinkAiReadReviewStore;
+        if (!reviewStore) throw new Error("Owner review storage is unavailable.");
+        const cycleId = randomUUID();
+        reviewStore.begin(cycleId, symbol, true, "runtime:replacement", true);
+        this.watchlistStore.patchEntry(symbol, { publicationReview: { cycleId, required: true } });
+        this.persistWatchlist();
+        entry = this.watchlistStore.getEntry(symbol)!;
       }
       const generationId = `${symbol}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       const reviewCycleId = entry.publicationReview?.required ? entry.publicationReview.cycleId : undefined;

@@ -55,6 +55,12 @@ export function isWatchlistPatchApproved(patch: WatchlistPublicationCheck, rawRe
   if (!review) return true;
   try {
     const state = load(review.cycleId);
+    // Adopting an already-public ticker holds the replacement analysis, not
+    // its live data. This is not evidence of a historical owner approval.
+    if (state?.preserveExistingPublication === true && !state.cancelled &&
+      state.symbol === patch.symbol && state.cycleId === review.cycleId &&
+      state.reviewRequired === review.required &&
+      (!("cards" in patch) || !("tradersLinkAiRead" in patch.cards))) return true;
     if (!hasWatchlistPublicationApproval(patch.symbol, review, () => state)) return false;
     if (!state!.reviewRequired) return true;
     const card = "cards" in patch ? patch.cards.tradersLinkAiRead : undefined;

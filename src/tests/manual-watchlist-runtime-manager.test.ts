@@ -118,6 +118,56 @@ test("activation publishes normally with zero AI calls when master or session is
   }
 });
 
+test("legacy public ticker manual replacement is persisted for review before dispatch and never directly published", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "legacy-replacement-"));
+  try {
+    const now = Date.parse("2026-07-23T15:00:00Z");
+    const watchlistStore = new WatchlistStore();
+    watchlistStore.upsertManualEntry({ symbol: "PDSB", active: true });
+    watchlistStore.patchEntry("PDSB", { lastPrice: 0.5, lastPriceUpdateAt: now });
+    const reviewStore = new TradersLinkAiReadReviewStore(directory);
+    const publisher = new FakeLiveWatchlistPublisher();
+    const discord = new FakeDiscordAlertRouter();
+    let calls = 0;
+    const manager = new ManualWatchlistRuntimeManager({
+      candleFetchService: {} as any, levelStore: new LevelStore(), monitor: new FakeMonitor() as any,
+      discordAlertRouter: discord as any, opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
+      watchlistStore, watchlistStatePersistence: new FakeWatchlistStatePersistence() as any,
+      liveWatchlistPublisher: publisher, tradersLinkAiReadReviewStore: reviewStore, now: () => now,
+      tradersLinkAiReadService: {
+        getConfiguredModel: () => "test", getReasoningEffort: () => "medium",
+        generate: async ({ generationId }: any) => {
+          calls += 1;
+          const review = watchlistStore.getEntry("PDSB")!.publicationReview!;
+          assert.equal(review.required, true, "gate exists before paid dispatch");
+          assert.equal(reviewStore.read(review.cycleId)?.preserveExistingPublication, true);
+          assert.equal(reviewStore.read(review.cycleId)?.approved, null);
+          return { symbol: "PDSB", generationId, model: "test", generatedAt: now, currentPrice: 0.5, currentRead: "Replacement" };
+        },
+      } as any,
+    });
+    const internal = manager as any;
+    internal.buildTradersLinkAiReadPriceActionContext = async () => ({ source: "test", fetchedAt: now,
+      oneMinuteCandles: [{ timestamp: now, open: 0.5, high: 0.51, low: 0.49, close: 0.5, volume: 100 }], intradayCandles: [], dailyCandles: [] });
+    internal.buildLevelSnapshotPayload = () => ({ symbol: "PDSB", currentPrice: 0.5 });
+    internal.aiReadResearchBySymbol.set("PDSB", { ticker: "PDSB", count: 0, articles: [] });
+    await manager.refreshTradersLinkAiRead("PDSB");
+    assert.equal(calls, 1);
+    assert.equal(publisher.cardPatches.length, 0);
+    assert.equal(discord.ensured.length, 0);
+    assert.equal(discord.announcements.length, 0);
+    const cycle = manager.getTradersLinkAiReadReview("PDSB")!;
+    assert.equal(cycle.draft?.body.kind, "original");
+    assert.equal(cycle.approved, null);
+    assert.equal(manager.isWatchlistPublicationApproved({ symbol: "PDSB", cards: {} }), true);
+    manager.setTradersLinkAiReadReviewBeforePublishing(false);
+    await manager.refreshTradersLinkAiRead("PDSB");
+    assert.equal(calls, 2);
+    assert.equal(manager.getTradersLinkAiReadReview("PDSB")!.cycleId, cycle.cycleId);
+    assert.equal(publisher.cardPatches.length, 0, "turning review OFF cannot release an existing held cycle");
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 for (const activationMethod of ["activateSymbol", "queueActivation"] as const) for (const sessionTimestamp of ["2026-07-23T12:00:00Z", "2026-07-23T15:00:00Z", "2026-07-23T21:00:00Z"]) {
 test(`private activation saves an AI draft without website publication or Discord thread creation via ${activationMethod} at ${sessionTimestamp}`, async () => {
   const directory = mkdtempSync(join(tmpdir(), "private-activation-"));
