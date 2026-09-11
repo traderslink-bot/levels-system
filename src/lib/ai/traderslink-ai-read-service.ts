@@ -2602,7 +2602,33 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
             "currentRead", "riskSummary"],
         });
       }
+      // Overview prose is optional. First prove the retained trading setup
+      // independently, then admit each overview paragraph under the same
+      // validator. Never use omission to conceal a bad core price boundary.
+      const overview = normalized.currentRead;
+      const risks = normalized.riskSummary;
+      normalized.currentRead = "";
+      normalized.riskSummary = [];
       assertTradersLinkAiTradeMap(normalized, referenceQuote.price, input.priceAction, dataAsOf);
+      const overviewIssues: Array<{ path: string; action: "omit_text"; reason: string; omitted: string }> = [];
+      const admitOverview = (path: string, text: string, candidate: ModelRead): boolean => {
+        try {
+          // Check this paragraph first: a correct earlier overview must not
+          // mask a contradictory risk note in first-match language parsers.
+          assertTradersLinkAiTradeMap({ ...candidate, currentRead: text, riskSummary: [] }, referenceQuote.price, input.priceAction, dataAsOf);
+          assertTradersLinkAiTradeMap(candidate, referenceQuote.price, input.priceAction, dataAsOf);
+          return true;
+        } catch (error) {
+          overviewIssues.push({ path, action: "omit_text", omitted: text,
+            reason: error instanceof Error ? error.message : String(error) });
+          return false;
+        }
+      };
+      if (overview && admitOverview("currentRead", overview, { ...normalized, currentRead: overview })) normalized.currentRead = overview;
+      risks.forEach((risk, index) => {
+        if (admitOverview(`riskSummary.${index}`, risk, { ...normalized, riskSummary: [...normalized.riskSummary, risk] })) normalized.riskSummary.push(risk);
+      });
+      if (overviewIssues.length) capture("validation", { stage: "optional_overview", issues: overviewIssues });
       if (!hasCompleteValidatedSetup(normalized)) {
         throw new Error("OpenAI analysis has no complete supported setup after validation.");
       }

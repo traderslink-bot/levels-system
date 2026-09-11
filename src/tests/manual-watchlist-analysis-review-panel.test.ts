@@ -24,11 +24,13 @@ test("request inspector renders lazily with explicit truncation and unavailable 
       ] } },
       { phase: "validation", payload: { stage: "breakout_selection", selectedCandidateId: "alternate" } },
       { phase: "validation", payload: { stage: "outer_daily_resistance", action: "omit_objective", omitted: [{ price: 2.3 }] } },
+      { phase: "validation", payload: { stage: "optional_overview", issues: [{ path: "currentRead", action: "omit_text" }] } },
     ] }, selectedEvents: [{ revision: 2, body: { kind: "original" } }] },
   };
   new Script(render + "\nrenderAudit(audit);").runInNewContext(context);
   assert.equal(elements.filter(element => element.tag === "pre").length, 0);
   assert.ok(elements.some(element => element.text === "Analysis checks"));
+  assert.ok(elements.some(element => element.text?.startsWith("Analysis overview — omitted after a text check;")));
   assert.ok(elements.some(element => element.text === "Shallow pullback — omitted: zone is not sufficiently below the analysis price."));
   assert.ok(elements.some(element => element.text === "Deep pullback — optional objective omitted: the optional objective is out of order."));
   assert.ok(elements.some(element => element.text === "Failure / recovery — omitted: see the validation record for details."));

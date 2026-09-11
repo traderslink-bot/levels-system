@@ -282,6 +282,10 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     diagnosticEvents.forEach(event => {
       if (event.phase !== "validation" || !event.payload || typeof event.payload !== "object") return;
       const result = event.payload;
+      if (result.stage === "optional_overview" && Array.isArray(result.issues)) result.issues.forEach(issue => {
+        if (!issue || issue.action !== "omit_text" || typeof issue.path !== "string") return;
+        checks.push((issue.path === "currentRead" ? "Analysis overview" : "Risk summary item") + " — omitted after a text check; valid setup prices were retained. See the validation record for the original text and reason.");
+      });
       if (result.stage === "optional_sections" && Array.isArray(result.issues)) result.issues.forEach(issue => {
         if (!issue || typeof issue.path !== "string") return;
         const key = Object.keys(sectionNames).find(name => issue.path === name || issue.path.startsWith(name + "."));

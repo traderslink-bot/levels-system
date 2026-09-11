@@ -1260,7 +1260,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     ]);
   });
 
-  it("rejects an AI Read that relabels a continuation level as the current premarket high", async () => {
+  it("omits overview text that mislabels the premarket high while preserving valid setup prices", async () => {
     for (const currentRead of [
       "NXXT is holding above its premarket rebound shelf after rejecting the $0.3658 session high.",
       "VMAR has built a premarket shelf around $0.32-$0.33 after rejecting the $0.3658 high.",
@@ -1277,15 +1277,14 @@ describe("OpenAITradersLinkAiReadService", () => {
         }), { status: 200, headers: { "Content-Type": "application/json" } }),
       });
 
-      await assert.rejects(
-        service.generate({
+      const read = await service.generate({
           snapshot: { ...snapshot(), timestamp: PREMARKET_DATA_AS_OF, currentPrice: 0.3336 },
           dataAsOf: PREMARKET_DATA_AS_OF,
           priceAction: premarketPriceAction(),
           research: { ticker: "NXXT", businessDays: 5, count: 0, articles: [] },
-        }),
-        /current premarket high.*0\.3469/i,
-      );
+        });
+      assert.equal(read.currentRead, "");
+      assert.equal(read.breakoutContinuation.price, 0.3658);
     }
   });
 
@@ -1293,6 +1292,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     const validRead = premarketModelRead(
       "NXXT rejected the $0.3469 premarket high; $0.3658 remains a separate prior-session continuation boundary.",
     );
+    validRead.riskSummary = ["The $0.3658 premarket high was rejected.", "Watch buyer defense at the shelf."];
     const service = new OpenAITradersLinkAiReadService({
       apiKey: "test-key",
       model: "test-model",
@@ -1313,6 +1313,8 @@ describe("OpenAITradersLinkAiReadService", () => {
 
     assert.equal(read.breakoutContinuation.price, 0.3658);
     assert.match(read.currentRead, /0\.3469 premarket high/i);
+    assert.equal(read.riskSummary.includes("The $0.3658 premarket high was rejected."), false);
+    assert.ok(read.riskSummary.includes("Watch buyer defense at the shelf."));
   });
 
   it("does not mistake a calendar date for a claimed premarket-high price", async () => {
@@ -1433,12 +1435,15 @@ describe("OpenAITradersLinkAiReadService", () => {
 
   it("keeps operational volume availability out of the user-facing AI Read", async () => {
     const invalidRead = modelRead();
+    const events: Array<{ phase: string; payload: unknown }> = [];
+    invalidRead.riskSummary = ["The base must hold.", "Premarket volume was zero.", "Watch rejection at resistance."];
     invalidRead.currentRead =
       "Price is holding the premarket shelf. There is no premarket volume reported by the provider.";
     let requestNumber = 0;
     const service = new OpenAITradersLinkAiReadService({
       apiKey: "test-key",
       model: "test-model",
+      auditStore: { save: event => { events.push(event); return { saved: true }; } },
       fetchImpl: async () => {
         requestNumber += 1;
         const draft = requestNumber === 1 ? invalidRead : modelRead();
@@ -1451,11 +1456,19 @@ describe("OpenAITradersLinkAiReadService", () => {
       },
     });
 
-    await assert.rejects(service.generate({
+    const read = await service.generate({
       snapshot: snapshot(),
       priceAction: priceAction(),
       research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] },
-    }), /operational volume availability/);
+    });
+    assert.equal(read.currentRead, "");
+    assert.equal(read.breakoutContinuation.price, 1.68);
+    assert.ok(read.riskSummary.includes("The base must hold."));
+    assert.ok(read.riskSummary.includes("Watch rejection at resistance."));
+    assert.equal(read.riskSummary.includes("Premarket volume was zero."), false);
+    const omitted = events.find(event => event.phase === "validation" && (event.payload as any).stage === "optional_overview")?.payload as any;
+    assert.deepEqual(omitted.issues.map((issue: any) => issue.path), ["currentRead", "riskSummary.1"]);
+    assert.equal(omitted.issues[1].omitted, "Premarket volume was zero.");
 
     assert.equal(requestNumber, 1);
   });
