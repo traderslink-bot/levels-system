@@ -44,6 +44,24 @@ test("frozen observations distinguish timeframes and exclude future or invalid h
   assert.ok(validateBreakoutEvidence(primary, evidence).some(reason => reason.includes("Unknown")));
 });
 
+test("conflicting observation versions are excluded independently of input order without losing a valid backup", () => {
+  for (const conflicting of [{ timestamp: 100, high: 0.49, low: 0.4 },
+    { timestamp: 100, high: 0.54, low: 0.48 }, { timestamp: 100, high: Number.NaN, low: 0.5 }]) {
+    const bars = [{ timestamp: 100, high: 0.54, low: 0.5 }, conflicting, { timestamp: 101, high: 0.6, low: 0.5 }];
+    for (const intradayCandles of [bars, [...bars].reverse()]) {
+      const evidence = buildBreakoutEvidence({ intradayCandles, dailyCandles: [] } as any, 0.5, 200);
+      assert.deepEqual(evidence.map(item => item.id), ["breakout:intraday:101:high"]);
+      const primary = candidate("primary", 0.54), alternate = candidate("alternate", 0.6);
+      primary.evidenceIds = ["breakout:intraday:100:high"];
+      alternate.evidenceIds = ["breakout:intraday:101:high"];
+      const selected = selectBreakoutCandidate({ ...base, primary, alternate,
+        validateEvidence: value => validateBreakoutEvidence(value, evidence) });
+      assert.equal(selected.selected?.id, "alternate");
+      assert.equal(primary.level.price, 0.54);
+    }
+  }
+});
+
 test("valid primary wins without substituting a farther backup", () => {
   const primary = candidate("primary", 0.54), alternate = candidate("alternate", 0.6);
   const result = selectBreakoutCandidate({ ...base, primary, alternate });
