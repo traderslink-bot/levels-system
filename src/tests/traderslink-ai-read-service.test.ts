@@ -140,6 +140,7 @@ function premarketModelRead(currentRead: string): Record<string, unknown> {
   return {
     ...modelRead(),
     currentRead,
+    mustClearEvidence: { anchorPrice: 0.3469, basis: "confirmation_above", explanation: "Confirmation above the observed premarket high." },
     coreEvidence: {
       needsToHold: { anchorPrice: 0.325, basis: "threshold_below", explanation: "Decision threshold below the observed premarket low." },
       cautionBelow: { anchorPrice: 0.325, basis: "threshold_below", explanation: "Lower caution threshold below that base." },
@@ -191,7 +192,8 @@ function modelRead(): Record<string, unknown> {
     needsToHold: { label: "Postmarket shelf", price: 1.25, rationale: "Three postmarket tests held this higher-low shelf." },
     cautionBelow: { label: "Momentum caution", price: 1.25, rationale: "A loss of the postmarket consolidation floor would weaken the immediate higher low." },
     momentumFailure: { label: "Momentum failure", price: 1.2, rationale: "A clean loss of the prior regular-session low exposes the lower daily range." },
-    mustClear: { label: "Repeated rejection zone", price: 1.5, rationale: "Repeated postmarket rejection tests make sustained acceptance necessary here." },
+    mustClear: { label: "Confirmation threshold", price: 1.5, rationale: "Proposed confirmation above the observed daily high, not a tested price." },
+    mustClearEvidence: { anchorPrice: 1.3, basis: "confirmation_above", explanation: "Proposed confirmation beyond the daily high." },
     breakoutContinuation: { label: "Range-high continuation", price: 1.68, rationale: "Acceptance above the postmarket range high opens the extension targets." },
     targets: [{ label: "First continuation area", price: 1.8, condition: "Only after $1.68 holds as support." }],
     downsideCheckpoints: [
@@ -613,6 +615,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     }).format.schema;
     assert.ok(schema.properties.cautionBelow);
     assert.ok(schema.properties.coreEvidence);
+    assert.ok(schema.properties.mustClearEvidence);
     assert.ok(schema.properties.momentumFailure);
     assert.ok(schema.properties.breakoutContinuation);
     assert.ok(schema.properties.catalystRealityCheck);
@@ -823,6 +826,14 @@ describe("OpenAITradersLinkAiReadService", () => {
     };
 
     const read = await generate(draft);
+    const unsupportedClear = structuredClone(draft) as Record<string, any>;
+    unsupportedClear.mustClearEvidence.anchorPrice = 999;
+    const partialClear = await generate(unsupportedClear);
+    assert.equal(partialClear.mustClear.price, null);
+    assert.equal(partialClear.breakoutContinuation.price, null);
+    assert.deepEqual(partialClear.targets, []);
+    assert.ok(partialClear.pullbackPlans.deep, "independent deep setup survives unsupported must-clear evidence");
+    assert.ok(generationAudit.some(event => event.payload?.stage === "must_clear_evidence" && event.payload.issues.length));
     const breakoutEvidence = buildBreakoutEvidence(tape, currentPrice, DATA_AS_OF);
     const anchor = breakoutEvidence.find(item => item.price > 1.7)!;
     assert.ok(anchor);
@@ -1861,7 +1872,8 @@ describe("OpenAITradersLinkAiReadService", () => {
     });
     await service.generate({ snapshot: snapshot(), priceAction: priceAction(),
       research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
-    assert.deepEqual(events.map((event) => event.phase), ["request", "response", "validation", "validation", "validation", "prepared_payload"]);
+    assert.deepEqual(events.map((event) => event.phase), ["request", "response", "validation", "validation", "validation", "validation", "prepared_payload"]);
+    assert.ok(events.some(event => event.phase === "validation" && (event.payload as any).stage === "must_clear_evidence"));
     assert.ok(events.some(event => event.phase === "validation" && (event.payload as any).stage === "observable_evidence_normalization"));
     const attempt = events.find(event => event.phase === "validation" && (event.payload as any).stage === "api_attempt")?.payload as any;
     assert.equal(attempt.attemptSequence, 1);
@@ -1906,7 +1918,7 @@ describe("OpenAITradersLinkAiReadService", () => {
       onAuditCapture: (result) => captures.push(result) });
     assert.equal(read.symbol, "TGHL");
     assert.equal(requests, 1);
-    assert.equal(captures.length, 6);
+    assert.equal(captures.length, 7);
     assert.ok(captures.every((result) => !result.saved));
   });
 
