@@ -61,6 +61,10 @@ test("request inspector renders lazily with explicit truncation and unavailable 
   new Script(render + "\nrenderAudit(audit);").runInNewContext(context);
   assert.ok(elements.some(element => element.text === "Shallow pullback — omitted: zone is not sufficiently below the analysis price."));
   assert.ok(elements.some(element => element.text === "API requests: Unavailable in this audit"), "saved validation is not usage evidence");
+  (context.audit as any).diagnosticCoverage = { request: 1, response: 0, validation: 2, prepared_payload: 0, transport_error: 1 };
+  new Script(render + "\nrenderAudit(audit);").runInNewContext(context);
+  assert.ok(elements.some(element => element.text === "Captured records — Input packet: 1 · AI response: 0 · Validation: 2 · Prepared analysis: 0 · Transport error: 1"));
+  assert.ok(elements.some(element => element.text?.startsWith("A zero means no record is available here.")));
 });
 
 test("receipt controls show only uncertain parts of the current approval and clear stale IDs", () => {

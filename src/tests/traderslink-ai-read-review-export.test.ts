@@ -27,6 +27,7 @@ test("audit export selects one generation, retains its edits/approval and redact
     assert.match(exported, /original|edited/);
     assert.equal((result.selectedEvents as any[]).length, 4);
     assert.equal(result.diagnosticStatus, "available");
+    assert.deepEqual(result.diagnosticCoverage, { request: 1, response: 0, validation: 0, prepared_payload: 0, transport_error: 0 });
     assert.equal((result.diagnostic as any).events[0].payload.input_tokens, 42);
     assert.equal((result.diagnostic as any).events[0].payload.cleanUrl, "https://example.com");
     assert.equal(JSON.stringify(review), before);
@@ -35,6 +36,12 @@ test("audit export selects one generation, retains its edits/approval and redact
     assert.equal(reads, 0);
     assert.equal(exportAnalysisReview({ review, generationId: "g1", diagnostics: { read: () => null } }).diagnosticStatus, "not_captured_or_no_longer_available");
     assert.equal(exportAnalysisReview({ review, generationId: "g1", diagnostics: { read: () => { throw new Error("private path"); } } }).diagnosticStatus, "unavailable");
+    const mismatch = exportAnalysisReview({ review, generationId: "g1", diagnostics: { read: () => ({ version: 1, events: [
+      { generationId: "g2", requestId: "other", symbol: "PDSB", phase: "request", at: 1, payload: {} },
+    ] }) } });
+    assert.equal(mismatch.diagnosticStatus, "identity_mismatch");
+    assert.deepEqual(mismatch.diagnosticCoverage, { request: 0, response: 0, validation: 0, prepared_payload: 0, transport_error: 0 });
+    assert.equal(mismatch.diagnostic, null);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 

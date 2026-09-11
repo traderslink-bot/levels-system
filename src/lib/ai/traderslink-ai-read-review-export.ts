@@ -25,17 +25,21 @@ export function exportAnalysisReview(input: {
     return (body.kind === "delivery" || body.kind === "discord_chunk") && approvals.has(body.approvalRevision);
   });
   let diagnostic: unknown = null, diagnosticStatus = "not_captured_or_no_longer_available";
+  const diagnosticCoverage = { request: 0, response: 0, validation: 0, prepared_payload: 0, transport_error: 0 };
   try {
     const record = input.diagnostics.read(generationId);
     if (record && record.events.every((event) => event.generationId === generationId && event.symbol === review.symbol)) {
       diagnostic = record; diagnosticStatus = "available";
+      for (const event of record.events) {
+        if (Object.hasOwn(diagnosticCoverage, event.phase)) diagnosticCoverage[event.phase]++;
+      }
     } else if (record) diagnosticStatus = "identity_mismatch";
   } catch { diagnosticStatus = "unavailable"; }
   const privateKeys = /^(authorization|api_key|apikey|token|access_token|refresh_token|client_secret|password|cookie|set-cookie|bot_token|publisher_token)$/i;
   const secrets = (input.secrets ?? []).filter((secret) => secret.length >= 8);
   const encoded = JSON.stringify({
     version: 1, symbol: review.symbol, cycleId: review.cycleId, generationId,
-    cancelled: review.cancelled, selectedEvents, diagnosticStatus, diagnostic,
+    cancelled: review.cancelled, selectedEvents, diagnosticStatus, diagnosticCoverage, diagnostic,
     exportNote: "Selected generation history; source hashes reference the full private cycle. Credentials are redacted in this export. Missing historical packets have not been reconstructed.",
   }, (key, value) => {
     if (privateKeys.test(key)) return "[redacted]";

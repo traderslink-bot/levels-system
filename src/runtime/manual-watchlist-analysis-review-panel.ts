@@ -275,6 +275,15 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     node("h4", audit.symbol + " · Request audit", container);
     node("p", "Generation: " + audit.generationId, container);
     node("p", audit.diagnosticStatus === "available" ? "Available captured diagnostics are shown below." : "Input/response diagnostics are unavailable. Saved request and version records remain below.", container);
+    if (audit.diagnosticCoverage && typeof audit.diagnosticCoverage === "object") {
+      const labels = { request: "Input packet", response: "AI response", validation: "Validation", prepared_payload: "Prepared analysis", transport_error: "Transport error" };
+      const stages = Object.entries(labels).map(([key, label]) => {
+        const count = audit.diagnosticCoverage[key];
+        return label + ": " + (Number.isSafeInteger(count) && count >= 0 ? count : "Unavailable");
+      });
+      node("p", "Captured records — " + stages.join(" · "), container);
+      node("p", "A zero means no record is available here. It does not prove that a request was never sent or that a stage never occurred.", container);
+    }
     const checks = [];
     const sectionNames = { "pullbackPlans.shallow": "Shallow pullback", "pullbackPlans.deep": "Deep pullback", failureRecovery: "Failure / recovery", breakoutContinuation: "Breakout continuation", mustClear: "Must-clear level", targets: "Where the trade could go next", downsideCheckpoints: "Downside checkpoints" };
     const reasons = { invalid_number: "a required price is missing or invalid", low_confidence: "generation confidence is low", zone_order: "zone prices are reversed", reference_order: "price ordering does not fit the analysis price", missing_evidence: "no supporting observation was cited", unknown_evidence: "a cited observation was not in the packet", zone_evidence_mismatch: "zone prices do not match the cited base", invalidation_order: "invalidation does not sit below the zone", confirmation_order: "confirmation prices are out of order", objective_order: "the optional objective is out of order", momentum_failed: "the analysis price is already at or below momentum failure", failure_order: "invalidation conflicts with momentum failure", reclaim_order: "reclaim does not clear the recovery zone", restore_order: "setup restoration does not clear reclaim", zone_overlap: "the zones overlap or lack separation" };
