@@ -1,6 +1,7 @@
 import type {
   TradersLinkAiReadPullbackScenario,
   TradersLinkAiReadFailureRecoveryPlan,
+  TradersLinkAiReadLevel,
 } from "../live-watchlist/live-watchlist-types.js";
 
 export type AnalysisSectionIssue = {
@@ -28,6 +29,37 @@ export type SectionValidationResult<T> = {
 
 function positive(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+export function validateBreakoutOrdering(
+  mustClear: TradersLinkAiReadLevel,
+  continuation: TradersLinkAiReadLevel,
+  referencePrice: number,
+) {
+  if (!positive(referencePrice)) throw new Error("Invalid shared analysis reference.");
+  const tolerance = Math.max(referencePrice * 0.005, 0.0001);
+  const issues: AnalysisSectionIssue[] = [];
+  const invalid = (path: string, level: TradersLinkAiReadLevel) => {
+    if (level.price === null) return false;
+    const code = !positive(level.price) ? "invalid_number" : level.price < referencePrice - tolerance ? "reference_order" : null;
+    if (code) issues.push({ path, code, action: "omit_section" });
+    return code !== null;
+  };
+  const clearInvalid = invalid("mustClear", mustClear);
+  let continuationInvalid = invalid("breakoutContinuation", continuation);
+  if (!clearInvalid && !continuationInvalid && mustClear.price !== null && continuation.price !== null &&
+      continuation.price - mustClear.price <= tolerance) {
+    continuationInvalid = true;
+    issues.push({ path: "breakoutContinuation", code: "confirmation_order", action: "omit_section" });
+  }
+  const empty = (): TradersLinkAiReadLevel => ({ label: "", price: null, rationale: "" });
+  return {
+    mustClear: clearInvalid ? empty() : { ...mustClear },
+    breakoutContinuation: clearInvalid || continuationInvalid ? empty() : { ...continuation },
+    omitDependentUpside: clearInvalid || continuationInvalid,
+    issues,
+    changedPaths: clearInvalid ? ["mustClear", "breakoutContinuation", "targets"] : continuationInvalid ? ["breakoutContinuation", "targets"] : [],
+  };
 }
 
 /** Call only after numeric/evidence/ordering validation of retained sections. */

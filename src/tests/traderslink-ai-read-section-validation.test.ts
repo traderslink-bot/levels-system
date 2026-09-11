@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hasCompleteValidatedSetup, validatePullbackPair, validatePullbackSection, validateRecoverySection, type ScenarioValidationContext } from "../lib/ai/traderslink-ai-read-section-validation.js";
+import { hasCompleteValidatedSetup, validateBreakoutOrdering, validatePullbackPair, validatePullbackSection, validateRecoverySection, type ScenarioValidationContext } from "../lib/ai/traderslink-ai-read-section-validation.js";
 
 const context: ScenarioValidationContext = {
   referencePrice: 4, momentumFailure: 3.3, confidence: "high",
@@ -9,6 +9,29 @@ const context: ScenarioValidationContext = {
 const shallow = { zoneLow: 3.7, zoneHigh: 3.8, confirmationPrice: 3.85, confirmation: "Reclaim the base", invalidationPrice: 3.6, firstObjectivePrice: 4.2, rationale: "Observed base", evidenceIds: ["shallow-base"] };
 const deep = { ...shallow, zoneLow: 3.4, zoneHigh: 3.5, confirmationPrice: 3.6, invalidationPrice: 3.3, evidenceIds: ["deep-base"] };
 const recovery = { recoveryZoneLow: 3.4, recoveryZoneHigh: 3.5, firstReclaimPrice: 3.6, setupRestorePrice: 3.7, firstObjectivePrice: 3.9, rationale: "Reclaim observed base", evidenceIds: ["deep-base"] };
+
+test("breakout ordering identifies branch-local omissions without moving prices", () => {
+  const clear = { label: "Clear", price: 4.1, rationale: "Observed pivot" };
+  const continuation = { label: "Continue", price: 4.3, rationale: "Observed high" };
+  assert.equal(validateBreakoutOrdering(clear, continuation, 4).omitDependentUpside, false);
+  const invalidClear = validateBreakoutOrdering({ ...clear, price: 3.8 }, continuation, 4);
+  assert.equal(invalidClear.mustClear.price, null);
+  assert.equal(invalidClear.breakoutContinuation.price, null);
+  assert.deepEqual(invalidClear.changedPaths, ["mustClear", "breakoutContinuation", "targets"]);
+  const reversed = validateBreakoutOrdering(clear, { ...continuation, price: 4.09 }, 4);
+  assert.deepEqual(reversed.mustClear, clear);
+  assert.equal(reversed.breakoutContinuation.price, null);
+  assert.equal(reversed.omitDependentUpside, true);
+  assert.equal(continuation.price, 4.3);
+  assert.equal(validateBreakoutOrdering(clear, { ...continuation, price: 4.11 }, 4).omitDependentUpside, true);
+  assert.equal(validateBreakoutOrdering(clear, { ...continuation, price: 4.13 }, 4).omitDependentUpside, false);
+  const missing = { label: "", price: null, rationale: "" };
+  assert.equal(validateBreakoutOrdering(missing, missing, 4).issues.length, 0);
+  const invalidNumeric = validateBreakoutOrdering(clear, { ...continuation, price: Infinity }, 4);
+  assert.equal(invalidNumeric.issues[0]?.code, "invalid_number");
+  assert.equal(invalidNumeric.breakoutContinuation.price, null);
+  assert.throws(() => validateBreakoutOrdering(clear, continuation, NaN), /shared analysis reference/);
+});
 
 test("validated analysis needs a complete setup rather than isolated prices", () => {
   const empty = { momentumFailure: { price: null }, mustClear: { price: null }, breakoutContinuation: { price: null }, pullbackPlans: { shallow: null, deep: null }, failureRecovery: null };
