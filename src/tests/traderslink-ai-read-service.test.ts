@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { buildBreakoutEvidence } from "../lib/ai/traderslink-ai-read-breakout-selection.js";
 import { describe, it } from "node:test";
 
 import type { LevelSnapshotPayload } from "../lib/alerts/alert-types.js";
@@ -715,11 +716,14 @@ describe("OpenAITradersLinkAiReadService", () => {
       evidenceIds: [deepCandidate.id],
     };
 
+    const generationAudit: any[] = [];
     const generate = async (responseDraft: Record<string, unknown>) => {
+      generationAudit.length = 0;
       let requests = 0;
       const service = new OpenAITradersLinkAiReadService({
         apiKey: "test-key",
         model: "test-model",
+        auditStore: { save: event => { generationAudit.push(event); return { saved: true }; } },
         fetchImpl: async () => { requests += 1; return new Response(JSON.stringify({
           output: [{
             type: "message",
@@ -737,6 +741,51 @@ describe("OpenAITradersLinkAiReadService", () => {
     };
 
     const read = await generate(draft);
+    const breakoutEvidence = buildBreakoutEvidence(tape, currentPrice, DATA_AS_OF);
+    const anchor = breakoutEvidence.find(item => item.price > 1.7)!;
+    assert.ok(anchor);
+    const withBackup = structuredClone(draft) as Record<string, any>;
+    const supportedBackup = { level: { label: "Breakout continuation", price: anchor.price,
+      rationale: "Acceptance above the one-minute impulse high confirms continuation." },
+      targets: [], evidenceIds: [anchor.id], anchorPrice: anchor.price, basis: "observed_level" };
+    withBackup.breakoutCandidates = {
+      primary: { ...supportedBackup, level: { ...supportedBackup.level, price: currentPrice - 0.1 } },
+      alternate: supportedBackup,
+    };
+    const backupRead = await generate(withBackup);
+    assert.equal(backupRead.breakoutContinuation.price, Number(anchor.price.toFixed(2)));
+    assert.equal(Object.hasOwn(backupRead, "breakoutCandidates"), false);
+    assert.ok(backupRead.pullbackPlans.deep, "independent deep setup survives backup selection");
+    const withDependencies = structuredClone(withBackup);
+    withDependencies.breakoutCandidates.alternate.targets = [
+      { id: "bad", dependsOn: ["alternate"], label: "Bad sequence", price: 1.7, condition: "Observed daily high" },
+      { id: "dependent", dependsOn: ["bad"], label: "Dependent", price: 2, condition: "Acceptance above the previous daily high opens this level" },
+      { id: "independent", dependsOn: ["alternate"], label: "Independent daily high", price: 2.2, condition: "Observed daily rejection high" },
+    ];
+    const dependenciesRead = await generate(withDependencies);
+    assert.deepEqual(dependenciesRead.targets.map(target => target.price), [2.2]);
+    assert.equal(Object.hasOwn(dependenciesRead.targets[0]!, "dependsOn"), false);
+    const selectionAudit = generationAudit.find(event => event.phase === "validation" && event.payload?.stage === "breakout_selection");
+    assert.ok(selectionAudit, "selection decision is durably capturable");
+    assert.equal(selectionAudit.payload.selectedCandidateId, "alternate");
+    assert.ok(selectionAudit.payload.parsingIssues.some((issue: any) => issue.path.endsWith(".bad")));
+    assert.ok(selectionAudit.payload.parsingIssues.some((issue: any) => issue.path.endsWith(".dependent")));
+    withBackup.breakoutCandidates.primary = supportedBackup;
+    withBackup.breakoutCandidates.alternate = { ...supportedBackup, evidenceIds: ["invented"] };
+    assert.equal((await generate(withBackup)).breakoutContinuation.price, Number(anchor.price.toFixed(2)));
+    withBackup.breakoutCandidates.primary = { ...supportedBackup, evidenceIds: ["invented"] };
+    const noBreakout = await generate(withBackup);
+    assert.equal(noBreakout.breakoutContinuation.price, null);
+    assert.ok(noBreakout.pullbackPlans.deep);
+    withBackup.breakoutCandidates.primary = { ...supportedBackup, level: { ...supportedBackup.level, price: "1.80" } };
+    withBackup.breakoutCandidates.alternate = supportedBackup;
+    assert.equal((await generate(withBackup)).breakoutContinuation.price, Number(anchor.price.toFixed(2)));
+    for (const malformed of [null, [], "invalid"]) {
+      withBackup.breakoutCandidates = malformed;
+      const partial = await generate(withBackup);
+      assert.equal(partial.breakoutContinuation.price, null);
+      assert.ok(partial.pullbackPlans.deep);
+    }
     assert.equal(read.pullbackPlans.shallow?.evidenceIds[0], shallowCandidate.id);
     assert.equal(read.pullbackPlans.deep?.evidenceIds[0], deepCandidate.id);
     assert.equal(read.failureRecovery?.firstReclaimPrice, 1.1);
