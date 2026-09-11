@@ -89,6 +89,7 @@ type ResponsesApiOutputItem = {
 type ResponsesApiResponse = {
   id?: string;
   output_text?: string;
+  status?: string;
   output?: ResponsesApiOutputItem[];
   incomplete_details?: { reason?: string } | null;
   error?: { message?: string };

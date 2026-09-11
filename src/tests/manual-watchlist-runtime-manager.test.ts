@@ -462,6 +462,8 @@ test(`private activation saves an AI draft without website publication or Discor
       discordAlertRouter: discord as any, opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
       watchlistStore, watchlistStatePersistence: new FakeWatchlistStatePersistence() as any,
       liveWatchlistPublisher: publisher, tradersLinkAiReadReviewStore: reviewStore, now: () => now,
+      officialWatchlistArticleSourceLookup: async () => ({ status: "lookup_unavailable", error: "mock_no_network",
+        research: { ticker: "PDSB", businessDays: 5, count: 0, articles: [] } }),
       tradersLinkAiReadService: {
         getConfiguredModel: () => "test", getReasoningEffort: () => "medium",
         generate: async ({ generationId, onValidationDecision }: any) => { aiCalls += 1; if (rejectNextRead) throw new Error("Mock rejected analysis");
