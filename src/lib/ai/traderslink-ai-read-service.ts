@@ -2095,7 +2095,10 @@ function compactSnapshot(
       limitation: "The configured live monitor quote may be delayed; use it as secondary context only.",
     },
     quoteDisagreementPct,
-    breakoutEvidence: buildBreakoutEvidence(priceAction, referenceQuote.price, referenceQuote.dataAsOf),
+    // IDs already encode timeframe, timestamp and observation kind. Keep all
+    // eligible anchors without paying to repeat those metadata fields.
+    breakoutEvidence: buildBreakoutEvidence(priceAction, referenceQuote.price, referenceQuote.dataAsOf)
+      .map(({ id, price }) => ({ id, price })),
     verifiedFiftyTwoWeekLow,
     dataAsOf: referenceQuote.dataAsOf,
     dataAsOfIso: new Date(referenceQuote.dataAsOf).toISOString(),

@@ -753,6 +753,10 @@ describe("OpenAITradersLinkAiReadService", () => {
       alternate: supportedBackup,
     };
     const backupRead = await generate(withBackup);
+    const outgoing = generationAudit.find(event => event.phase === "request");
+    assert.ok(outgoing);
+    const serializedRequest = JSON.stringify(outgoing.payload.body);
+    assert.ok(serializedRequest.includes(anchor.id), "selected evidence was actually sent to the model");
     assert.equal(backupRead.breakoutContinuation.price, Number(anchor.price.toFixed(2)));
     assert.equal(Object.hasOwn(backupRead, "breakoutCandidates"), false);
     assert.ok(backupRead.pullbackPlans.deep, "independent deep setup survives backup selection");
