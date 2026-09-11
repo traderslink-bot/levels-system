@@ -111,6 +111,7 @@ export type TradersLinkAiReadPullbackCandidate = {
   distanceBelowReferencePct?: number;
   zoneWidthPct?: number;
   distanceInMeanCandleRanges?: number | null;
+  distanceInRecentMeanCandleRanges?: number | null;
   retracementOfObservedMovePct?: number | null;
   timeframe?: "1m" | "5m";
 };
@@ -418,6 +419,7 @@ function buildOneMinuteFacts(
   }
 
   const recent = candles.slice(-RECENT_ONE_MINUTE_BAR_LIMIT);
+  const recentMeanRange = recent.reduce((sum, candle) => sum + candle.high - candle.low, 0) / recent.length;
   const sessionVwap = approximateVwap(candles);
   const ema9 = exponentialMovingAverage(recent, 9);
   const ema20 = exponentialMovingAverage(recent, 20);
@@ -646,6 +648,11 @@ function buildOneMinuteFacts(
       latestClose: roundPrice(latest.close),
       priorThreeBarHigh: priorThreeHigh === null ? null : roundPrice(priorThreeHigh),
     },
+    recentTapeRange: {
+      timeframe: "1m", barCount: recent.length,
+      observedFrom: recent[0]!.timestamp, observedTo: recent.at(-1)!.timestamp,
+      meanHighLowRange: Number(recentMeanRange.toPrecision(8)),
+    },
     pullbackCandidates: materiallySeparatedCandidates(
       candidates.filter((candidate): candidate is TradersLinkAiReadPullbackCandidate =>
         candidate !== null && candidate.zoneHigh < currentPrice - minimumReferenceSeparation
@@ -670,6 +677,8 @@ function buildOneMinuteFacts(
           zoneWidthPct: roundMetric((candidate.zoneHigh - candidate.zoneLow) / currentPrice * 100),
           distanceInMeanCandleRanges: candidate.structure?.meanCandleRange
             ? roundMetric((currentPrice - candidate.zoneHigh) / candidate.structure.meanCandleRange) : null,
+          distanceInRecentMeanCandleRanges: recentMeanRange > 0
+            ? roundMetric((currentPrice - candidate.zoneHigh) / recentMeanRange) : null,
           retracementOfObservedMovePct: move && move.high > move.low
             ? roundMetric((move.high - candidate.zoneHigh) / (move.high - move.low) * 100) : null,
         };

@@ -558,6 +558,10 @@ describe("OpenAITradersLinkAiReadService", () => {
     );
     assert.match(input[0]!.content[0]!.text, /verifiedFiftyTwoWeekLow/);
     assert.match(input[0]!.content[0]!.text, /must never dominate the read/);
+    assert.match(input[0]!.content[0]!.text, /distinct from an immediate momentum retest inside ordinary candle noise/);
+    assert.match(input[0]!.content[0]!.text, /Evaluate candidate bases and momentumFailure jointly/);
+    assert.match(input[0]!.content[0]!.text, /Do not move failure merely to fit a desired percentage/);
+    assert.doesNotMatch(input[0]!.content[0]!.text, /shallow is the controlled momentum retest/);
     const pullbackPlansSchema = schema.properties.pullbackPlans as {
       properties: {
         shallow: {

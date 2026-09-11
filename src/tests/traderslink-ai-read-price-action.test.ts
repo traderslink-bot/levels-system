@@ -171,9 +171,18 @@ describe("TradersLink AI one-minute evidence", () => {
       assert.ok(candidate.distanceBelowReferencePct! > 0);
       assert.ok(candidate.zoneWidthPct! >= 0);
       assert.ok(candidate.distanceInMeanCandleRanges! > 0);
+      assert.ok(candidate.distanceInRecentMeanCandleRanges! > 0);
       assert.ok(candidate.observedFrom <= candidate.observedTo);
       assert.ok(candidate.timeframe === "1m" || candidate.timeframe === "5m");
     }
+    const range = facts.recentTapeRange as { timeframe: string; barCount: number; observedFrom: number; observedTo: number; meanHighLowRange: number };
+    const recent = impulseCandles(5).slice(-60);
+    const meanRange = recent.reduce((sum, candle) => sum + candle.high - candle.low, 0) / recent.length;
+    assert.equal(range.timeframe, "1m");
+    assert.equal(range.barCount, recent.length);
+    assert.equal(range.observedFrom, recent[0]!.timestamp);
+    assert.equal(range.observedTo, recent.at(-1)!.timestamp);
+    assert.ok(Math.abs(range.meanHighLowRange - meanRange) < 0.0000001);
   });
 
   it("does not offer a pullback candidate inside the reference-price validation buffer", () => {
