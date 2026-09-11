@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { TradersLinkAiReadAuditStore, type AiReadAuditEvent, type AiReadAuditResult } from "./traderslink-ai-read-audit.js";
 import { resolveManualWatchlistDurableDirectory } from "../monitoring/manual-watchlist-durable-storage.js";
-import { validatePullbackPair, validatePullbackSection, validateRecoverySection } from "./traderslink-ai-read-section-validation.js";
+import { hasCompleteValidatedSetup, validatePullbackPair, validatePullbackSection, validateRecoverySection } from "./traderslink-ai-read-section-validation.js";
 import type { LevelSnapshotPayload } from "../alerts/alert-types.js";
 import type { RecentWebsiteArticleLookupResult } from "../live-watchlist/recent-website-articles.js";
 import {
@@ -2445,6 +2445,9 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         });
       }
       assertTradersLinkAiTradeMap(normalized, referenceQuote.price, input.priceAction, dataAsOf);
+      if (!hasCompleteValidatedSetup(normalized)) {
+        throw new Error("OpenAI analysis has no complete supported setup after validation.");
+      }
       const withFactualOuterTarget = appendFactualOuterDailyResistanceTarget(
         normalized,
         input.snapshot,

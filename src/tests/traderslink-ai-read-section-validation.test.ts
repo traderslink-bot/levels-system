@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validatePullbackPair, validatePullbackSection, validateRecoverySection, type ScenarioValidationContext } from "../lib/ai/traderslink-ai-read-section-validation.js";
+import { hasCompleteValidatedSetup, validatePullbackPair, validatePullbackSection, validateRecoverySection, type ScenarioValidationContext } from "../lib/ai/traderslink-ai-read-section-validation.js";
 
 const context: ScenarioValidationContext = {
   referencePrice: 4, momentumFailure: 3.3, confidence: "high",
@@ -9,6 +9,16 @@ const context: ScenarioValidationContext = {
 const shallow = { zoneLow: 3.7, zoneHigh: 3.8, confirmationPrice: 3.85, confirmation: "Reclaim the base", invalidationPrice: 3.6, firstObjectivePrice: 4.2, rationale: "Observed base", evidenceIds: ["shallow-base"] };
 const deep = { ...shallow, zoneLow: 3.4, zoneHigh: 3.5, confirmationPrice: 3.6, invalidationPrice: 3.3, evidenceIds: ["deep-base"] };
 const recovery = { recoveryZoneLow: 3.4, recoveryZoneHigh: 3.5, firstReclaimPrice: 3.6, setupRestorePrice: 3.7, firstObjectivePrice: 3.9, rationale: "Reclaim observed base", evidenceIds: ["deep-base"] };
+
+test("validated analysis needs a complete setup rather than isolated prices", () => {
+  const empty = { momentumFailure: { price: null }, mustClear: { price: null }, breakoutContinuation: { price: null }, pullbackPlans: { shallow: null, deep: null }, failureRecovery: null };
+  assert.equal(hasCompleteValidatedSetup(empty), false);
+  assert.equal(hasCompleteValidatedSetup({ ...empty, mustClear: { price: 4.2 } }), false);
+  assert.equal(hasCompleteValidatedSetup({ ...empty, momentumFailure: { price: 3.3 }, mustClear: { price: 4.2 }, breakoutContinuation: { price: 4.4 } }), true);
+  assert.equal(hasCompleteValidatedSetup({ ...empty, pullbackPlans: { shallow, deep: null } }), true);
+  assert.equal(hasCompleteValidatedSetup({ ...empty, pullbackPlans: { shallow: null, deep } }), true);
+  assert.equal(hasCompleteValidatedSetup({ ...empty, failureRecovery: recovery }), true);
+});
 
 test("overlapping valid branches omit shallow without changing the deep setup", () => {
   const savedDeep = JSON.stringify(deep);

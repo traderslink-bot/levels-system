@@ -30,6 +30,18 @@ function positive(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
+/** Call only after numeric/evidence/ordering validation of retained sections. */
+export function hasCompleteValidatedSetup(read: {
+  momentumFailure: { price: number | null };
+  mustClear: { price: number | null };
+  breakoutContinuation: { price: number | null };
+  pullbackPlans: { shallow: TradersLinkAiReadPullbackScenario | null; deep: TradersLinkAiReadPullbackScenario | null };
+  failureRecovery: TradersLinkAiReadFailureRecoveryPlan | null;
+}): boolean {
+  if (read.pullbackPlans.shallow || read.pullbackPlans.deep || read.failureRecovery) return true;
+  return positive(read.momentumFailure.price) && positive(read.mustClear.price) && positive(read.breakoutContinuation.price);
+}
+
 function evidenceIssues(
   path: string,
   ids: string[],

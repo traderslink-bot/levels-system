@@ -1546,6 +1546,22 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.doesNotMatch(JSON.stringify(events), /private-test-credential|Authorization/);
   });
 
+  it("does not prepare a news-only analysis or pay for a second request", async () => {
+    const draft = modelRead();
+    for (const key of ["needsToHold", "cautionBelow", "momentumFailure", "mustClear", "breakoutContinuation"]) draft[key] = { label: "", price: null, rationale: "" };
+    draft.currentRead = ""; draft.riskSummary = []; draft.targets = []; draft.downsideCheckpoints = [];
+    let requests = 0;
+    const events: Array<{ phase: string; payload: unknown }> = [];
+    const service = new OpenAITradersLinkAiReadService({ apiKey: "test-key", model: "test-model",
+      auditStore: { save: event => { events.push(event); return { saved: true }; } },
+      fetchImpl: async () => { requests++; return new Response(JSON.stringify({ output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(draft) }] }] }), { status: 200 }); },
+    });
+    await assert.rejects(service.generate({ snapshot: snapshot(), priceAction: priceAction(), research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } }), /no complete supported setup/);
+    assert.equal(requests, 1);
+    assert.ok(events.some(event => event.phase === "validation" && (event.payload as any).valid === false));
+    assert.ok(!events.some(event => event.phase === "prepared_payload"));
+  });
+
   it("audit storage failure cannot trigger another provider request", async () => {
     let requests = 0;
     const captures: Array<{ saved: boolean }> = [];
