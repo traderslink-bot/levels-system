@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TradersLinkAiReadReviewStore } from "../lib/ai/traderslink-ai-read-review-store.js";
+import { TradersLinkAiReadRunLedger } from "../lib/ai/traderslink-ai-read-run-ledger.js";
 import { DiscordConfirmedRejection } from "../lib/alerts/discord-confirmed-rejection.js";
 import { DurableLiveWatchlistPublisher } from "../lib/live-watchlist/live-watchlist-publish-outbox.js";
 import test from "node:test";
@@ -5042,6 +5043,9 @@ test("ManualWatchlistRuntimeManager does not activate a ticker when the website 
 });
 
 test("ManualWatchlistRuntimeManager clears an orphaned AI Read generation after startup replay", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "interrupted-ai-ledger-"));
+  try {
+  const ledgerPath = join(directory, "runs.jsonl");
   let paidRequests = 0;
   const aiService = { generate: async () => { paidRequests += 1; throw new Error("unexpected paid request"); } };
   const levelStore = new LevelStore();
@@ -5085,6 +5089,7 @@ test("ManualWatchlistRuntimeManager clears an orphaned AI Read generation after 
     watchlistStatePersistence: persistence as any,
     liveWatchlistPublisher: new FakeLiveWatchlistPublisher(),
     tradersLinkAiReadService: aiService as any,
+    tradersLinkAiReadRunLedger: new TradersLinkAiReadRunLedger({ filePath: ledgerPath }),
     now: () => Date.parse("2026-07-23T15:00:00Z"),
   });
 
@@ -5113,6 +5118,7 @@ test("ManualWatchlistRuntimeManager clears an orphaned AI Read generation after 
     opportunityRuntimeController: new FakeOpportunityRuntimeController() as any,
     watchlistStore: new WatchlistStore(), watchlistStatePersistence: persistence as any,
     liveWatchlistPublisher: new FakeLiveWatchlistPublisher(), tradersLinkAiReadService: aiService as any,
+    tradersLinkAiReadRunLedger: new TradersLinkAiReadRunLedger({ filePath: ledgerPath }),
     now: () => Date.parse("2026-07-23T15:01:00Z"),
   });
   await restarted.start();
@@ -5120,7 +5126,13 @@ test("ManualWatchlistRuntimeManager clears an orphaned AI Read generation after 
     assert.equal(restarted.getTradersLinkAiReadGenerationAvailability(undefined, { symbol: "ORPH", requestedTrigger: "activation" }).allowed, false);
     assert.equal(restarted.getTradersLinkAiReadGenerationAvailability(undefined, { symbol: "ORPH", requestedTrigger: "manual" }).allowed, true);
     assert.equal(paidRequests, 0);
+    const recorded = new TradersLinkAiReadRunLedger({ filePath: ledgerPath }).load()
+      .filter(event => event.generationId === "ORPH-interrupted-generation" && event.stage === "startup");
+    assert.equal(recorded.length, 1, "interrupted outcome remains durable without duplicate startup rows");
+    assert.equal(recorded[0]!.outcome, "missing");
+    assert.match(recorded[0]!.reason!, /provider outcome may be unknown/);
   } finally { await restarted.stop(); }
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
 test("ManualWatchlistRuntimeManager stores the published AI Read confidence for the admin ticker row", () => {

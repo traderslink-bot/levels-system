@@ -11240,6 +11240,17 @@ export class ManualWatchlistRuntimeManager {
       .getEntries()
       .filter((entry) => entry.pendingTradersLinkAiReadGeneration);
     for (const entry of orphanedAiReadGenerations) {
+      const pending = entry.pendingTradersLinkAiReadGeneration!;
+      this.recordTradersLinkAiReadRunOutcome({
+        symbol: entry.symbol,
+        trigger: pending.trigger,
+        stage: "startup",
+        outcome: "missing",
+        generationId: pending.generationId,
+        dedupeKey: `startup-interrupted:${pending.generationId}`,
+        occurredAt: this.options.now?.() ?? Date.now(),
+        reason: "Generation interrupted before publication acknowledgement; provider outcome may be unknown. No automatic replacement requested.",
+      });
       this.watchlistStore.patchEntry(entry.symbol, {
         pendingTradersLinkAiReadGeneration: null,
         // Replay has not acknowledged this generation. Clearing its pending
