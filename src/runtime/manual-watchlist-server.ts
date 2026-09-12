@@ -14,6 +14,7 @@ import { CandleFetchService } from "../lib/market-data/candle-fetch-service.js";
 import { createHistoricalCandleProvider } from "../lib/market-data/provider-factory.js";
 import { YahooHistoricalCandleProvider } from "../lib/market-data/yahoo-historical-candle-provider.js";
 import { createPlatformMoomooAiReadCandleLoader } from "../lib/market-data/platform-moomoo-ai-read-candle-loader.js";
+import { createPlatformWatchlistIndicatorLoader } from "../lib/market-data/platform-watchlist-indicator-loader.js";
 import {
   SAME_DAY_CANDLE_PROVIDER_OPTIONS,
   SelectableSameDayCandleService,
@@ -922,6 +923,7 @@ async function main(): Promise<void> {
     recentIntradayCandleFetchService,
     tradersLinkAiReadMoomooCandleLoader,
     levelIntradayFallbackCandleFetchService,
+    indicatorCandleLoader: createPlatformWatchlistIndicatorLoader(),
     tradersLinkAiReadHistoricalCandleLoader: buildTradeCandleContext,
     opportunityDiagnosticsEnabled: monitoringEventDiagnosticsEnabled,
     autoCleanReadGenerator: aiCleanReadService

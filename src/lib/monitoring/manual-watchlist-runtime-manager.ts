@@ -11,6 +11,7 @@ import { resolveTradersLinkAiReadReferenceQuote } from "../ai/traderslink-ai-rea
 
 import { CandleFetchService, type HistoricalFetchRequest } from "../market-data/candle-fetch-service.js";
 import type { MoomooAiReadCandleLoader } from "../market-data/platform-moomoo-ai-read-candle-loader.js";
+import type { WatchlistIndicatorCandleLoader } from "../market-data/platform-watchlist-indicator-loader.js";
 import { NasdaqTradingHaltService, type NasdaqTradingHaltLookup } from "../auto-watchlist/nasdaq-trading-halt-service.js";
 import type { Candle, CandleProviderResponse, CandleTimeframe } from "../market-data/candle-types.js";
 import type {
@@ -288,6 +289,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   pullbackReadPollIntervalMs?: number;
   recentIntradayCandleFetchService?: Pick<CandleFetchService, "fetchCandles" | "getProviderName"> | null;
   tradersLinkAiReadMoomooCandleLoader?: MoomooAiReadCandleLoader | null;
+  indicatorCandleLoader?: WatchlistIndicatorCandleLoader | null;
   levelIntradayFallbackCandleFetchService?: Pick<CandleFetchService, "fetchCandles" | "getProviderName"> | null;
   tradersLinkAiReadHistoricalCandleLoader?: (
     request: BuildTradeCandleContextRequest,
@@ -7230,6 +7232,7 @@ export class ManualWatchlistRuntimeManager {
   }
 
   private pullbackReadPollIntervalMs(): number {
+    if (this.options.indicatorCandleLoader) return 120_000;
     const configured = this.options.pullbackReadPollIntervalMs;
     return typeof configured === "number" && Number.isFinite(configured) && configured > 0
       ? configured
@@ -7238,8 +7241,7 @@ export class ManualWatchlistRuntimeManager {
 
   private startPullbackReadIntradayPolling(): void {
     if (
-      !this.pullbackReadEnabled() ||
-      !this.options.recentIntradayCandleFetchService ||
+      (!this.options.indicatorCandleLoader && (!this.pullbackReadEnabled() || !this.options.recentIntradayCandleFetchService)) ||
       this.pullbackReadIntradayPollTimer
     ) {
       return;
@@ -7332,8 +7334,7 @@ export class ManualWatchlistRuntimeManager {
   private async pollPullbackReadIntradayCandles(): Promise<void> {
     if (
       this.pullbackReadIntradayPollInFlight ||
-      !this.pullbackReadEnabled() ||
-      !this.options.recentIntradayCandleFetchService
+      (!this.options.indicatorCandleLoader && (!this.pullbackReadEnabled() || !this.options.recentIntradayCandleFetchService))
     ) {
       return;
     }
@@ -7342,6 +7343,7 @@ export class ManualWatchlistRuntimeManager {
     try {
       for (const entry of this.watchlistStore.getActiveEntries()) {
         await this.refreshPullbackReadIntradayCandles(entry.symbol);
+        if (this.options.indicatorCandleLoader) await delay(500);
       }
     } finally {
       this.pullbackReadIntradayPollInFlight = false;
@@ -7352,22 +7354,26 @@ export class ManualWatchlistRuntimeManager {
     const service = this.options.recentIntradayCandleFetchService;
     const symbol = normalizeSymbol(symbolInput);
     const entry = this.watchlistStore.getEntry(symbol);
-    if (!service || !entry?.active) {
+    if ((!service && !this.options.indicatorCandleLoader) || !entry?.active) {
       return;
     }
 
     const endTimeMs = Date.now();
     try {
-      const fiveMinute = await service.fetchCandles({
+      const shared = await this.options.indicatorCandleLoader?.({ symbol, activatedAt: entry.activatedAt, asOfTimeMs: endTimeMs });
+      if (shared?.handled && !shared.candles.length) return;
+      // Compatibility fallback only when the new Platform bridge itself is unavailable.
+      if (!shared?.handled && (!service || !this.pullbackReadEnabled())) return;
+      const fiveMinute = shared?.handled ? null : await service!.fetchCandles({
         symbol,
         timeframe: "5m",
         lookbackBars: PULLBACK_READ_5M_LOOKBACK_BARS,
         endTimeMs,
         preferredProvider: "yahoo",
       });
-      const normalizedFiveMinuteCandles = normalizePullbackCandles(fiveMinute.candles);
-      const oneMinute = !hasUsableRecentPullbackCandles(normalizedFiveMinuteCandles, endTimeMs)
-        ? await service.fetchCandles({
+      const normalizedFiveMinuteCandles = normalizePullbackCandles(shared?.handled ? shared.candles : fiveMinute!.candles);
+      const oneMinute = !shared?.handled && !hasUsableRecentPullbackCandles(normalizedFiveMinuteCandles, endTimeMs)
+        ? await service!.fetchCandles({
             symbol,
             timeframe: "1m",
             lookbackBars: PULLBACK_READ_1M_LOOKBACK_BARS,
@@ -7390,9 +7396,13 @@ export class ManualWatchlistRuntimeManager {
         return;
       }
 
-      this.technicalContextProviderBySymbol.set(symbol, "yahoo");
+      const currentEntry = this.watchlistStore.getEntry(symbol);
+      if (!currentEntry?.active || currentEntry.activatedAt !== entry.activatedAt) return;
+
+      const provider = shared?.handled ? shared.provider ?? "yahoo" : "yahoo";
+      this.technicalContextProviderBySymbol.set(symbol, provider);
       const dataQualityFlags = [
-        ...fiveMinute.validationIssues.map((issue) => `5m:${issue.code}`),
+        ...(fiveMinute?.validationIssues.map((issue) => `5m:${issue.code}`) ?? []),
         ...(oneMinute?.validationIssues.map((issue) => `1m:${issue.code}`) ?? []),
         ...(oneMinute ? ["5m:derived_from_1m_yahoo"] : []),
       ];
@@ -7404,7 +7414,7 @@ export class ManualWatchlistRuntimeManager {
         symbol,
         candles,
         currentPrice,
-        provider: "yahoo",
+        provider,
         dataQualityFlags,
       });
       const volumeRead = this.resolveLiveVolumeRead(
