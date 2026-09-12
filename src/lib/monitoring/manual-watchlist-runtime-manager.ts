@@ -1139,7 +1139,7 @@ function isValidPullbackCandle(candle: Candle): boolean {
   );
 }
 
-function normalizePullbackCandles(candles: Candle[]): Candle[] {
+function normalizePullbackCandles(candles: readonly Candle[]): Candle[] {
   const byTimestamp = new Map<number, Candle>();
 
   for (const candle of candles) {
@@ -7360,7 +7360,9 @@ export class ManualWatchlistRuntimeManager {
 
     const endTimeMs = Date.now();
     try {
-      const shared = await this.options.indicatorCandleLoader?.({ symbol, activatedAt: entry.activatedAt, asOfTimeMs: endTimeMs });
+      const shared = typeof entry.activatedAt === "number"
+        ? await this.options.indicatorCandleLoader?.({ symbol, activatedAt: entry.activatedAt, asOfTimeMs: endTimeMs })
+        : undefined;
       if (shared?.handled && !shared.candles.length) return;
       // Compatibility fallback only when the new Platform bridge itself is unavailable.
       if (!shared?.handled && (!service || !this.pullbackReadEnabled())) return;
