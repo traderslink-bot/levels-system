@@ -31,9 +31,15 @@ function positive(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
+// Arithmetic ordering is not a minimum trading distance. Economic relevance
+// is evaluated from structure; a 0.5%-of-quote buffer is not numeric precision.
+export function numericOrderingTolerance(price: number): number {
+  return Math.max(Math.abs(price) * Number.EPSILON * 8, 1e-10);
+}
+
 // Matching a cited observation is a precision question, not a volatility or
 // setup-spacing allowance. Keep the two decisions independent.
-function matchesObservedPrice(actual: number, observed: number): boolean {
+export function matchesObservedPrice(actual: number, observed: number): boolean {
   if (!positive(actual) || !positive(observed)) return false;
   const tolerance = observed < 1 ? 0.00005 : 0.005;
   return Math.abs(actual - observed) <= tolerance + Number.EPSILON * Math.max(1, actual, observed);
@@ -58,7 +64,7 @@ export function validateBreakoutOrdering(
   independentContinuation = false,
 ) {
   if (!positive(referencePrice)) throw new Error("Invalid shared analysis reference.");
-  const tolerance = Math.max(referencePrice * 0.005, 0.0001);
+  const tolerance = numericOrderingTolerance(referencePrice);
   const issues: AnalysisSectionIssue[] = [];
   const invalid = (path: string, level: TradersLinkAiReadLevel) => {
     if (level.price === null) return false;
@@ -129,7 +135,7 @@ export function validatePullbackSection(
   const issues = evidenceIssues(path, scenario.evidenceIds, scenario.zoneLow, scenario.zoneHigh, context, true);
   const add = (code: AnalysisSectionIssue["code"], field: string, action: AnalysisSectionIssue["action"] = "omit_section") =>
     issues.push({ path: `${path}.${field}`, code, action });
-  const tolerance = Math.max(context.referencePrice * 0.005, 0.0001);
+  const tolerance = numericOrderingTolerance(context.referencePrice);
   for (const field of ["zoneLow", "zoneHigh", "invalidationPrice", "confirmationPrice"] as const) {
     if (!positive(scenario[field])) add("invalid_number", field);
   }
@@ -163,10 +169,13 @@ export function validatePullbackPair(
   shallow: TradersLinkAiReadPullbackScenario | null,
   deep: TradersLinkAiReadPullbackScenario | null,
   referencePrice: number,
-  meanCandleRange: number,
+  _meanCandleRange: number,
   rankedCandidates: ScenarioValidationContext["candidates"] = [],
 ): SectionValidationResult<TradersLinkAiReadPullbackScenario> & { deepValue: TradersLinkAiReadPullbackScenario | null } {
-  const separation = Math.max(referencePrice * 0.005, 0.0001, meanCandleRange * 0.25);
+  // A percentage or candle-range buffer does not make disjoint observed
+  // bases overlap. Their trading roles are selected from structure, not this
+  // arithmetic guard. Only shared/reversed boundaries conflict here.
+  const separation = numericOrderingTolerance(referencePrice);
   if (shallow && deep && shallow.zoneLow - deep.zoneHigh < separation) {
     // The packet orders candidates by measured structural support. Only a
     // cited candidate matching the actual zone can give that branch its rank.
@@ -197,9 +206,9 @@ export function validateRecoverySection(
   }
   if (!positive(context.referencePrice)) add("invalid_number", "referencePrice");
   if (recovery.recoveryZoneLow > recovery.recoveryZoneHigh) add("zone_order", "zone");
-  const zoneTolerance = Math.max(recovery.recoveryZoneHigh * 0.005, 0.0001);
-  const reclaimTolerance = Math.max(recovery.firstReclaimPrice * 0.005, 0.0001);
-  const restoreTolerance = Math.max(recovery.setupRestorePrice * 0.005, 0.0001);
+  const zoneTolerance = numericOrderingTolerance(recovery.recoveryZoneHigh);
+  const reclaimTolerance = numericOrderingTolerance(recovery.firstReclaimPrice);
+  const restoreTolerance = numericOrderingTolerance(recovery.setupRestorePrice);
   if (recovery.firstReclaimPrice - recovery.recoveryZoneHigh <= zoneTolerance) add("reclaim_order", "firstReclaimPrice");
   if (recovery.setupRestorePrice - recovery.firstReclaimPrice <= reclaimTolerance) add("restore_order", "setupRestorePrice");
   if (recovery.firstObjectivePrice !== null && (

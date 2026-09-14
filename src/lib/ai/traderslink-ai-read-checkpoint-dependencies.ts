@@ -4,7 +4,7 @@ import type { TradersLinkAiReadTarget } from "../live-watchlist/live-watchlist-t
  * unresolved ordered chain: after a rejected member, do not assume later
  * conditional prices became independent. No metadata enters public payloads. */
 export function retainAnalysisCheckpoints(input: {
-  raw: unknown; root: "breakoutContinuation" | "momentumFailure";
+  raw: unknown; root: "breakoutContinuation" | "momentumFailure" | "currentPrice";
   rootPrice: number; direction: "up" | "down"; spacing: number; symbol?: string;
   validate: (target: TradersLinkAiReadTarget) => string | null;
 }) {
@@ -16,7 +16,7 @@ export function retainAnalysisCheckpoints(input: {
   const counts = new Map<string, number>();
   for (const row of rows) if (typeof row?.id === "string") counts.set(row.id, (counts.get(row.id) ?? 0) + 1);
   const accepted = new Set([input.root as string]);
-  const aliases = { momentumFailure: "momentum-failure", breakoutContinuation: "breakout-continuation" };
+  const aliases = { momentumFailure: "momentum-failure", breakoutContinuation: "breakout-continuation", currentPrice: "current-price" };
   const rootAlias = aliases[input.root];
   const symbol = input.symbol?.toLowerCase();
   const symbolRoots = symbol && /^[a-z0-9][a-z0-9.\-]{0,19}$/.test(symbol)
