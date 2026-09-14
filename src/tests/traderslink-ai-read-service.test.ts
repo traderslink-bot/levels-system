@@ -70,6 +70,13 @@ it("owner-reviewed generation can use supplied chart evidence beyond the catalog
   assert.equal(AI_READ_SCHEMA.properties.breakoutCandidates.properties.primary.properties.targets.maxItems, 4);
 });
 
+it("release reconciliation preserves the exact five-symbol-tested owner prompt and schema", () => {
+  assert.equal(createHash("sha256").update(buildTradersLinkAiReadDeveloperPrompt(true)).digest("hex"),
+    "b8c816d2d002a80205501458b726653f4d125b67a9d9b18a7dd5d5405f230949");
+  assert.equal(createHash("sha256").update(JSON.stringify(buildTradersLinkAiReadResponseSchema(true))).digest("hex"),
+    "28129a1efebc719261d8ba5a2de25cd5c89933d3ab23e917e3c0226876ba92bc");
+});
+
 it("owner review cannot fabricate a draft from a truncated response", async () => {
   const service = new OpenAITradersLinkAiReadService({ apiKey: "test-key", model: "test-model",
     fetchImpl: async () => new Response(JSON.stringify({ status: "incomplete", output: [{ type: "message",
@@ -789,7 +796,11 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.ok(schema.properties.coreEvidence);
     assert.ok(schema.properties.mustClearEvidence);
     assert.ok(schema.properties.momentumFailure);
-    assert.ok(schema.properties.breakoutContinuation);
+    assert.ok(schema.properties.breakoutCandidates);
+    assert.ok(schema.properties.approachCheckpoints);
+    assert.equal(schema.properties.breakoutContinuation, undefined);
+    assert.equal(schema.properties.targets, undefined);
+    assert.equal(requestBody.max_output_tokens, 16_000);
     assert.ok(schema.properties.catalystRealityCheck);
     assert.ok(schema.properties.downsideCheckpoints);
     assert.ok(schema.properties.pullbackPlans);

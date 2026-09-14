@@ -50,7 +50,7 @@ const DEFAULT_TIMEOUT_MS = 180_000;
 // The complete one-response schema includes reasoning plus several trading
 // scenarios. Captured valid responses exceeded 8k; truncation must not force
 // another paid generation. Explicit operator overrides remain authoritative.
-const DEFAULT_MAX_OUTPUT_TOKENS = 12_000;
+const DEFAULT_MAX_OUTPUT_TOKENS = 16_000;
 const DEFAULT_WEB_SEARCH_PRICE_PER_1K_CALLS = 10;
 const OUTER_DAILY_TARGET_MIN_DISTANCE_PCT = 0.3;
 const OUTER_DAILY_TARGET_MAX_DISTANCE_PCT = 0.5;

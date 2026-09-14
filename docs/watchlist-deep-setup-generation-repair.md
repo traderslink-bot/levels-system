@@ -253,3 +253,37 @@ token rates. Hosted known cost is $1.2519465 plus one unpriced prior timeout; th
 runner still reserves $2 for hosted costs. No new paid request may exceed the
 owner's $5 combined limit. Saved provider usage reconciles private ledger costs;
 unfinished requests retain their reservation instead of being treated as free.
+
+### Exact production contract discrepancy found at final QA
+
+df6f421552cf6b1cfeb8dc92f34b49369cc1a586 / deployment
+3daf76b5-ddb5-436d-9e18-a80cea85dff3 was healthy. Four fresh reads completed with
+both pullbacks and ordered recovery. ELMT exhausted 12,000 output tokens, of which
+11,428 were reasoning, leaving only an incomplete JSON response. Its previous
+editable draft remained available and no publication occurred.
+
+Exact request comparison then found the reconciled production base prompt/schema
+did NOT equal the canonical tested owner contract: older highest-shelf wording,
+mandatory separate breakout descriptions, top-level mirrored targets, and a
+candidate-only final audit remained. String replacement had missed one clause
+because live said "the supplied" where canonical said "supplied". Therefore the
+earlier five canonical-prompt replays cannot be called exact production replays.
+
+Release acceptance now pins both full owner-contract hashes, not just the new
+appended paragraph. Owner prompt SHA-256:
+b8c816d2d002a80205501458b726653f4d125b67a9d9b18a7dd5d5405f230949.
+Owner JSON.stringify schema SHA-256:
+28129a1efebc719261d8ba5a2de25cd5c89933d3ab23e917e3c0226876ba92bc.
+Coordinator must preserve ordinary automatic-mode contracts while matching these
+exact owner-reviewed values; do not copy unrelated canonical service functionality.
+
+Default response ceiling increases to 16,000 (explicit configured overrides remain
+honored), still one call and the existing 180-second deadline. The saved failed
+ELMT market packet completed using the exact canonical owner contract and 16K
+ceiling, with both pullbacks and ordered recovery, in about 85 seconds. It consumed
+10,046 output tokens: this does not prove that the ceiling alone caused success,
+because the tested prompt/schema also differed from live and model output varies.
+The larger ceiling supplies headroom, not a required spend or automatic retry.
+
+Private conservative cost is now $2.439584; hosted known cost $1.7326565 plus one
+unpriced earlier timeout. Verify the $5 combined budget before remaining live tests.
