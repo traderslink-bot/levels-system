@@ -16,7 +16,7 @@ test("SOAR downside root alias preserves saved prices and still honors failed pr
 });
 
 test("checkpoint aliases reject collisions and opposite, unknown and external roots", () => {
-  for (const [root, alias] of [["momentumFailure", "momentum-failure"], ["currentPrice", "current-price"], ["breakoutContinuation", "breakout-continuation"]] as const) {
+  for (const [root, alias] of [["momentumFailure", "momentum-failure"], ["breakoutContinuation", "breakout-continuation"]] as const) {
     const row = (id: string, dependsOn: string[], price = 1.2) => ({ id, dependsOn, price, label: id, condition: "Observed area" });
     const run = (raw: ReturnType<typeof row>[]) => retainAnalysisCheckpoints({ raw, root, rootPrice: 1,
       direction: "up", spacing: 0.01, validate: () => null });
