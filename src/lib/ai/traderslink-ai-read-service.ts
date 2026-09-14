@@ -55,6 +55,10 @@ const DEFAULT_WEB_SEARCH_PRICE_PER_1K_CALLS = 10;
 const OUTER_DAILY_TARGET_MIN_DISTANCE_PCT = 0.3;
 const OUTER_DAILY_TARGET_MAX_DISTANCE_PCT = 0.5;
 
+function numericOrderingTolerance(price: number): number {
+  return Math.max(Math.abs(price) * Number.EPSILON * 8, 1e-10);
+}
+
 export type ModelTokenPricing = {
   inputPer1M: number;
   cachedInputPer1M: number;
