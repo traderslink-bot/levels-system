@@ -14,6 +14,19 @@ afterEach(() => {
   }
 });
 describe("TradersLinkAiReadSettingsPersistence", () => {
+  it("persists format and preserves it when older controls save unrelated settings", () => {
+    const directory=mkdtempSync(join(tmpdir(),"traderslink-format-"));
+    tempDirectories.push(directory);
+    const persistence=new TradersLinkAiReadSettingsPersistence({filePath:join(directory,"settings.json")});
+    persistence.save(false);
+    persistence.save({...persistence.load()!,analysisFormat:"simple"});
+    assert.equal(persistence.load()?.analysisFormat,"simple");
+    persistence.save(false);
+    assert.equal(persistence.load()?.analysisFormat,"simple");
+    assert.equal(persistence.load()?.externalResearchEnabled,false);
+    persistence.save({...persistence.load()!,analysisFormat:"current"});
+    assert.equal(persistence.load()?.analysisFormat,"current");
+  });
   it("persists AI research and global card switches across restarts", () => {
     const directory = mkdtempSync(join(tmpdir(), "traderslink-ai-settings-"));
     tempDirectories.push(directory);
@@ -40,6 +53,7 @@ describe("TradersLinkAiReadSettingsPersistence", () => {
     });
     assert.deepEqual(persistence.load(), {
       version: 9,
+      analysisFormat: "current",
       automaticUpdatesEnabled: false,
       reviewBeforePublishingEnabled: true,
       lastUpdated: persistence.load()?.lastUpdated,
@@ -78,6 +92,7 @@ describe("TradersLinkAiReadSettingsPersistence", () => {
     const loaded = new TradersLinkAiReadSettingsPersistence({ filePath }).load();
     assert.deepEqual(loaded, {
       version: 9,
+      analysisFormat: "current",
       automaticUpdatesEnabled: false,
       reviewBeforePublishingEnabled: true,
       lastUpdated: 123,

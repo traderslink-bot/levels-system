@@ -39,6 +39,7 @@ import {
 } from "../alerts/alert-router.js";
 import type { TraderCommentaryService } from "../ai/trader-commentary-service.js";
 import type { TradersLinkAiReadService } from "../ai/traderslink-ai-read-service.js";
+import { datedPreviousRegularSession } from "../ai/traderslink-ai-read-market-context.js";
 import {
   buildTradersLinkAiCompletedSessionWindow,
   mergeTradersLinkAiIntradayCandles,
@@ -269,6 +270,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   tradersLinkAiReadService?: TradersLinkAiReadService | null;
   tradersLinkAiReadReviewStore?: TradersLinkAiReadReviewStore;
   initialReviewBeforePublishingEnabled?: boolean;
+  initialAnalysisFormat?: "current" | "simple";
   tradersLinkAiReadCostLedger?: TradersLinkAiReadCostLedger | null;
   tradersLinkAiReadRunLedger?: TradersLinkAiReadRunLedger | null;
   initialTradersLinkAiReadDailyCostBudget?: {
@@ -3117,6 +3119,7 @@ export class ManualWatchlistRuntimeManager {
     topRegularActivationEnabled: true,
   };
   private reviewBeforePublishingEnabled = true;
+  private analysisFormat: "current" | "simple" = "current";
   private tradersLinkAiReadBoundaryRefreshSettings: TradersLinkAiReadBoundaryRefreshSettings = {
     enabled: true,
     maxPerTickerPerNewYorkDate: MAX_AUTOMATIC_AI_READS_PER_SYMBOL_PER_NEW_YORK_DATE,
@@ -3224,6 +3227,7 @@ export class ManualWatchlistRuntimeManager {
 
   constructor(private readonly options: ManualWatchlistRuntimeManagerOptions) {
     this.reviewBeforePublishingEnabled = options.initialReviewBeforePublishingEnabled ?? Boolean(options.tradersLinkAiReadReviewStore);
+    this.analysisFormat = options.initialAnalysisFormat ?? "current";
     const haltService = new NasdaqTradingHaltService();
     this.tradingHaltLookup = options.tradingHaltLookup ?? haltService.lookup.bind(haltService);
     this.liveTraderReadCardVisible =
@@ -3499,7 +3503,12 @@ export class ManualWatchlistRuntimeManager {
 
   getTradersLinkAiReadReviewControls() {
     return { automaticUpdatesEnabled: this.tradersLinkAiReadGenerationSettings.automaticUpdatesEnabled,
-      reviewBeforePublishingEnabled: this.reviewBeforePublishingEnabled };
+      reviewBeforePublishingEnabled: this.reviewBeforePublishingEnabled,
+      analysisFormat: this.analysisFormat };
+  }
+
+  setTradersLinkAiReadAnalysisFormat(format: "current" | "simple"): void {
+    this.analysisFormat = format;
   }
 
   setTradersLinkAiReadReviewBeforePublishing(enabled: boolean): void {
@@ -3877,6 +3886,7 @@ export class ManualWatchlistRuntimeManager {
       this.technicalContextCandleStore.getCandles(symbol),
     );
     let dailyCandles = normalizePullbackCandles(storedSeries?.daily.candles ?? []);
+    let fourHourCandles = normalizePullbackCandles(storedSeries?.["4h"].candles ?? []);
     let source = this.technicalContextProviderBySymbol.get(symbol) ?? "runtime raw OHLCV";
     let recentIntradayProvider = source;
     const service = this.options.recentIntradayCandleFetchService;
@@ -3964,14 +3974,22 @@ export class ManualWatchlistRuntimeManager {
       const dailyPromise = historicalLoader({
         symbol,
         fromTimeMs: historicalCoverageRequirement.requiredEarliestDailyCandleAt ??
-          fetchAsOf - 120 * 24 * 60 * 60 * 1_000,
+          fetchAsOf - 183 * 24 * 60 * 60 * 1_000,
         toTimeMs: fetchAsOf,
         timeframes: ["daily"],
         nowMs: fetchAsOf,
       });
-      const [completedIntradayResult, historicalDailyResult] = await Promise.allSettled([
+      const fourHourPromise = historicalLoader({
+        symbol,
+        fromTimeMs: fetchAsOf - 93 * 24 * 60 * 60 * 1_000,
+        toTimeMs: fetchAsOf,
+        timeframes: ["4h"],
+        nowMs: fetchAsOf,
+      });
+      const [completedIntradayResult, historicalDailyResult, historicalFourHourResult] = await Promise.allSettled([
         completedIntradayPromise,
         dailyPromise,
+        fourHourPromise,
       ]);
 
       if (completedIntradayResult.status === "fulfilled" && completedIntradayResult.value) {
@@ -3996,6 +4014,11 @@ export class ManualWatchlistRuntimeManager {
         );
       }
 
+      if (historicalFourHourResult.status === "fulfilled") {
+        const series = historicalFourHourResult.value.series.find((item) => item.timeframe === "4h");
+        const candles = normalizePullbackCandles(series?.candles ?? []);
+        if (candles.length) fourHourCandles = candles;
+      }
       if (historicalDailyResult.status === "fulfilled") {
         const dailySeries = historicalDailyResult.value.series.find(
           (series) => series.timeframe === "daily",
@@ -4017,10 +4040,13 @@ export class ManualWatchlistRuntimeManager {
     return {
       source,
       fetchedAt: Date.now(),
-      priorRegularClose: this.priorRegularCloseBySymbol.get(symbol)?.price ?? null,
+      priorRegularClose: datedPreviousRegularSession(dailyCandles, fetchAsOf).close,
       oneMinuteCandles,
       intradayCandles,
       dailyCandles,
+      fourHourCandles,
+      levelsOutput: this.options.levelStore.getLevels(symbol) ?? undefined,
+      levelsSnapshotCutoff: dataAsOf,
       historicalCoverageRequirement,
     };
   }
@@ -4069,6 +4095,7 @@ export class ManualWatchlistRuntimeManager {
     preparedPriceAction?: TradersLinkAiReadPriceActionContext,
   ): Promise<TradersLinkAiReadPayload | null> {
     const requestActivationEpoch = this.activationEpochs.get(symbol);
+    const analysisFormat = this.analysisFormat;
     const generationAvailability = this.getTradersLinkAiReadGenerationAvailability(
       this.options.now?.() ?? Date.now(),
       { symbol, requestedTrigger },
@@ -4348,7 +4375,7 @@ export class ManualWatchlistRuntimeManager {
       }
       // Legacy public tickers also require review of replacements. Persist
       // the gate before dispatch, without inventing a past approved draft.
-      if (this.reviewBeforePublishingEnabled && !entry.publicationReview?.required) {
+      if ((this.reviewBeforePublishingEnabled || analysisFormat === "simple") && !entry.publicationReview?.required) {
         const reviewStore = this.options.tradersLinkAiReadReviewStore;
         if (!reviewStore) throw new Error("Owner review storage is unavailable.");
         const cycleId = randomUUID();
@@ -4379,6 +4406,7 @@ export class ManualWatchlistRuntimeManager {
           dataAsOf,
         });
         read = await service.generate({
+          analysisFormat,
           ownerReviewRequired: Boolean(reviewCycleId),
           onValidationDecision: (decision) => { validationDecisions.push(decision); },
           snapshot,
@@ -13239,7 +13267,7 @@ export class ManualWatchlistRuntimeManager {
     if (this.watchlistStore.getEntry(normalizeSymbol(input.symbol))?.active) return false;
     const settings = this.tradersLinkAiReadGenerationSettings;
     return requiresInitialWatchlistReview({
-      reviewEnabled: this.reviewBeforePublishingEnabled, generationEnabled: settings.enabled,
+      reviewEnabled: this.reviewBeforePublishingEnabled || this.analysisFormat === "simple", generationEnabled: settings.enabled,
       session: classifyUsEquityMarketSession(this.options.now?.() ?? Date.now()).session,
       premarketEnabled: settings.premarketEnabled, regularEnabled: settings.regularEnabled,
       postmarketEnabled: settings.postmarketEnabled,

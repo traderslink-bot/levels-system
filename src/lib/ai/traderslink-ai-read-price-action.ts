@@ -2,9 +2,10 @@ import type { Candle } from "../market-data/candle-types.js";
 import { unambiguousPriceCandles } from "./traderslink-ai-read-observations.js";
 import { classifyIntradayCandleTimestamp } from "../market-data/candle-session-classifier.js";
 import type { LevelEngineOutput } from "../levels/level-types.js";
+import { previousTradingSessionWindow, selectAnalysisSessions, datedPreviousRegularSession, sessionReferencePrices, analysisLevelContext, historicalAnalysisBases, observedSessionExpansion } from "./traderslink-ai-read-market-context.js";
 
 const RECENT_INTRADAY_BAR_LIMIT = 120;
-const RECENT_ONE_MINUTE_BAR_LIMIT = 60;
+const RECENT_ONE_MINUTE_BAR_LIMIT = 120;
 // Daily history is the long-range context for continuation targets. Keep this
 // materially wider than the short intraday packet so later reads can reassess
 // older structure instead of projecting from only the activation window.
@@ -26,6 +27,11 @@ export type TradersLinkAiReadPriceActionContext = {
   oneMinuteCandles?: Candle[];
   intradayCandles: Candle[];
   dailyCandles: Candle[];
+  fourHourCandles?: Candle[];
+  levelsOutput?: LevelEngineOutput;
+  // Actual generation-preparation cutoff, distinct from a candle's opening
+  // timestamp. Absent on historical replay unless explicitly captured.
+  levelsSnapshotCutoff?: number;
   historicalCoverageRequirement?: TradersLinkAiReadHistoricalCoverageRequirement;
 };
 
@@ -72,7 +78,10 @@ export function resolveTradersLinkAiReadHistoricalCoverageRequirement(
     };
   }
 
-  const requiredEarliestDailyCandleAt = Math.max(0, earliestEvidenceAt - DAILY_COVERAGE_BUFFER_DAYS * DAY_MS);
+  const requiredEarliestDailyCandleAt = Math.max(0, Math.min(
+    earliestEvidenceAt - DAILY_COVERAGE_BUFFER_DAYS * DAY_MS,
+    dataAsOf - 183 * DAY_MS,
+  ));
   const calendarDays = Math.ceil((dataAsOf - requiredEarliestDailyCandleAt) / DAY_MS);
   const estimatedTradingBars = Math.ceil(calendarDays * 5 / 7) + 10;
   return {
@@ -182,23 +191,15 @@ function normalizeCandles(candles: Candle[], dataAsOf: number): Candle[] {
 }
 
 export function buildTradersLinkAiCompletedSessionWindow(
-  recentCandles: Candle[],
+  _recentCandles: Candle[],
   dataAsOf: number,
 ): TradersLinkAiCompletedSessionWindow | null {
   const currentSessionDate = classifyIntradayCandleTimestamp(dataAsOf).sessionDate;
-  const completedSessionCandles = normalizeCandles(recentCandles, dataAsOf)
-    .filter((candle) => {
-      const classified = classifyIntradayCandleTimestamp(candle.timestamp);
-      return classified.sessionDate !== currentSessionDate &&
-        classified.session !== "extended";
-    });
-  if (completedSessionCandles.length === 0) {
-    return null;
-  }
+  const previous = previousTradingSessionWindow(dataAsOf);
   return {
     currentSessionDate,
-    fromTimeMs: completedSessionCandles[0]!.timestamp,
-    toTimeMs: completedSessionCandles.at(-1)!.timestamp + 5 * 60 * 1_000,
+    fromTimeMs: previous.fromTimeMs,
+    toTimeMs: previous.toTimeMs,
   };
 }
 
@@ -359,6 +360,32 @@ export function materiallySeparatedCandidates(
   return output.slice(0, 8);
 }
 
+function fiveMinuteAcceptanceCandidates(
+  candles: Candle[], currentPrice: number, dataAsOf: number,
+): TradersLinkAiReadPullbackCandidate[] {
+  const selected = selectAnalysisSessions(normalizeCandles(candles, dataAsOf), dataAsOf);
+  const candidates: TradersLinkAiReadPullbackCandidate[] = [];
+  for (let index = 0; index <= selected.length - 3; index += 1) {
+    const window = selected.slice(index, index + 3);
+    const stamps = window.map(bar => classifyIntradayCandleTimestamp(bar.timestamp));
+    if (!stamps.every(stamp => stamp.sessionDate === stamps[0]!.sessionDate && stamp.session === stamps[0]!.session)
+      || !window.slice(1).every((bar, offset) => bar.timestamp - window[offset]!.timestamp === 300_000)) continue;
+    const lows = window.map(bar => Math.min(bar.open, bar.close)).sort((a, b) => a - b);
+    const highs = window.map(bar => Math.max(bar.open, bar.close)).sort((a, b) => a - b);
+    // Adjacent candles in a directional leg are not an acceptance base.
+    if (lows[2]! > highs[0]!) continue;
+    const zone = candidateFromCandles({ id: `5m-acceptance-${window[0]!.timestamp}`,
+      kind: "five_minute_acceptance", candles: window, bodyOnly: true,
+      rationale: "Three consecutive five-minute bodies share an overlapping acceptance area; inspect later holds, breaks and reclaims before assigning its role." });
+    if (!zone) continue;
+    // Majority boundaries prevent a single launch candle stretching the base.
+    zone.zoneLow = roundPrice(lows[1]!);
+    zone.zoneHigh = roundPrice(highs[1]!);
+    if (zone.zoneHigh < currentPrice - Math.max(currentPrice * 0.005, 0.0001)) candidates.push(zone);
+  }
+  return candidates;
+}
+
 function buildOneMinuteFacts(
   rawCandles: Candle[],
   fiveMinuteCandles: Candle[],
@@ -371,7 +398,7 @@ function buildOneMinuteFacts(
     return {
       available: false,
       reason: "Fewer than 12 usable one-minute candles were available.",
-      pullbackCandidates: [],
+      pullbackCandidates: materiallySeparatedCandidates(fiveMinuteAcceptanceCandidates(fiveMinuteCandles, currentPrice, dataAsOf)),
       recentOneMinuteBars: candles.slice(-RECENT_ONE_MINUTE_BAR_LIMIT).map(compactIntradayBar),
     };
   }
@@ -521,13 +548,16 @@ function buildOneMinuteFacts(
       .sort((left, right) => right.volume - left.volume)
       .slice(0, 3)
       .sort((left, right) => left.timestamp - right.timestamp);
-    candidates.push(candidateFromCandles({
-      id: "1m-impulse-volume-shelf",
-      kind: "volume_shelf",
-      candles: volumeCandidates,
-      bodyOnly: true,
-      rationale: "Observed bodies of the highest reported-volume one-minute bars inside the impulse.",
-    }));
+    // High volume during a directional surge does not establish a horizontal
+    // shelf. A union of unrelated impulse bodies can span the whole advance.
+    if (volumeCandidates.length >= 3 &&
+        Math.max(...volumeCandidates.map(bar => Math.min(bar.open, bar.close))) <=
+        Math.min(...volumeCandidates.map(bar => Math.max(bar.open, bar.close)))) {
+      candidates.push(candidateFromCandles({
+        id: "1m-impulse-volume-shelf", kind: "volume_shelf", candles: volumeCandidates, bodyOnly: true,
+        rationale: "The three highest reported-volume impulse bodies share an overlapping price area; inspect subsequent acceptance before treating it as support.",
+      }));
+    }
   }
 
   if (broaderBest) {
@@ -554,7 +584,7 @@ function buildOneMinuteFacts(
         kind: "broader_move_origin",
         candles: originWindow.length > 0 ? originWindow : [start],
         bodyOnly: true,
-        rationale: "Observed one-minute bodies around the origin of the broader same-session expansion.",
+        rationale: "Observed one-minute bodies around the start of a larger advance within the available one-minute window; this need not be the origin of the full session move.",
       });
       candidates.push(originCandidate);
       broaderSessionMove = {
@@ -604,20 +634,7 @@ function buildOneMinuteFacts(
     }
   }
 
-  const recentFiveMinute = normalizeCandles(fiveMinuteCandles, dataAsOf).slice(-24);
-  for (let index = Math.max(0, recentFiveMinute.length - 12); index <= recentFiveMinute.length - 3; index += 3) {
-    const window = recentFiveMinute.slice(index, index + 3);
-    const zone = candidateFromCandles({
-      id: `5m-acceptance-${window[0]!.timestamp}`,
-      kind: "five_minute_acceptance",
-      candles: window,
-      bodyOnly: true,
-      rationale: "Observed three-bar five-minute body acceptance shelf.",
-    });
-    if (zone && zone.zoneHigh < currentPrice - minimumReferenceSeparation) {
-      candidates.push(zone);
-    }
-  }
+  candidates.push(...fiveMinuteAcceptanceCandidates(fiveMinuteCandles, currentPrice, dataAsOf));
 
   const lastSix = recent.slice(-6);
   const lows = lastSix.map((candle) => candle.low);
@@ -728,6 +745,7 @@ function sessionSummaryHigh(bars: CompactPriceActionBar[]): number {
 export function resolveTradersLinkAiCurrentPremarketHigh(
   candles: Candle[],
   dataAsOf: number,
+  oneMinuteCandles: Candle[] = [],
 ): number | null {
   const current = classifyIntradayCandleTimestamp(dataAsOf);
   if (current.session !== "premarket") {
@@ -739,7 +757,15 @@ export function resolveTradersLinkAiCurrentPremarketHigh(
       return classified.sessionDate === current.sessionDate && classified.session === "premarket";
     })
     .map(compactIntradayBar);
-  return bars.length > 0 ? roundPrice(sessionSummaryHigh(bars)) : null;
+  const minuteBars = normalizeCandles(oneMinuteCandles, dataAsOf)
+    .filter(candle => {
+      const classified = classifyIntradayCandleTimestamp(candle.timestamp);
+      return classified.sessionDate === current.sessionDate && classified.session === "premarket";
+    }).map(compactIntradayBar);
+  // Evaluate each resolution independently: equal opening timestamps do not
+  // make a 1m and 5m bar conflicting versions of the same observation.
+  const highs = [bars, minuteBars].filter(group => group.length).map(sessionSummaryHigh);
+  return highs.length ? roundPrice(Math.max(...highs)) : null;
 }
 
 function summarizeSessionPhases(candles: Candle[]): SessionPhaseSummary[] {
@@ -784,8 +810,8 @@ function summarizeSessionPhases(candles: Candle[]): SessionPhaseSummary[] {
   });
 }
 
-function compactDailyBars(candles: Candle[]): Array<Record<string, number | string | null>> {
-  return candles.slice(-RECENT_DAILY_BAR_LIMIT).map((candle) => ({
+function compactDailyBars(candles: Candle[], limit = RECENT_DAILY_BAR_LIMIT): Array<Record<string, number | string | null>> {
+  return candles.slice(-limit).map((candle) => ({
     timestamp: candle.timestamp,
     dateIso: new Date(candle.timestamp).toISOString(),
     open: roundPrice(candle.open),
@@ -947,7 +973,9 @@ export function buildTradersLinkAiPriceActionPacket(
     throw new Error("TradersLink AI Read requires recent extended-hours intraday price action.");
   }
 
-  const recentIntraday = intraday.slice(-RECENT_INTRADAY_BAR_LIMIT);
+  const selectedSessions = selectAnalysisSessions(intraday, dataAsOf);
+  const recentIntraday = selectedSessions.length ? selectedSessions : intraday.slice(-RECENT_INTRADAY_BAR_LIMIT);
+  const previousRegularSession = datedPreviousRegularSession(daily, dataAsOf);
   const annotated = intraday.map((candle) => ({
     candle,
     classified: classifyIntradayCandleTimestamp(candle.timestamp),
@@ -990,16 +1018,62 @@ export function buildTradersLinkAiPriceActionPacket(
     currentPrice,
     dataAsOf,
   );
+  const observedOneMinute = normalizeCandles(context.oneMinuteCandles ?? [], dataAsOf);
+  oneMinuteFacts.observedWindow = {
+    from: observedOneMinute[0]?.timestamp ?? null,
+    to: observedOneMinute.at(-1)?.timestamp ?? null,
+    bars: observedOneMinute.length,
+    interpretation: "All one-minute derived facts, including broaderSessionMove and approximate VWAP, describe only these available bars. Do not treat a truncated recent window as the full day's origin or session VWAP. Use observedSessionExpansion and the five-minute chronology for wider context.",
+  };
+  const calculationCutoff = Number.isFinite(context.levelsSnapshotCutoff) &&
+    context.levelsSnapshotCutoff! >= dataAsOf && context.levelsSnapshotCutoff! <= context.fetchedAt
+    ? context.levelsSnapshotCutoff! : dataAsOf;
+  const levelsSystem = analysisLevelContext(context.levelsOutput, currentPrice, dataAsOf, calculationCutoff);
+  // The model may select a historical support area, not only a recent 1m/5m
+  // pattern. Preserve exact engine boundaries and require a matching supplied
+  // price observation; a Levels label by itself is not sufficient evidence.
+  const observations = [...intraday, ...daily, ...normalizeCandles(context.fourHourCandles ?? [], dataAsOf)];
+  const historicalAreas = (levelsSystem?.levels ?? [])
+    .filter(zone => zone.low > 0 && zone.low <= zone.high && zone.high < currentPrice &&
+      zone.timeframes.some(timeframe => timeframe === "daily" || timeframe === "4h") &&
+      observations.some(bar => bar.timestamp >= zone.formedAt && bar.timestamp <= dataAsOf &&
+        ((bar.low >= zone.low && bar.low <= zone.high) || (bar.high >= zone.low && bar.high <= zone.high))))
+    .sort((left, right) => right.touches - left.touches || right.lastObservedAt - left.lastObservedAt || left.id.localeCompare(right.id))
+    .slice(0, 4)
+    .map(zone => ({ id: `levels-area:${zone.id}`, kind: "levels_system_area",
+      zoneLow: zone.low, zoneHigh: zone.high, observedFrom: zone.formedAt, observedTo: zone.lastObservedAt,
+      timeframes: zone.timeframes, sources: zone.sources, provenance: zone.provenance,
+      distanceBelowReferencePct: roundMetric((currentPrice - zone.high) / currentPrice * 100),
+      rationale: "Historical Levels-system area with a matching supplied candle observation. Evaluate later breaks, reclaims and the current catalyst regime before selecting it; not automatically an active support base." }));
+  const intradayCandidates = Array.isArray(oneMinuteFacts.pullbackCandidates) ? oneMinuteFacts.pullbackCandidates : [];
+  // Three-minute acceptance is a micro momentum pause, not the multi-style
+  // dip-buy plan. Preserve the observation for commentary, but do not offer it
+  // as a selectable principal pullback merely because it is near the quote.
+  oneMinuteFacts.momentumContextCandidates = intradayCandidates.filter(candidate => candidate.kind === "one_minute_acceptance");
+  oneMinuteFacts.pullbackCandidates = [
+    ...intradayCandidates.filter(candidate => candidate.kind !== "one_minute_acceptance"),
+    ...historicalAreas,
+    ...historicalAnalysisBases(daily, "daily", currentPrice, dataAsOf),
+    ...historicalAnalysisBases(normalizeCandles(context.fourHourCandles ?? [], dataAsOf), "4h", currentPrice, dataAsOf),
+  ];
 
   return {
     source: context.source,
     fetchedAt: context.fetchedAt,
     fetchedAtIso: new Date(context.fetchedAt).toISOString(),
-    timeframes: ["1m", "5m", "1d"],
-    sessionCoverage: ["premarket", "opening_range", "regular", "after_hours"],
-    includesRegularHours: true,
-    includesPrePostMarket: true,
-    priorRegularClose: context.priorRegularClose,
+    timeframes: ["1m", "5m", "1d", ...((context.fourHourCandles?.length ?? 0) ? ["4h"] : [])],
+    sessionCoverage: [...new Set(sessionPhaseSummaries.map((summary) => summary.session))],
+    includesRegularHours: sessionPhaseSummaries.some((summary) => summary.session === "regular" || summary.session === "opening_range"),
+    includesPrePostMarket: sessionPhaseSummaries.some((summary) => summary.session === "premarket" || summary.session === "after_hours"),
+    priorRegularClose: previousRegularSession.close,
+    previousRegularSession,
+    providerPreviousClose: { price: context.priorRegularClose, dateVerified: false,
+      usage: "Diagnostic only; may refer to an older session before the market opens." },
+    sessionReferencePrices: sessionReferencePrices(intraday, normalizeCandles(context.oneMinuteCandles ?? [], dataAsOf), dataAsOf),
+    observedSessionExpansion: observedSessionExpansion(intraday, dataAsOf),
+    fourHourBars: normalizeCandles(context.fourHourCandles ?? [], dataAsOf)
+      .filter((bar) => bar.timestamp >= dataAsOf - 93 * DAY_MS).map(compactIntradayBar),
+    levelsSystem,
     recentRange: {
       high: roundPrice(recentHigh),
       low: roundPrice(recentLow),
@@ -1015,7 +1089,7 @@ export function buildTradersLinkAiPriceActionPacket(
     highVolumeFiveMinuteBars: volumeLandmarks,
     recentFiveMinuteBars: recentIntraday.map(compactIntradayBar),
     oneMinuteEvidence: oneMinuteFacts,
-    recentDailyBars: compactDailyBars(daily),
+    recentDailyBars: compactDailyBars(daily, historicalCoverageRequirement.requestedDailyBars),
     historicalCoverage: buildHistoricalCoverage(daily, historicalCoverageRequirement),
   };
 }

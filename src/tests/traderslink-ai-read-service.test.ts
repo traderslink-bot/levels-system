@@ -65,16 +65,19 @@ it("owner-reviewed generation can use supplied chart evidence beyond the catalog
   assert.match(reviewed, /setupRestorePrice < firstObjectivePrice/);
   assert.match(reviewed, /Flat repeated OHLC bars with unavailable volume do not establish repeated buyer defense/);
   assert.doesNotMatch(ordinary, /Scope correction for this complete analysis/);
-  assert.equal(buildTradersLinkAiReadResponseSchema(), AI_READ_SCHEMA);
+  const outgoing=buildTradersLinkAiReadResponseSchema();
+  assert.equal(Object.hasOwn(outgoing.properties,"dilutionRisk"),false);
+  assert.equal(Object.hasOwn(outgoing.properties,"listingStatus"),false);
+  assert.equal(outgoing.properties.pullbackPlans,AI_READ_SCHEMA.properties.pullbackPlans);
   assert.equal(buildTradersLinkAiReadResponseSchema(true).properties.breakoutCandidates.properties.primary.properties.targets.maxItems, 6);
   assert.equal(AI_READ_SCHEMA.properties.breakoutCandidates.properties.primary.properties.targets.maxItems, 4);
 });
 
-it("release reconciliation preserves the exact five-symbol-tested owner prompt and schema", () => {
+it("release reconciliation pins the owner-approved research-removal prompt and schema", () => {
   assert.equal(createHash("sha256").update(buildTradersLinkAiReadDeveloperPrompt(true)).digest("hex"),
-    "b8c816d2d002a80205501458b726653f4d125b67a9d9b18a7dd5d5405f230949");
+    "05815d8207dc63f3188bc9e3dbec0df34d707de70a10596588b1a27332e001c7");
   assert.equal(createHash("sha256").update(JSON.stringify(buildTradersLinkAiReadResponseSchema(true))).digest("hex"),
-    "28129a1efebc719261d8ba5a2de25cd5c89933d3ab23e917e3c0226876ba92bc");
+    "f0284008ee7a943a51aca5a9affe1f1885e2fe1af913e9459428f09d02311473");
 });
 
 it("owner review cannot fabricate a draft from a truncated response", async () => {
@@ -85,7 +88,7 @@ it("owner review cannot fabricate a draft from a truncated response", async () =
     research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } }), /incomplete/);
 });
 
-it("owner review supplements its unchanged upside route with the displayed intermediate and farther resistance", async () => {
+it("owner review adds one outer resistance without enumerating intermediate map prices", async () => {
   const levels = snapshot();
   levels.resistanceZones = [1.75, 1.9, 2.3].map(price => ({ ...levels.resistanceZones[0]!,
     representativePrice: price, lowPrice: price - 0.005, highPrice: price + 0.005,
@@ -99,10 +102,23 @@ it("owner review supplements its unchanged upside route with the displayed inter
       content: [{ type: "output_text", text: JSON.stringify(draft) }] }] }), { status: 200 }); } });
   const read = await service.generate({ snapshot: levels, priceAction: priceAction(), ownerReviewRequired: true,
     research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] }, onValidationDecision: d => decisions.push(d) });
-  assert.deepEqual(read.targets.map(target => target.price), [1.7, 1.75, 1.9]);
+  assert.deepEqual(read.targets.map(target => target.price), [1.7, 1.9]);
   assert.deepEqual(read.targets[0], (draft.targets as unknown[])[0]);
   assert.equal(requests, 1);
   assert.ok(decisions.some(d => d.stage === "potential_path_extension" && d.source === "frozen_potential_path"));
+  assert.doesNotMatch(read.targets[1]!.condition, /next mapped resistance|1\.75/);
+  draft.targets = [{ label: "AI farther area", price: 1.9, condition: "Original farther condition." }];
+  const covered = await service.generate({ snapshot: levels, priceAction: priceAction(), ownerReviewRequired: true,
+    research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
+  assert.deepEqual(covered.targets, draft.targets);
+});
+
+it("owner prompt requests natural commentary and a sole meaningful pullback", () => {
+  const prompt = buildTradersLinkAiReadDeveloperPrompt(true);
+  assert.match(prompt, /do not quote candle clock times/);
+  assert.match(prompt, /return shallow:null and preserve the meaningful deep plan/);
+  assert.match(prompt, /Never fill six slots/);
+  assert.match(prompt, /one or at most two mapped levels/);
 });
 
 it("requests pullback structures before the final core failure without changing required fields", () => {
@@ -458,7 +474,7 @@ describe("TradersLink AI price-action volume quality", () => {
 
     assert.deepEqual(buildTradersLinkAiCompletedSessionWindow(yahoo, dataAsOf), {
       currentSessionDate: "2026-07-17",
-      fromTimeMs: priorOpen,
+      fromTimeMs: Date.parse("2026-07-16T08:00:00Z"),
       toTimeMs: priorClose + 5 * 60_000,
     });
     const merged = mergeTradersLinkAiIntradayCandles(yahoo, eodhd, dataAsOf);
@@ -805,8 +821,8 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.ok(schema.properties.downsideCheckpoints);
     assert.ok(schema.properties.pullbackPlans);
     assert.ok(schema.properties.failureRecovery);
-    assert.ok(schema.properties.dilutionRisk);
-    assert.ok(schema.properties.listingStatus);
+    assert.equal(schema.properties.dilutionRisk,undefined);
+    assert.equal(schema.properties.listingStatus,undefined);
     const input = requestBody.input as Array<{ role: string; content: Array<{ text: string }> }>;
     assert.match(
       input[0]!.content[0]!.text,
@@ -1009,6 +1025,12 @@ describe("OpenAITradersLinkAiReadService", () => {
     };
 
     const read = await generate(draft);
+    const preciseScenario = structuredClone(draft) as Record<string, any>;
+    const exactInvalidation = Number((deepCandidate.zoneLow - 0.001).toFixed(6));
+    preciseScenario.pullbackPlans.deep.invalidationPrice = exactInvalidation;
+    const precisionRead = await generate(preciseScenario);
+    assert.equal(precisionRead.pullbackPlans.deep?.invalidationPrice, exactInvalidation,
+      "normalization must not round a supported scenario's invalidation onto its zone");
     for (const [name, field, claim] of [
       ["shallow", "confirmation", "Premarket volume was zero."],
       ["deep", "rationale", "The provider did not report volume."],
@@ -1249,7 +1271,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     const originRecoveryRead = await generate(originRecovery);
     assert.equal(
       originRecoveryRead.failureRecovery?.firstReclaimPrice,
-      Number(tightOriginReclaim.toFixed(2)),
+      tightOriginReclaim,
     );
     assert.ok(
       (originRecoveryRead.failureRecovery?.setupRestorePrice ?? Number.POSITIVE_INFINITY) <
@@ -1717,6 +1739,31 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.ok(read.riskSummary.includes("Watch buyer defense at the shelf."));
   });
 
+  it("retains a surpassed premarket pivot without accepting a wrong current high", async () => {
+    const validRead = premarketModelRead(
+      "The $0.33 premarket high was crossed briefly before the $0.3469 premarket high was reached.",
+    );
+    validRead.riskSummary = ["The $0.3658 current premarket high was crossed."];
+    let requests = 0;
+    const service = new OpenAITradersLinkAiReadService({
+      apiKey: "test-key", model: "test-model",
+      fetchImpl: async () => {
+        requests++;
+        return new Response(JSON.stringify({ output: [{ type: "message",
+          content: [{ type: "output_text", text: JSON.stringify(validRead) }] }] }),
+        { status: 200, headers: { "Content-Type": "application/json" } });
+      },
+    });
+    const read = await service.generate({
+      snapshot: { ...snapshot(), timestamp: PREMARKET_DATA_AS_OF, currentPrice: 0.3336 },
+      dataAsOf: PREMARKET_DATA_AS_OF, priceAction: premarketPriceAction(),
+      research: { ticker: "NXXT", businessDays: 5, count: 0, articles: [] },
+    });
+    assert.match(read.currentRead, /0\.33 premarket high was crossed/);
+    assert.equal(read.riskSummary.length, 0);
+    assert.equal(requests, 1);
+  });
+
   it("does not mistake a calendar date for a claimed premarket-high price", async () => {
     const validRead = premarketModelRead(
       "The July 23 premarket high remains the immediate reference while price holds the rebound shelf.",
@@ -1913,6 +1960,26 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.match(read.downsideCheckpoints[0]?.condition ?? "", /observed daily candle/i);
   });
 
+  it("retains an earlier supplied five-minute checkpoint beyond the recent 48 bars", async () => {
+    const draft = modelRead();
+    draft.downsideCheckpoints = [{label:"Earlier session base",price:0.7089,
+      condition:"After momentum failure, watch the earlier observed base."}];
+    const tape = priceAction();
+    const earlier = Array.from({length:25},(_,i)=>({timestamp:DATA_AS_OF-(60-i)*300_000,
+      open:1.3,high:1.32,low:1.28,close:1.31,volume:1000}));
+    earlier[0] = {...earlier[0]!,open:0.72,high:0.75,low:0.7089,close:0.73};
+    tape.intradayCandles = [...earlier,...tape.intradayCandles];
+    let requests = 0;
+    const service = new OpenAITradersLinkAiReadService({apiKey:"test-key",model:"test-model",
+      fetchImpl:async()=>{requests++;return new Response(JSON.stringify({output:[{type:"message",
+        content:[{type:"output_text",text:JSON.stringify(draft)}]}]}),{status:200});}});
+    const read = await service.generate({snapshot:snapshot(),priceAction:tape,
+      research:{ticker:"TGHL",businessDays:5,count:0,articles:[]}});
+    assert.equal(requests,1);
+    assert.equal(read.downsideCheckpoints[0]?.price,0.7089);
+    assert.match(read.downsideCheckpoints[0]?.condition ?? "",/observed intraday candle low/);
+  });
+
   it("grounds a prior-close checkpoint deterministically instead of buying a correction", async () => {
     const draft = modelRead();
     draft.downsideCheckpoints = [{
@@ -1921,7 +1988,9 @@ describe("OpenAITradersLinkAiReadService", () => {
       condition: "Relevant only if the original setup fails.",
     }];
     const tape = priceAction();
-    tape.priorRegularClose = 0.8;
+    tape.priorRegularClose = 0.6; // Stale provider quote must not override the dated close.
+    tape.dailyCandles = tape.dailyCandles.filter(bar => new Date(bar.timestamp).toISOString().slice(0, 10) !== "2026-07-14");
+    tape.dailyCandles.push({ timestamp: Date.parse("2026-07-14T00:00:00Z"), open: 0.85, high: 0.9, low: 0.75, close: 0.8, volume: 1000 });
     let requestCount = 0;
     const service = new OpenAITradersLinkAiReadService({
       apiKey: "test-key",
@@ -2212,7 +2281,8 @@ describe("OpenAITradersLinkAiReadService", () => {
     const identity = (events[0]!.payload as any).codeIdentity;
     assert.equal(identity.scope, "analysis-module-files-at-service-load");
     assert.equal(identity.complete, true);
-    assert.equal(identity.modules.length, 8);
+    assert.equal(identity.modules.length, 9);
+    assert.ok(identity.modules.some((module: any) => module.name === "traderslink-ai-read-market-context"));
     assert.match(identity.sha256, /^[a-f0-9]{64}$/);
     assert.equal(Object.hasOwn(JSON.parse(sentBody), "codeIdentity"), false);
     assert.equal((events[1]!.payload as { body: string }).body, responseBody);

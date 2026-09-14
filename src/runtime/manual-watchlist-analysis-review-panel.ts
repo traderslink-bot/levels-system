@@ -3,6 +3,9 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
 <div class="ai-read-console" id="analysis-review-panel">
   <h3>Analysis Review</h3>
   <div class="provider-control">
+    <label for="analysis-review-format">Analysis format</label>
+    <select id="analysis-review-format" disabled><option value="current">Current analysis</option><option value="simple">Simple analysis</option></select>
+    <p>Applies to new requests only. Simple analysis always waits for your review before publishing.</p>
     <label><input type="checkbox" id="analysis-review-automatic" style="width:auto" disabled /> Automatic AI updates</label>
     <p>When off, automatic follow-up AI requests stop. Manual refresh and live price/data updates remain available.</p>
     <label><input type="checkbox" id="analysis-review-required" style="width:auto" disabled /> Review before publishing</label>
@@ -63,6 +66,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   const changed = () => { dirty = true; preview = null; previewContent.replaceChildren(); byId("approve").disabled = true; };
   const pick = (value, names) => Object.fromEntries(names.map((key) => [key, value[key]]));
   function editable(payload) {
+    if (payload.analysisFormat === "simple") return {simpleAnalysis:structuredClone(payload.simpleAnalysis),ownerHiddenSections:[...(payload.ownerHiddenSections || [])]};
     const result = Object.fromEntries(keys.filter((key) => Object.hasOwn(payload, key)).map((key) => [key, structuredClone(payload[key])]));
     for (const key of ["needsToHold", "cautionBelow", "momentumFailure", "mustClear", "breakoutContinuation"]) result[key] = pick(payload[key], levelFields);
     result.targets = payload.targets.map((item) => pick(item, ["label", "price", "condition"]));
@@ -90,7 +94,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     const controls = Array.from(document.querySelectorAll("#analysis-review-panel button, #analysis-review-panel input, #analysis-review-panel textarea, #analysis-review-panel select"));
     controls.forEach((control) => { control.disabled = true; });
     try { await operation(); } catch (error) { message(error.message || "Review could not complete."); }
-    finally { busy = false; controls.forEach((control) => { control.disabled = false; }); byId("approve").disabled = !preview || dirty; ["automatic", "required", "settings-save"].forEach((id) => { byId(id).disabled = !controlsLoaded; }); }
+    finally { busy = false; controls.forEach((control) => { control.disabled = false; }); byId("approve").disabled = !preview || dirty; ["automatic", "required", "format", "settings-save"].forEach((id) => { byId(id).disabled = !controlsLoaded; }); }
   }
   function input(parent, label, object, key, numeric) {
     const wrapper = node("label", label, parent);
@@ -150,6 +154,34 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
       message("No analysis draft is available yet. The ticker remains held if owner review is required."); return;
     }
     patch = editable(draft.body.payload); dirty = false; actions.hidden = false;
+    if (patch.simpleAnalysis) {
+      const simple=patch.simpleAnalysis;
+      input(section("currentRead"),"Analysis",simple,"setup",false);
+      [["pullbacks","Pullback",2],["upside","Where it could go next",5]].forEach(([key,title,limit])=>{
+        const parent=node("details",undefined,editor); node("summary",title,parent);
+        const list=node("div",undefined,parent);
+        const render=()=>{
+          list.replaceChildren();
+          simple[key].forEach((item,index)=>{
+            const row=node("fieldset",undefined,list);node("legend",title+" "+(index+1),row);
+            ["low","high","explanation",...(key==="pullbacks"?["confirmation","invalidation"]:[])].forEach(name=>
+              input(row,({low:"Area low",high:"Area high",explanation:"Explanation",confirmation:"Confirmation",invalidation:"Invalidation price"})[name],item,name,["low","high","invalidation"].includes(name)));
+            const remove=node("button","Remove",row);remove.type="button";remove.onclick=()=>{simple[key].splice(index,1);changed();render();};
+          });
+        };
+        render();const add=node("button","Add",parent);add.type="button";add.onclick=()=>{
+          if(simple[key].length>=limit)return;
+          simple[key].push({low:null,high:null,explanation:"",...(key==="pullbacks"?{confirmation:"",invalidation:null}:{})});changed();render();
+        };
+      });
+      ["shallow","deep","targets"].forEach(key=>section(key));
+      const invalidation=section("momentumFailure");
+      const addFailure=node("button",simple.invalidation?"Remove invalidation":"Add invalidation",invalidation);addFailure.type="button";
+      const body=node("div",undefined,invalidation);
+      const showFailure=()=>{body.replaceChildren();addFailure.textContent=simple.invalidation?"Remove invalidation":"Add invalidation";if(simple.invalidation){input(body,"Price",simple.invalidation,"price",true);input(body,"Explanation",simple.invalidation,"explanation",false);}};
+      addFailure.onclick=()=>{simple.invalidation=simple.invalidation?null:{price:null,explanation:""};changed();showFailure();};showFailure();
+      renderReviewHistory(review.events,editor);return;
+    }
     node("p", review.symbol + " · Saved version " + draft.revision + " · Analysis price $" + draft.body.payload.currentPrice, editor);
     for (const key of ["bias", "confidence"]) {
       const label = node("label", key === "bias" ? "Bias" : "Confidence", editor);
@@ -184,7 +216,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
       toggle.onchange = () => { object[key] = toggle.checked ? Object.fromEntries(names.map((name) => [name, /Price$|Low$|High$/.test(name) ? null : ""])) : null; changed(); renderSetup(); };
       renderSetup();
     }
-    for (const key of ["catalystRealityCheck", "dilutionRisk", "listingStatus"]) fields(section(key), patch[key], ["summary", "dayTradeRelevance"]);
+    for (const key of ["catalystRealityCheck"]) fields(section(key), patch[key], ["summary", "dayTradeRelevance"]);
     renderReviewHistory(review.events, editor);
   }
   byId("load").onclick = () => { if (dirty && !window.confirm("Discard unsaved edits and load this ticker?")) return; run(async () => { const result = await request(""); review = result.review; historical = false; renderEditor(); if (review && review.draft) message("Saved analysis loaded."); }); };
@@ -396,6 +428,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   const showSettings = (settings) => {
     byId("automatic").checked = settings.automaticUpdatesEnabled;
     byId("required").checked = settings.reviewBeforePublishingEnabled;
+    byId("format").value = settings.analysisFormat || "current";
     controlsLoaded = true;
   };
   const loadQueue = async () => {
@@ -414,7 +447,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   byId("settings-load").onclick = loadSettings;
   byId("settings-save").onclick = () => run(async () => {
     if (!controlsLoaded) throw new Error("Load the saved controls first.");
-    const result = await request("/settings", { automaticUpdatesEnabled: byId("automatic").checked, reviewBeforePublishingEnabled: byId("required").checked });
+    const result = await request("/settings", { automaticUpdatesEnabled: byId("automatic").checked, reviewBeforePublishingEnabled: byId("required").checked, analysisFormat:byId("format").value });
     showSettings(result.settings); message("Review controls saved. Session settings and existing pending drafts are unchanged.");
   });
   void loadSettings();

@@ -17,6 +17,18 @@ function setup() {
   return { calls, manager, send };
 }
 
+test("format selection uses owner settings boundary and does not publish",async()=>{
+  const {manager,calls}=setup();
+  let saved:unknown;
+  const controls={get:()=>({automaticUpdatesEnabled:false,reviewBeforePublishingEnabled:true,analysisFormat:"current" as const}),save:(value:unknown)=>{saved=value;return value;}};
+  const base={method:"POST",pathname:"/api/watchlist/analysis-review/settings",searchParams:new URLSearchParams(),actor:"platform-owner:test"};
+  const body={automaticUpdatesEnabled:false,reviewBeforePublishingEnabled:true,analysisFormat:"simple"};
+  assert.equal((await dispatchAnalysisReviewRequest({...base,body},manager as any,controls)).status,200);
+  assert.deepEqual(saved,body);assert.equal(calls.length,0);
+  assert.equal((await dispatchAnalysisReviewRequest({...base,body:{...body,analysisFormat:"invalid"}},manager as any,controls)).status,400);
+  assert.equal((await dispatchAnalysisReviewRequest({...base,body,actor:undefined},manager as any,controls)).status,403);
+});
+
 test("private review and previews require a proxy owner actor and correct methods", async () => {
   const { calls, send } = setup();
   assert.equal((await send("", undefined, "", "GET")).status, 403);

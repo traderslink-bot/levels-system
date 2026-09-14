@@ -32,6 +32,20 @@ export function splitApprovedAnalysisText(text: string): string[] {
  */
 export function renderApprovedAnalysisDiscord(read: TradersLinkAiReadPayload): string[] {
   const hidden = new Set(read.ownerHiddenSections ?? []);
+  if (read.analysisFormat === "simple" && read.simpleAnalysis) {
+    const simple = read.simpleAnalysis;
+    const sections = [read.symbol + " — TradersLink Analysis", "Analysis price: $" + read.currentPrice];
+    const area = (low:number,high:number) => low === high ? "$"+low : "$"+low+"–$"+high;
+    if (!hidden.has("currentRead") && simple.setup.trim()) sections.push(simple.setup);
+    const visible = simple.pullbacks.map((plan,index)=>({plan,key:index === 0 ? "shallow" : "deep"})).filter(item=>!hidden.has(item.key));
+    visible.forEach(({plan},index)=>sections.push((index === 0 ? "Pullback" : "Deeper pullback")+"\n"+
+      area(plan.low,plan.high)+"\n"+plan.explanation+"\nConfirmation: "+plan.confirmation+"\nInvalidation: $"+plan.invalidation));
+    if (!hidden.has("targets") && simple.upside.length) sections.push("Where it could go next\n"+
+      simple.upside.map(level=>area(level.low,level.high)+" — "+level.explanation).join("\n"));
+    if (!hidden.has("momentumFailure") && simple.invalidation) sections.push("Thesis invalidation\n$"+
+      simple.invalidation.price+" — "+simple.invalidation.explanation);
+    return splitApprovedAnalysisText(sections.join("\n\n"));
+  }
   const price = (value: number | null) => value === null ? null : `$${value}`;
   const sections = [`${read.symbol} — TradersLink Analysis`,
     `Analysis price: ${price(read.currentPrice)}\nBias: ${read.bias}. Confidence: ${read.confidence}.`];
@@ -52,7 +66,8 @@ export function renderApprovedAnalysisDiscord(read: TradersLinkAiReadPayload): s
   for (const [key, title] of [["targets", "Where the trade could go next"], ["downsideCheckpoints", "Downside levels"]] as const) {
     add(key, title, read[key].map((level) => [level.label, price(level.price), level.condition].filter(Boolean).join(" — ")));
   }
-  for (const [key, title] of [["shallow", "Shallow pullback"], ["deep", "Deep pullback"]] as const) {
+  const hasVisiblePullback = Boolean(read.pullbackPlans.shallow) && !hidden.has("shallow");
+  for (const [key, title] of [["shallow", "Pullback"], ["deep", hasVisiblePullback ? "Deeper pullback" : "Pullback"]] as const) {
     const plan = read.pullbackPlans[key];
     if (plan) add(key, title, [
       `Area: ${price(plan.zoneLow)}–${price(plan.zoneHigh)}`,
@@ -70,7 +85,7 @@ export function renderApprovedAnalysisDiscord(read: TradersLinkAiReadPayload): s
     recovery.firstObjectivePrice === null ? null : `Next level: ${price(recovery.firstObjectivePrice)}`,
     recovery.rationale,
   ]);
-  for (const [key, title] of [["catalystRealityCheck", "Catalyst / recent news"], ["dilutionRisk", "Dilution risk"], ["listingStatus", "Listing status"]] as const) {
+  for (const [key, title] of [["catalystRealityCheck", "Catalyst / recent news"]] as const) {
     add(key, title, [read[key].summary, read[key].dayTradeRelevance]);
   }
   add("riskSummary", "Risk notes", read.riskSummary);

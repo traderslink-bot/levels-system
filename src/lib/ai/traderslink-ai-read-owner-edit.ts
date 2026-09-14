@@ -1,4 +1,5 @@
 import type { TradersLinkAiReadPayload } from "../live-watchlist/live-watchlist-types.js";
+import { parseSimpleAnalysis } from "./watchlist-simple-content.js";
 
 export const OWNER_ANALYSIS_SECTIONS = ["currentRead", "needsToHold", "cautionBelow", "momentumFailure", "mustClear", "breakoutContinuation", "targets", "downsideCheckpoints", "shallow", "deep", "failureRecovery", "catalystRealityCheck", "dilutionRisk", "listingStatus", "riskSummary"] as const;
 type Shape = Record<string, "text" | "price">;
@@ -38,6 +39,23 @@ export function applyOwnerAnalysisEdit(original: TradersLinkAiReadPayload, rawPa
   payload: TradersLinkAiReadPayload; changedPaths: string[]; warnings: string[];
 } {
   const patch = record(rawPatch);
+  if (original.analysisFormat === "simple") {
+    if (Object.keys(patch).some(key=>key !== "simpleAnalysis" && key !== "ownerHiddenSections"))
+      throw new Error("Only Simple analysis sections can be edited in this format.");
+    const simpleAnalysis = parseSimpleAnalysis(patch.simpleAnalysis ?? original.simpleAnalysis);
+    if (!simpleAnalysis) throw new Error("Complete the Simple analysis prices and text before saving.");
+    const hidden = patch.ownerHiddenSections ?? original.ownerHiddenSections ?? [];
+    if (!Array.isArray(hidden) || hidden.some(key=>!["currentRead","shallow","deep","targets","momentumFailure"].includes(key)))
+      throw new Error("Invalid hidden Simple analysis section.");
+    const payload = { ...structuredClone(original), simpleAnalysis, ownerHiddenSections:[...new Set(hidden)],
+      currentRead:simpleAnalysis.setup,
+      momentumFailure:{label:"Thesis invalidation",price:simpleAnalysis.invalidation?.price ?? null,rationale:simpleAnalysis.invalidation?.explanation ?? ""},
+      targets:simpleAnalysis.upside.map(area=>({label:"",price:area.high,condition:area.explanation})),
+    };
+    const warnings = simpleAnalysis.pullbacks.flatMap(area=>area.low > area.high ? ["A pullback low is above its high."] : []);
+    return {payload, warnings, changedPaths:Object.keys(patch).filter(key=>
+      JSON.stringify(patch[key]) !== JSON.stringify((original as unknown as Record<string,unknown>)[key]))};
+  }
   const result = structuredClone(original);
   const output = result as unknown as Record<string, unknown>;
   const changedPaths: string[] = [];
@@ -85,10 +103,10 @@ export function applyOwnerAnalysisEdit(original: TradersLinkAiReadPayload, rawPa
   const mustClear = result.mustClear?.price;
   if (breakout != null && breakout < result.currentPrice) warnings.push("Breakout continuation is below the analysis reference price.");
   if (breakout != null && mustClear != null && breakout <= mustClear) warnings.push("Breakout continuation is at or below the must-clear price.");
-  let priorUpside = breakout ?? result.currentPrice;
+  let priorUpside = result.currentPrice;
   for (const point of result.targets ?? []) {
     if (point.price === null) continue;
-    if (point.price <= priorUpside) warnings.push("An upside level is at or below the preceding continuation level.");
+    if (point.price <= priorUpside) warnings.push("An upside level is at or below the preceding upside level or analysis reference price.");
     priorUpside = point.price;
   }
   return { payload: result, changedPaths, warnings };

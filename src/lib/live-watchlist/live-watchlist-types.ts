@@ -308,6 +308,8 @@ export type TradersLinkAiReadListingContext = {
 };
 
 export type TradersLinkAiReadPayload = {
+  analysisFormat?: "current" | "simple";
+  simpleAnalysis?: import("../ai/watchlist-simple-content.js").SimpleAnalysis;
   ownerHiddenSections?: string[];
   version: 3;
   /** Immutable id assigned before the first provider attempt for this read. */

@@ -10,6 +10,7 @@ export type TradersLinkAiReadSettings = {
   generationEnabled: boolean;
   automaticUpdatesEnabled: boolean;
   reviewBeforePublishingEnabled: boolean;
+  analysisFormat: "current" | "simple";
   premarketGenerationEnabled: boolean;
   regularGenerationEnabled: boolean;
   postmarketGenerationEnabled: boolean;
@@ -97,6 +98,7 @@ function validateSettings(value: unknown): TradersLinkAiReadSettings | null {
     externalResearchEnabled: value.externalResearchEnabled,
     automaticUpdatesEnabled: value.automaticUpdatesEnabled === true,
     reviewBeforePublishingEnabled: value.reviewBeforePublishingEnabled !== false,
+    analysisFormat: value.analysisFormat === "simple" ? "simple" : "current",
     generationEnabled:
       typeof value.generationEnabled === "boolean" ? value.generationEnabled : true,
     premarketGenerationEnabled:
@@ -192,6 +194,7 @@ export class TradersLinkAiReadSettingsPersistence {
     generationEnabled?: boolean;
     automaticUpdatesEnabled?: boolean;
     reviewBeforePublishingEnabled?: boolean;
+    analysisFormat?: "current" | "simple";
     premarketGenerationEnabled?: boolean;
     regularGenerationEnabled?: boolean;
     postmarketGenerationEnabled?: boolean;
@@ -238,6 +241,7 @@ export class TradersLinkAiReadSettingsPersistence {
         existing?.reasoningEffort ??
         DEFAULT_TRADERSLINK_AI_READ_REASONING_EFFORT,
       generationEnabled: rawValues.generationEnabled ?? true,
+      analysisFormat: (typeof input === "object" ? input.analysisFormat : undefined) ?? existing?.analysisFormat ?? "current",
       automaticUpdatesEnabled:
         (typeof input === "object" ? input.automaticUpdatesEnabled : undefined) ??
         existing?.automaticUpdatesEnabled ?? false,

@@ -25,8 +25,8 @@ export async function dispatchAnalysisReviewRequest(input: {
   method: string; pathname: string; searchParams: URLSearchParams;
   body?: unknown; actor: string | undefined;
 }, manager: ReviewManager, controls?: {
-  get(): { automaticUpdatesEnabled: boolean; reviewBeforePublishingEnabled: boolean };
-  save(input: { automaticUpdatesEnabled: boolean; reviewBeforePublishingEnabled: boolean }): unknown;
+  get(): { automaticUpdatesEnabled: boolean; reviewBeforePublishingEnabled: boolean; analysisFormat?: "current" | "simple" };
+  save(input: { automaticUpdatesEnabled: boolean; reviewBeforePublishingEnabled: boolean; analysisFormat?: "current" | "simple" }): unknown;
   exportAudit?(symbol: string, generationId: string, cycleId?: string): unknown;
 }): Promise<{ status: number; body: unknown }> {
   if (!input.actor || !/^platform-owner:[A-Za-z0-9_-]{1,128}$/.test(input.actor)) return { status: 403, body: { error: "Owner review authorization is required." } };
@@ -50,8 +50,9 @@ export async function dispatchAnalysisReviewRequest(input: {
       if (readOnly) return { status: 200, body: { settings: controls.get() } };
       const settings = input.body as Record<string, unknown> | undefined;
       if (!settings || Array.isArray(settings) || typeof settings.automaticUpdatesEnabled !== "boolean" || typeof settings.reviewBeforePublishingEnabled !== "boolean" ||
-        Object.keys(settings).some((key) => key !== "automaticUpdatesEnabled" && key !== "reviewBeforePublishingEnabled")) throw new Error("Invalid review request.");
-      return { status: 200, body: { settings: controls.save({ automaticUpdatesEnabled: settings.automaticUpdatesEnabled, reviewBeforePublishingEnabled: settings.reviewBeforePublishingEnabled }) } };
+        (settings.analysisFormat !== undefined && settings.analysisFormat !== "current" && settings.analysisFormat !== "simple") ||
+        Object.keys(settings).some((key) => key !== "automaticUpdatesEnabled" && key !== "reviewBeforePublishingEnabled" && key !== "analysisFormat")) throw new Error("Invalid review request.");
+      return { status: 200, body: { settings: controls.save({ automaticUpdatesEnabled: settings.automaticUpdatesEnabled, reviewBeforePublishingEnabled: settings.reviewBeforePublishingEnabled, ...(settings.analysisFormat ? {analysisFormat:settings.analysisFormat as "current" | "simple"} : {}) }) } };
     }
     const body = readOnly ? { symbol: input.searchParams.get("symbol") } : input.body;
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Invalid review request.");
