@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { OWNER_REVIEW_DEVELOPER_PROMPT, OWNER_REVIEW_RESPONSE_SCHEMA } from "./traderslink-ai-read-owner-contract.js";
 import { retainAnalysisCheckpoints } from "./traderslink-ai-read-checkpoint-dependencies.js";
 import { captureAnalysisCodeIdentity } from "./traderslink-ai-read-code-identity.js";
 import { observedPriceMatcher, unambiguousPriceCandles } from "./traderslink-ai-read-observations.js";
@@ -649,35 +650,11 @@ Scope correction for this complete analysis: cover the whole active day-trading 
 `;
 
 export function buildTradersLinkAiReadDeveloperPrompt(ownerReview = false): string {
-  if (!ownerReview) return DEVELOPER_PROMPT;
-  return DEVELOPER_PROMPT
-    .replace("Select zones only from supplied pullbackCandidates and cite their exact candidate IDs.",
-      "Use supplied pullbackCandidates as research aids, not an exhaustive list of support. Also evaluate the actual supplied daily, four-hour and intraday candles for meaningful defended areas, prior range boundaries and reclaimed supply. When a useful zone is absent from the catalog, choose its boundaries from actual supplied OHLC prices and cite the supporting timeframe and candle timestamp as daily:<timestamp>, 4h:<timestamp>, 5m:<timestamp> or 1m:<timestamp>. Explain the evidence and subsequent behavior. An empty candidate list does not mean the chart has no pullback or recovery possibilities.")
-    .replace("Low confidence must return both pullback scenarios as null.",
-      "Confidence describes uncertainty; it does not require deleting supported conditional pullback scenarios.")
-    .replace("Use a supplied lower candidate for the recovery-watch zone,",
-      "Use a supplied lower candidate or a lower area established by the actual supplied chart history for the recovery-watch zone,")
-    .replace("For pullbackPlans and failureRecovery, evidenceIds must contain only IDs from pullbackCandidates; do not mix breakoutEvidence IDs into this list.",
-      "For pullbackPlans and failureRecovery, cite candidate IDs or exact timeframe:timestamp references to the supplied supporting candles. Do not treat the absence of a precomputed candidate as absence of chart evidence.")
-    .replace("Then audit every candidate ID and pullback/recovery price against supplied candidate zones,",
-      "Then audit every evidence reference and pullback/recovery boundary against the actual supplied candles or candidate zones,")
-    + OWNER_REVIEW_STRUCTURE_PROMPT;
+  return ownerReview ? OWNER_REVIEW_DEVELOPER_PROMPT : DEVELOPER_PROMPT;
 }
 
 export function buildTradersLinkAiReadResponseSchema(ownerReview = false) {
-  if (!ownerReview) return AI_READ_SCHEMA;
-  const pullback = { ...PULLBACK_SCENARIO_SCHEMA, properties: { ...PULLBACK_SCENARIO_SCHEMA.properties,
-    zoneLow: { type: "number", description: "Lower observed price boundary of the evidenced pullback area." },
-    zoneHigh: { type: "number", description: "Upper observed price boundary of the same evidenced pullback area." },
-  } };
-  const breakout = { ...BREAKOUT_CANDIDATE_SCHEMA, properties: { ...BREAKOUT_CANDIDATE_SCHEMA.properties,
-    targets: { ...BREAKOUT_CANDIDATE_SCHEMA.properties.targets, maxItems: 6 },
-  } };
-  return { ...AI_READ_SCHEMA, properties: { ...AI_READ_SCHEMA.properties,
-    pullbackPlans: { ...PULLBACK_PLANS_SCHEMA, properties: { shallow: pullback, deep: pullback } },
-    breakoutCandidates: { ...AI_READ_SCHEMA.properties.breakoutCandidates,
-      properties: { primary: breakout, alternate: breakout } },
-  } };
+  return ownerReview ? OWNER_REVIEW_RESPONSE_SCHEMA : AI_READ_SCHEMA;
 }
 
 function normalizeSymbol(value: string): string {

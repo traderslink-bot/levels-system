@@ -287,3 +287,12 @@ The larger ceiling supplies headroom, not a required spend or automatic retry.
 
 Private conservative cost is now $2.439584; hosted known cost $1.7326565 plus one
 unpriced earlier timeout. Verify the $5 combined budget before remaining live tests.
+
+The first parity release still failed the exact hash check and Coordinator began
+restoring df6f421; no paid tests ran on that candidate. The canonical owner contract
+is now a self-contained module exporting the exact tested prompt and schema as
+constants. Owner builders return those constants, so they no longer transform an
+unverified inherited automatic-mode baseline. Automatic-mode builders retain their
+existing defaults. Apply the 16K/hash-test commit and this complete module/redirect
+change together, run the actual hash test before upload, and verify the hosted
+request hashes afterward. This removes the baseline dependency that caused drift.
