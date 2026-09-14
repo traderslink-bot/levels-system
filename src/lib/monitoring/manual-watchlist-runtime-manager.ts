@@ -13245,7 +13245,7 @@ export class ManualWatchlistRuntimeManager {
     });
   }
 
-  private async preparePrivateActivation(input: ManualWatchlistActivationInput): Promise<WatchlistEntry> {
+  private async preparePrivateActivation(input: ManualWatchlistActivationInput, waitForCompletion = true): Promise<WatchlistEntry> {
     const symbol = normalizeSymbol(input.symbol);
     const reviewStore = this.options.tradersLinkAiReadReviewStore;
     if (!reviewStore) throw new Error("Owner review storage is unavailable.");
@@ -13275,6 +13275,7 @@ export class ManualWatchlistRuntimeManager {
       if (!current?.active || current.publicationReview?.cycleId !== cycleId) throw new ActivationCancelledError(symbol);
       return current;
     };
+    const completion = (async () => {
     try {
       await this.seedLevelsForSymbol(symbol);
       await this.restartMonitoringForPreparedActivation(assertCurrent());
@@ -13300,6 +13301,12 @@ export class ManualWatchlistRuntimeManager {
       throw error;
     }
     return assertCurrent();
+    })();
+    if (waitForCompletion) return completion;
+    // The durable held entry is the acknowledgement. Provider work must not
+    // keep the HTTP add request open; failures are recorded above for review.
+    void completion.catch(() => undefined);
+    return assertCurrent();
   }
 
   async queueActivation(input: ManualWatchlistActivationInput): Promise<WatchlistEntry> {
@@ -13307,7 +13314,7 @@ export class ManualWatchlistRuntimeManager {
     if (input.source === "auto" && input.watchlistGroup === "top_regular") {
       throw new Error("Top Regular Hour Watches is manual-only.");
     }
-    if (this.shouldPreparePrivateActivation(input)) return this.preparePrivateActivation(input);
+    if (this.shouldPreparePrivateActivation(input)) return this.preparePrivateActivation(input, false);
     const existing = this.watchlistStore.getEntry(symbol);
     const pending = this.pendingActivations.get(symbol);
     const queuedAt = Date.now();

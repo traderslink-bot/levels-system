@@ -485,7 +485,9 @@ test(`private activation saves an AI draft without website publication or Discor
       } as any,
     });
     const internal = manager as any;
-    internal.seedLevelsForSymbol = async () => undefined;
+    let releasePrivateSeed!: () => void;
+    const privateSeed = new Promise<void>(resolve => { releasePrivateSeed = resolve; });
+    internal.seedLevelsForSymbol = async () => { if (activationMethod === "queueActivation") await privateSeed; };
     internal.restartMonitoringForPreparedActivation = async () => undefined;
     internal.buildTradersLinkAiReadPriceActionContext = async () => ({
       source: "test", fetchedAt: now, oneMinuteCandles: [{ timestamp: now, open: 0.5, high: 0.51, low: 0.49, close: 0.5, volume: 100 }],
@@ -493,7 +495,22 @@ test(`private activation saves an AI draft without website publication or Discor
     });
     internal.buildLevelSnapshotPayload = () => ({ symbol: "PDSB", currentPrice: 0.5 });
     internal.aiReadResearchBySymbol.set("PDSB", { ticker: "PDSB", count: 0, articles: [] });
-    const entry = await manager[activationMethod]({ symbol: "PDSB", source: "manual" });
+    let entry = await manager[activationMethod]({ symbol: "PDSB", source: "manual" });
+    if (activationMethod === "queueActivation") {
+      assert.equal(aiCalls, 0, "queue acknowledgement must not wait for providers or OpenAI");
+      assert.equal(entry.publicationReview?.required, true);
+      assert.equal(entry.discordThreadId, null);
+      assert.equal(publisher.cardPatches.length, 0);
+      assert.equal(discord.ensured.length, 0);
+      const duplicate = await manager.queueActivation({ symbol: "PDSB", source: "manual" });
+      assert.equal(duplicate.publicationReview?.cycleId, entry.publicationReview?.cycleId);
+      releasePrivateSeed();
+      for (let turn = 0; turn < 50 && !manager.getTradersLinkAiReadReview("PDSB")?.draft; turn++) {
+        await new Promise<void>(resolve => setImmediate(resolve));
+      }
+      assert.ok(manager.getTradersLinkAiReadReview("PDSB")?.draft, "background preparation must save the original draft");
+      entry = watchlistStore.getEntry("PDSB")!;
+    }
     assert.equal(entry.publicationReview?.required, true);
     assert.notEqual(entry.publicationReview?.cycleId, "previous-post");
     assert.equal(manager.getTradersLinkAiReadReview("PDSB")?.approved, null);
