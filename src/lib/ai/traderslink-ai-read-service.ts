@@ -1419,7 +1419,7 @@ function outerDailyTargetCondition(candidate: LiveWatchlistLevelMapLevel, priceA
     evidence.timeframe === "daily" && Math.abs(evidence.price - candidate.price) <= tolerance + Number.EPSILON);
   return observedHigh
     ? "Daily resistance aligned with an observed daily candle high in the analysis packet."
-    : "Daily resistance from the level map; not confirmed by the analysis packet.";
+    : "Farther daily resistance from Potential Path, conditional on continued momentum through the nearer levels.";
 }
 
 function appendFactualOuterDailyResistanceTarget(
@@ -1547,6 +1547,9 @@ function assertTradersLinkAiTradeMap(
   currentPrice: number,
   priceAction: TradersLinkAiReadPriceActionContext,
   dataAsOf: number,
+  // Private object identity supplied only for the server-appended map level.
+  // Generated JSON cannot opt itself into this evidence source.
+  factualOuterTarget?: TradersLinkAiReadTarget,
 ): void {
   const tolerance = Math.max(currentPrice * 0.005, 0.0001);
   const tacticalSpacing = tacticalTradeMapSpacing(currentPrice, priceAction);
@@ -1627,7 +1630,8 @@ function assertTradersLinkAiTradeMap(
     if (target.price === null) {
       continue;
     }
-    if (observableCandleEvidence(target.price, currentPrice, priceAction, dataAsOf) === null) {
+    const verifiedMapAddition = target === factualOuterTarget && target === read.targets.at(-1);
+    if (!verifiedMapAddition && observableCandleEvidence(target.price, currentPrice, priceAction, dataAsOf) === null) {
       fail(`upside target ${target.price} does not cite observable price-action evidence`);
     }
     if (target.price - previousUpside < tacticalSpacing) {
@@ -2888,7 +2892,10 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       );
       if (withFactualOuterTarget !== normalized) {
         try {
-          assertTradersLinkAiTradeMap(withFactualOuterTarget, referenceQuote.price, input.priceAction, dataAsOf);
+          assertTradersLinkAiTradeMap(withFactualOuterTarget, referenceQuote.price, input.priceAction, dataAsOf,
+            withFactualOuterTarget.targets.at(-1));
+          capture("validation", { stage: "outer_daily_resistance", action: "append_objective",
+            source: "frozen_potential_path", target: withFactualOuterTarget.targets.at(-1) });
         } catch (error) {
           // The original payload has already passed the same final validator.
           // An optional deterministic extension must not invalidate that core

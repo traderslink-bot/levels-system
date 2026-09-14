@@ -1818,7 +1818,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.match(read.downsideCheckpoints[0]?.condition ?? "", /observed prior close/i);
   });
 
-  it("omits a rejected outer daily addition without rejecting the validated analysis or making another request", async () => {
+  it("retains frozen Potential Path resistance without requiring a duplicate AI-packet candle or another request", async () => {
     const levels = snapshot();
     levels.resistanceZones = [{ ...levels.resistanceZones[0]!, representativePrice: 2.3,
       lowPrice: 2.29, highPrice: 2.31, sourceLabel: "daily confluence", strengthLabel: "strong" }];
@@ -1831,13 +1831,28 @@ describe("OpenAITradersLinkAiReadService", () => {
     const read = await service.generate({ snapshot: levels, priceAction: priceAction(),
       research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
     assert.equal(requests, 1);
-    assert.deepEqual(read.targets.map(target => target.price), []);
+    assert.deepEqual(read.targets.map(target => target.price), [2.3]);
     assert.equal(read.breakoutContinuation.price, 1.68);
-    const omission = events.find(event => event.phase === "validation" && (event.payload as any).stage === "outer_daily_resistance")?.payload as any;
-    assert.equal(omission.action, "omit_objective");
-    assert.equal(omission.omitted[0].price, 2.3);
-    assert.match(omission.reason, /observable price-action evidence/);
+    const addition = events.find(event => event.phase === "validation" && (event.payload as any).stage === "outer_daily_resistance")?.payload as any;
+    assert.equal(addition.action, "append_objective");
+    assert.equal(addition.source, "frozen_potential_path");
+    assert.equal(addition.target.price, 2.3);
+    assert.match(read.targets[0]!.condition, /Potential Path/);
     assert.ok(events.some(event => event.phase === "validation" && (event.payload as any).valid === true));
+  });
+
+  it("AI text cannot claim Potential Path authority without an eligible frozen map level", async () => {
+    const draft = modelRead();
+    draft.targets = [{ label: "Daily resistance", price: 2.3,
+      condition: "Farther daily resistance from Potential Path, conditional on continued momentum through the nearer levels." }];
+    let requests = 0;
+    const service = new OpenAITradersLinkAiReadService({ apiKey: "test-key", model: "test-model",
+      fetchImpl: async () => { requests++; return new Response(JSON.stringify({ output: [{ type: "message",
+        content: [{ type: "output_text", text: JSON.stringify(draft) }] }] }), { status: 200 }); } });
+    const read = await service.generate({ snapshot: snapshot(), priceAction: priceAction(),
+      research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
+    assert.deepEqual(read.targets, []);
+    assert.equal(requests, 1);
   });
 
   it("retains farther daily resistance backed by an observed high in the same packet", async () => {

@@ -112,6 +112,8 @@ records persist that fact for the expandable history.
 
 See [SOAR dependency repair](watchlist-soar-dependency-alias-fix.md) for the
 owner-requested narrow correction, exact allowlist, checks and release boundary.
+See [Potential Path fallback repair](watchlist-potential-path-fallback-repair.md)
+for the separate deterministic resistance-evidence correction.
 
 ## Verification and release boundary
 
