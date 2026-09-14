@@ -644,6 +644,10 @@ Interpretation contract:
 - For volatile micro/nano caps, do not choose a shallow pullback merely because it is the closest candidate. Compare observed base coverage, subsequent retests, distanceInMeanCandleRanges, wick behavior and retracementOfObservedMovePct across the whole session move. A nearby shelf inside ordinary candle noise can be immediate momentum context without being a useful shallow pullback. Select meaningful shallow and deep setups from observed structure, not universal minimum percentages; never invent or widen candidate prices to meet a percentage. Candidate ordering is an evidence heuristic, not a success probability. meanCandleRange is mean high-low range, not ATR; reportedVolumeFraction describes coverage, not zero-volume trading. Retain broader-origin and post-failure recovery context for different trading styles.
 - Return only the requested structured JSON.`;
 
+const OWNER_REVIEW_STRUCTURE_PROMPT = `
+Scope correction for this complete analysis: cover the whole active day-trading opportunity, not only the latest rebound. First inspect the full five-minute sequence for the base BEFORE the major expansion, the first established base AFTER expansion, and subsequent defended pullback lows. Compare those with the daily history. Then choose the two useful dip-buy areas from those structures. Only AFTER that choose the broader thesis failure. A local rebound low can fail while a lower, already observed dip-buy setup remains viable; describe the local break in currentRead or cautionBelow instead of using it to eliminate that deeper plan. Do not anchor the complete plan to the nearest shelf or make the oldest session low the only alternative. A tiny pause immediately below the quote is local context, not automatically the shallow dip-buy area. If only one meaningful dip-buy area exists, retain it without inventing a second, but inspect the entire supplied session before reaching that conclusion. Flat repeated OHLC bars with unavailable volume do not establish repeated buyer defense; use actual price movement and reported participation where available. The principal needsToHold and failure must describe the selected broader structure, not a minor shelf. Recovery is a chronological new setup: recoveryZoneHigh < firstReclaimPrice < setupRestorePrice < firstObjectivePrice whenever all are present. An objective below the price that establishes the recovery has already been passed and is not a future objective; choose the next observed level above restoration or use null for that objective. Do not solve contradictions by deleting supported setups. Check the full plan once before returning it.
+`;
+
 export function buildTradersLinkAiReadDeveloperPrompt(ownerReview = false): string {
   if (!ownerReview) return DEVELOPER_PROMPT;
   return DEVELOPER_PROMPT
@@ -656,7 +660,8 @@ export function buildTradersLinkAiReadDeveloperPrompt(ownerReview = false): stri
     .replace("For pullbackPlans and failureRecovery, evidenceIds must contain only IDs from pullbackCandidates; do not mix breakoutEvidence IDs into this list.",
       "For pullbackPlans and failureRecovery, cite candidate IDs or exact timeframe:timestamp references to the supplied supporting candles. Do not treat the absence of a precomputed candidate as absence of chart evidence.")
     .replace("Then audit every candidate ID and pullback/recovery price against supplied candidate zones,",
-      "Then audit every evidence reference and pullback/recovery boundary against the actual supplied candles or candidate zones,");
+      "Then audit every evidence reference and pullback/recovery boundary against the actual supplied candles or candidate zones,")
+    + OWNER_REVIEW_STRUCTURE_PROMPT;
 }
 
 export function buildTradersLinkAiReadResponseSchema(ownerReview = false) {

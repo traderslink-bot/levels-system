@@ -191,3 +191,65 @@ Final prompt consistency review also replaced the closing candidate-only self-au
 instruction in review mode: direct candle evidence must remain allowed through the
 model's final check, not merely during initial selection. A focused regression
 assertion covers this remaining contradictory clause.
+
+## Continuation extension production acceptance and remaining quality findings
+
+Release d4e1602a6d350282946e458d74ff03679f382f2f, deployment
+2ff2217f-4e15-4944-b1d7-789a5c766d39: Coordinator confirmed successful hosted
+TypeScript, one running instance and HTTP 200 ready/non-shadow health. No migration
+or configuration change. All five subsequent live requests completed in one call
+and prepared review drafts. The Generated wording is visible. No test was approved
+or published; Discord thread IDs remain pending.
+
+| Symbol | AI continuation prices retained | Frozen resistance appended |
+| --- | --- | --- |
+| SOAR | .2539, .259, .265 | .27, .287, .306 |
+| BMGL | 8.38, 8.70, 9.22 | 9.48, 9.84 |
+| FTFT | 5.25, 5.52, 5.76, 6.12 | 6.28 |
+| NCT | .50, .52, .54, .5682 | .63 |
+| ELMT | 24.66, 25.03 | 27.50, 30.00 |
+
+SOAR's actual editable card displayed all six prices. Exact request/response and
+prepared records for all five are retained privately in live-acceptance-
+1789400988342.json. This is successful extension/preservation, not final model
+quality acceptance. SOAR, BMGL and ELMT still returned no deep plan; FTFT and ELMT
+returned a recovery objective below their recovery setup-restoration price.
+
+Direct packet inspection confirms additional structure exists: BMGL's five-minute
+11:55–12:10 UTC bars consolidate around 5.05–5.57 before the 12:15 expansion;
+ELMT's 13:50–14:00 UTC bars show 20.22/20.33 lows, a rebound and 20.89 retest before
+its later run. These are observations to evaluate, not hardcoded replacement
+prices. Bounded same-packet experiments now explicitly scope the analysis to the
+full day-trading structure before choosing failure, and require a future recovery
+objective above restoration. No source change from that experiment is accepted yet.
+
+### Whole-structure instruction checkpoint
+
+The identical instruction addition was tested once against each of those five
+saved live packets. All five completed and returned both pullbacks; all five
+recovery sequences have objective above restoration above first reclaim above
+the watch-area high. This measures the diagnosed omissions/order failures, not
+proof that every model interpretation is optimal or that future output is certain.
+
+| Symbol | Shallow | Deeper | Recovery reclaim / restore / objective |
+| --- | --- | --- | --- |
+| BMGL | 7.34–7.45 | 6.92–7.04 | 4.79 / 5.42 / 6.30 |
+| ELMT | 21.80–22.27 | 20.89–21.41 | 19.76 / 20.22 / 20.75 |
+| SOAR | .2250–.2293 | .2154–.2181 | .195 / .209 / .220 |
+| FTFT | 4.43–4.63 | 4.03–4.322 | 3.30 / 3.53 / 4.03 |
+| NCT | .4491–.4567 | .4235–.4395 | .4218 / .4395 / .480 |
+
+That exact instruction is now added only to the owner-reviewed developer prompt.
+It requires full-session base selection before the broader failure decision,
+distinguishes local rebound breaks from failure of all dip-buy possibilities,
+and prevents an already-passed recovery objective. Flat OHLC with unavailable
+volume is not treated as proof of repeated buyer defense. No post-response
+rejection, replacement price, schema field, extra request or publication change
+was added. All 53 focused service tests pass serially. Next gate is reconciliation
+and a fresh all-five production check, with no approvals or Discord publication.
+
+Private experiments now total $2.2536984 using deliberately conservative doubled
+token rates. Hosted known cost is $1.2519465 plus one unpriced prior timeout; the
+runner still reserves $2 for hosted costs. No new paid request may exceed the
+owner's $5 combined limit. Saved provider usage reconciles private ledger costs;
+unfinished requests retain their reservation instead of being treated as free.

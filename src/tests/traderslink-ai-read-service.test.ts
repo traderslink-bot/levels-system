@@ -61,6 +61,10 @@ it("owner-reviewed generation can use supplied chart evidence beyond the catalog
   assert.match(reviewed, /daily:<timestamp>/);
   assert.doesNotMatch(reviewed, /Select zones only|evidenceIds must contain only IDs from pullbackCandidates|Low confidence must return both|Then audit every candidate ID and pullback\/recovery price against supplied candidate zones/);
   assert.match(reviewed, /actual supplied candles or candidate zones/);
+  assert.match(reviewed, /Only AFTER that choose the broader thesis failure/);
+  assert.match(reviewed, /setupRestorePrice < firstObjectivePrice/);
+  assert.match(reviewed, /Flat repeated OHLC bars with unavailable volume do not establish repeated buyer defense/);
+  assert.doesNotMatch(ordinary, /Scope correction for this complete analysis/);
   assert.equal(buildTradersLinkAiReadResponseSchema(), AI_READ_SCHEMA);
   assert.equal(buildTradersLinkAiReadResponseSchema(true).properties.breakoutCandidates.properties.primary.properties.targets.maxItems, 6);
   assert.equal(AI_READ_SCHEMA.properties.breakoutCandidates.properties.primary.properties.targets.maxItems, 4);
