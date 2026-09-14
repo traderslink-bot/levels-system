@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { buildBreakoutEvidence } from "../lib/ai/traderslink-ai-read-breakout-selection.js";
+import { validatePullbackSection, validatePullbackPair } from "../lib/ai/traderslink-ai-read-section-validation.js";
 import { describe, it } from "node:test";
 
 import type { LevelSnapshotPayload } from "../lib/alerts/alert-types.js";
 import {
+  AI_READ_SCHEMA,
   createTradersLinkAiReadServiceFromEnv,
   OpenAITradersLinkAiReadService,
 } from "../lib/ai/traderslink-ai-read-service.js";
@@ -19,6 +21,83 @@ import {
 
 const DATA_AS_OF = Date.parse("2026-07-15T20:30:00.000Z");
 const PREMARKET_DATA_AS_OF = Date.parse("2026-07-20T11:45:00.000Z");
+
+it("owner review retains both pullbacks, original narrative and every upside checkpoint despite semantic findings", async () => {
+  const draft = modelRead();
+  draft.confidence = "low";
+  const shallow = { zoneLow: 1.32, zoneHigh: 1.35, confirmationPrice: 1.36,
+    invalidationPrice: 1.34, firstObjectivePrice: 1.6, confirmation: "Original confirmation.",
+    rationale: "Original explanation.", evidenceIds: ["unknown-base"] };
+  const deep = { ...shallow, zoneLow: 1.1, zoneHigh: 1.2, invalidationPrice: 1.15 };
+  draft.pullbackPlans = { shallow, deep };
+  const levels = [1.7, 1.8, 1.9, 2.1].map((price, i) => ({ id: `p${i}`, dependsOn: ["unmatched"],
+    price, label: `Level ${i}`, condition: "Original continuation explanation." }));
+  draft.breakoutCandidates = { primary: { level: { price: 1.65, label: "Breakout", rationale: "Original breakout." },
+    targets: levels, evidenceIds: ["unknown"], anchorPrice: 1.65, basis: "observed_level" }, alternate: null };
+  const decisions: Record<string, unknown>[] = [];
+  let calls = 0;
+  const service = new OpenAITradersLinkAiReadService({ apiKey: "test-key", model: "test-model",
+    fetchImpl: async () => { calls++; return new Response(JSON.stringify({ status: "completed", output: [{ type: "message",
+      content: [{ type: "output_text", text: JSON.stringify(draft) }] }] }), { status: 200 }); } });
+  const read = await service.generate({ snapshot: snapshot(), priceAction: priceAction(), ownerReviewRequired: true,
+    research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] }, onValidationDecision: d => decisions.push(d),
+    onAttempt: attempt => { assert.equal(attempt.timeoutMs, 180_000); assert.equal(attempt.status, "success"); } });
+  assert.deepEqual(read.pullbackPlans, { shallow, deep });
+  assert.deepEqual(read.targets.map(p => p.price), levels.map(p => p.price));
+  assert.equal(read.breakoutContinuation.price, 1.65);
+  assert.equal(read.currentRead, draft.currentRead);
+  assert.equal(calls, 1);
+  assert.ok(decisions.some(d => d.stage === "owner_review"));
+  assert.ok(decisions.every(d => d.reviewOnly === true));
+});
+
+it("owner review cannot fabricate a draft from a truncated response", async () => {
+  const service = new OpenAITradersLinkAiReadService({ apiKey: "test-key", model: "test-model",
+    fetchImpl: async () => new Response(JSON.stringify({ status: "incomplete", output: [{ type: "message",
+      content: [{ type: "output_text", text: '{"currentRead":' }] }] }), { status: 200 }) });
+  await assert.rejects(service.generate({ snapshot: snapshot(), priceAction: priceAction(), ownerReviewRequired: true,
+    research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } }), /incomplete/);
+});
+
+it("requests pullback structures before the final core failure without changing required fields", () => {
+  const fields = Object.keys(AI_READ_SCHEMA.properties);
+  assert.ok(fields.indexOf("pullbackPlans") < fields.indexOf("coreEvidence"));
+  assert.ok(fields.indexOf("pullbackPlans") < fields.indexOf("momentumFailure"));
+  assert.equal(new Set(fields).size, fields.length);
+  assert.deepEqual([...AI_READ_SCHEMA.required].sort(), [...fields].sort());
+  assert.deepEqual(AI_READ_SCHEMA.properties.pullbackPlans.required, ["shallow", "deep"]);
+});
+
+it("reproduces BMGL's saved deep contradiction without fabricating a replacement invalidation", () => {
+  const recorded = {
+    zoneLow: 5.13, zoneHigh: 5.57, confirmationPrice: 5.58,
+    confirmation: "Require a new higher low or reclaim above 5.57.",
+    invalidationPrice: 5.42, firstObjectivePrice: 6.8,
+    rationale: "The eight one-minute bodies immediately before the impulse.",
+    evidenceIds: ["1m-pre-impulse-base", "1m-breakout-shelf"],
+  };
+  const original = structuredClone(recorded);
+  const context = { referencePrice: 7.75, momentumFailure: 5.42, confidence: "medium" as const,
+    candidates: [{ id: "1m-pre-impulse-base", zoneLow: 5.13, zoneHigh: 5.57 },
+      { id: "1m-breakout-shelf", zoneLow: 5.42, zoneHigh: 6.635 }] };
+  const result = validatePullbackSection("deep", recorded, context);
+  assert.equal(result.value, null);
+  assert.deepEqual(result.issues, [{ path: "pullbackPlans.deep.invalidationPrice", code: "invalidation_order", action: "omit_section" }]);
+  assert.deepEqual(recorded, original);
+});
+
+it("retains SOAR's saved supported deep as the only pullback when shallow is absent", () => {
+  const recorded = { zoneLow: 0.2134, zoneHigh: 0.2167, confirmationPrice: 0.2172,
+    invalidationPrice: 0.212, firstObjectivePrice: 0.2258,
+    confirmation: "Require buyer confirmation above the base.", rationale: "Observed base.", evidenceIds: ["saved-deep-base"] };
+  const context = { referencePrice: 0.2293, momentumFailure: 0.2102, confidence: "medium" as const,
+    candidates: [{ id: "saved-deep-base", zoneLow: 0.2134, zoneHigh: 0.2167 }] };
+  const result = validatePullbackSection("deep", recorded, context);
+  assert.deepEqual(result.value, recorded);
+  const pair = validatePullbackPair(null, result.value, context.referencePrice, 0, context.candidates);
+  assert.equal(pair.value, null);
+  assert.deepEqual(pair.deepValue, recorded);
+});
 
 function snapshot(): LevelSnapshotPayload {
   return {

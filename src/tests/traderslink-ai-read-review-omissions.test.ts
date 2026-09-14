@@ -15,6 +15,11 @@ test("natural optional absence does not imply a validation omission", () => {
   assert.deepEqual(remainingGeneratedSectionOmissions(review(original, []), 1), []);
 });
 
+test("advisory validation is never reported as content removed from an owner draft", () => {
+  const decisions = [{ stage: "checkpoint_dependencies", reviewOnly: true, field: "targets", issues: [{}] }];
+  assert.deepEqual(remainingGeneratedSectionOmissions(review(original, decisions), 1), []);
+});
+
 test("checkpoint dependency omissions remain visible until owner replacements are saved", () => {
   const decisions = [{ stage: "checkpoint_dependencies", field: "downsideCheckpoints", issues: [{}, {}] }];
   const baseline = { ...original, downsideCheckpoints: [{ price: 0.4 }] };

@@ -10,6 +10,45 @@ const shallow = { zoneLow: 3.7, zoneHigh: 3.8, confirmationPrice: 3.85, confirma
 const deep = { ...shallow, zoneLow: 3.4, zoneHigh: 3.5, confirmationPrice: 3.6, invalidationPrice: 3.3, evidenceIds: ["deep-base"] };
 const recovery = { recoveryZoneLow: 3.4, recoveryZoneHigh: 3.5, firstReclaimPrice: 3.6, setupRestorePrice: 3.7, firstObjectivePrice: 3.9, rationale: "Reclaim observed base", evidenceIds: ["deep-base"] };
 
+test("FTFT observed subzone survives without widening the cited consolidation or moving prices", () => {
+  const scenario = { ...shallow, zoneLow: 4.03, zoneHigh: 4.15, confirmationPrice: 4.15,
+    invalidationPrice: 3.92, firstObjectivePrice: 5.11, evidenceIds: ["acceptance", "consolidation"] };
+  const input: ScenarioValidationContext = { referencePrice: 5.1, momentumFailure: 3.2, confidence: "medium",
+    candidates: [{ id: "acceptance", zoneLow: 4.04, zoneHigh: 4.15 },
+      { id: "consolidation", zoneLow: 4.03, zoneHigh: 4.322 }] };
+  assert.deepEqual(validatePullbackSection("shallow", scenario, input).value, scenario);
+  for (const changed of [{zoneLow:4.02}, {zoneHigh:4.16}, {zoneLow:4.06}]) {
+    assert.equal(validatePullbackSection("shallow", {...scenario,...changed},input).value,null);
+  }
+  assert.equal(validatePullbackSection("shallow", {...scenario,evidenceIds:["acceptance"]},input).value,null);
+  const disjoint = {...input,candidates:[{id:"acceptance",zoneLow:4.1,zoneHigh:4.15},{id:"consolidation",zoneLow:4.03,zoneHigh:4.05}]};
+  assert.equal(validatePullbackSection("shallow",scenario,disjoint).value,null);
+});
+
+test("independent breakout survives an invalid optional improvement pivot", () => {
+  const continuation = { label: "Range breakout", price: 4.5, rationale: "Independent observed range high" };
+  for (const price of [3.9, 4.6]) {
+    const result = validateBreakoutOrdering({ label: "Invalid optional pivot", price, rationale: "Test" }, continuation, 4, true);
+    assert.equal(result.mustClear.price, null);
+    assert.equal(result.breakoutContinuation.price, 4.5);
+    assert.equal(result.omitDependentUpside, false);
+    assert.deepEqual(result.changedPaths, ["mustClear"]);
+  }
+});
+
+test("FEIM arithmetic is not rejected by a percentage buffer, while equal/reversed prices remain invalid", () => {
+  const clear = { label: "Observed", price: 82.8, rationale: "Test observation" };
+  const continuation = { label: "Confirmation", price: 83, rationale: "Test condition" };
+  assert.equal(validateBreakoutOrdering(clear, continuation, 82.79).omitDependentUpside, false);
+  const scenario = { zoneLow: 81.27, zoneHigh: 81.473, confirmationPrice: 81.473,
+    invalidationPrice: 81, firstObjectivePrice: 82, confirmation: "Test reclaim", rationale: "Test base", evidenceIds: ["base"] };
+  const input: ScenarioValidationContext = { referencePrice: 82.79, momentumFailure: 81, confidence: "medium",
+    candidates: [{ id: "base", zoneLow: 81.27, zoneHigh: 81.473 }] };
+  assert.ok(validatePullbackSection("deep", scenario, input).value);
+  assert.equal(validatePullbackSection("deep", { ...scenario, invalidationPrice: 81.27 }, input).value, null);
+  assert.equal(validatePullbackSection("deep", { ...scenario, invalidationPrice: 81.3 }, input).value, null);
+});
+
 test("breakout ordering identifies branch-local omissions without moving prices", () => {
   const clear = { label: "Clear", price: 4.1, rationale: "Observed pivot" };
   const continuation = { label: "Continue", price: 4.3, rationale: "Observed high" };

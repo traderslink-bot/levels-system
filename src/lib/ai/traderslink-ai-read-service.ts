@@ -7,7 +7,7 @@ import { buildBreakoutEvidence, selectBreakoutCandidate, validateBreakoutEvidenc
 import { join } from "node:path";
 import { TradersLinkAiReadAuditStore, type AiReadAuditEvent, type AiReadAuditResult } from "./traderslink-ai-read-audit.js";
 import { resolveManualWatchlistDurableDirectory } from "../monitoring/manual-watchlist-durable-storage.js";
-import { hasCompleteValidatedSetup, validateBreakoutOrdering, validatePullbackPair, validatePullbackSection, validateRecoverySection } from "./traderslink-ai-read-section-validation.js";
+import { hasCompleteValidatedSetup, isSupportedPullbackZone, validateBreakoutOrdering, validatePullbackPair, validatePullbackSection, validateRecoverySection } from "./traderslink-ai-read-section-validation.js";
 import type { LevelSnapshotPayload } from "../alerts/alert-types.js";
 import type { RecentWebsiteArticleLookupResult } from "../live-watchlist/recent-website-articles.js";
 import {
@@ -44,7 +44,12 @@ const DEFAULT_MODEL = "gpt-5.6-terra";
 const ANALYSIS_CODE_IDENTITY = captureAnalysisCodeIdentity({ moduleUrl: import.meta.url,
   deployedCommit: process.env.RAILWAY_GIT_COMMIT_SHA });
 const DEFAULT_FALLBACK_MODEL = "gpt-5.6-luna";
-const DEFAULT_TIMEOUT_MS = 90_000;
+// Full structured responses can exceed 90 seconds. Keep one bounded request;
+// private activation acknowledges separately and no paid retry is added.
+const DEFAULT_TIMEOUT_MS = 180_000;
+// The complete one-response schema includes reasoning plus several trading
+// scenarios. Captured valid responses exceeded 8k; truncation must not force
+// another paid generation. Explicit operator overrides remain authoritative.
 const DEFAULT_MAX_OUTPUT_TOKENS = 12_000;
 const DEFAULT_WEB_SEARCH_PRICE_PER_1K_CALLS = 10;
 const OUTER_DAILY_TARGET_MIN_DISTANCE_PCT = 0.3;
@@ -134,6 +139,8 @@ export type TradersLinkAiReadGenerationInput = {
   };
   dataAsOf?: number;
   generationId?: string;
+  /** Only the runtime's durable owner-review cycle may enable this. */
+  ownerReviewRequired?: boolean;
   onAttempt?: (attempt: TradersLinkAiReadAttempt) => void;
   onAuditCapture?: (result: AiReadAuditResult) => void;
   onValidationDecision?: (decision: Record<string, unknown>) => void;
@@ -296,11 +303,11 @@ const PULLBACK_SCENARIO_SCHEMA = {
   properties: {
     zoneLow: {
       type: "number",
-      description: "Exact lower bound of the cited candidate zone; it must be below zoneHigh.",
+      description: "Observed lower bound from a cited candidate; the full zone must fit inside one cited base and zoneLow must be at or below zoneHigh.",
     },
     zoneHigh: {
       type: "number",
-      description: "Exact upper bound of the cited candidate zone; it must be below currentPrice.",
+      description: "Observed upper bound from a cited candidate; may narrow a containing cited base, never widen or bridge separate bases. Must be below currentPrice.",
     },
     confirmationPrice: {
       type: "number",
@@ -493,6 +500,9 @@ const AI_READ_SCHEMA = {
     bias: { type: "string", enum: ["bullish", "neutral", "bearish", "mixed"] },
     confidence: { type: "string", enum: ["low", "medium", "high"] },
     currentRead: { type: "string" },
+    // Ask for the observed setups before committing to the whole-plan failure.
+    // This changes generation order only; validation and the public shape stay intact.
+    pullbackPlans: PULLBACK_PLANS_SCHEMA,
     coreEvidence: {
       type: "object", additionalProperties: false,
       properties: Object.fromEntries(["needsToHold", "cautionBelow", "momentumFailure"].map(name => [name, {
@@ -529,7 +539,6 @@ const AI_READ_SCHEMA = {
       items: CHECKPOINT_SCHEMA,
       maxItems: 4,
     },
-    pullbackPlans: PULLBACK_PLANS_SCHEMA,
     failureRecovery: FAILURE_RECOVERY_SCHEMA,
     catalystRealityCheck: CATALYST_CONTEXT_SCHEMA,
     dilutionRisk: DILUTION_RISK_SCHEMA,
@@ -544,6 +553,7 @@ const AI_READ_SCHEMA = {
     "bias",
     "confidence",
     "currentRead",
+    "pullbackPlans",
     "coreEvidence",
     "needsToHold",
     "cautionBelow",
@@ -554,7 +564,6 @@ const AI_READ_SCHEMA = {
     "breakoutCandidates",
     "targets",
     "downsideCheckpoints",
-    "pullbackPlans",
     "failureRecovery",
     "catalystRealityCheck",
     "dilutionRisk",
@@ -593,14 +602,17 @@ Interpretation contract:
 - Do not claim a timeframe that is not supplied. The packet contains one-minute evidence, 5-minute full-session bars, and daily bars; it contains no 4-hour analysis and no precomputed confluence scores.
 - pullbackPlans is not another momentum-entry ladder. shallow is a meaningful controlled pullback into an observed base, distinct from an immediate momentum retest inside ordinary candle noise; deep is an optional reset into a materially lower observed base after acceleration unwinds. Select zones only from supplied pullbackCandidates and cite their exact candidate IDs. Do not invent a zone, widen one candidate by combining unrelated structures, or use EMA, VWAP, a percentage, or a Fibonacci-style retracement to create a zone. Those measurements may explain extension only. Evaluate candidate bases and momentumFailure jointly before selecting the final plan: a tight provisional failure choice must not automatically exclude a structurally meaningful deeper base. Do not move failure merely to fit a desired percentage or force a pullback to qualify. When broaderSessionMove and its broader_move_origin candidate are present, retain that observed origin as a legitimate deeper possibility: it may be the deep reset only when its invalidation remains at or above the final evidence-backed momentumFailure; when it sits below that final failure boundary, use it only as the failureRecovery watch zone with a required new base and reclaim.
 - Each pullback scenario must sit below currentPrice and state a confirmation price/instruction, invalidation, and first objective. For both scenarios the exact numeric ordering is invalidationPrice < zoneLow <= zoneHigh < currentPrice, confirmationPrice >= zoneLow, and firstObjectivePrice > zoneHigh when an objective is supplied. Confirmation requires observed buyer defense, a higher low, or reclaim; first touch is never confirmation. Shallow invalidation may hand off to a separate deep setup. Deep must be entirely below and materially separated from shallow. For deep, momentumFailure <= invalidationPrice < zoneLow; omit deep when no price can satisfy that ordering or when there is no defensible second observed structure.
-- Low confidence must return both pullback scenarios as null. At or below momentumFailure neither scenario is active.
+- Resolve the complete dip-buy structure before finalizing the core failure boundary. For each selected candidate, distinguish the base's lower edge, the conditional buyer-confirmation price, and the price below the base that would invalidate that particular setup. An impulse origin inside the selected base is not that base's invalidation. Do not reuse such an interior price as invalidationPrice simply because it is observed or was chosen for another field. Reconcile the final broader momentumFailure with the supported shallow and deep scenarios together, and explain the structural reason for each boundary. A local continuation failure need not be failure of a lower defended base. Do not move any boundary solely to satisfy arithmetic: choose a coherent evidenced plan, not independently plausible prices that contradict each other.
+- If the closest candidate is only a local momentum pause, leave shallow null and still evaluate the deeper candidates independently. A missing or unusable shallow setup is not a reason to omit a supported deep setup. Keep a supported deep setup in deep even when it is the only pullback. Low confidence must return both pullback scenarios as null. At or below momentumFailure neither scenario is active.
 - failureRecovery is the plan after the original momentum setup fails. Use a supplied lower candidate for the recovery-watch zone, require a future new base plus first reclaim, identify the higher evidence-backed reclaim that establishes a new bullish recovery setup, and provide the first recovery objective. Its exact numeric ordering is recoveryZoneLow <= recoveryZoneHigh < firstReclaimPrice < setupRestorePrice. After a full unwind to a materially lower broader-move origin, setupRestorePrice does not have to reach the failed plan's old momentumFailure or cautionBelow; use an observed prior breakout, acceptance boundary, or prior-plan pivot that would make the lower-base recovery structurally valid. Do not imply that this revives the old momentum plan—the new base and reclaim create a new recovery thesis. firstObjectivePrice must be greater than firstReclaimPrice and materially distinct from setupRestorePrice when an objective is supplied, but it may occur before or after recovery establishment. firstReclaimPrice must be strictly above recoveryZoneHigh, not equal to it and not rounded down to the zone boundary. Touching lower support alone never qualifies. This is a conditional plan, so the recovery sequence need not have happened at generation time; return null only when observed structure cannot support defensible recovery-watch and reclaim prices.
 - It is normal to leave fields null or return fewer targets when the tape does not support distinct boundaries. Do not manufacture a complete symmetrical staircase.
 - Prefer trader-usable zones and psychologically meaningful prices over false precision. For prices at or above $1, use cents unless a finer tick is essential; below $1, use no more than four decimals.
-- The required downside ordering is currentPrice >= needsToHold >= cautionBelow >= momentumFailure. Equal prices are allowed when one tape boundary serves two roles; null is better than inventing a second boundary. For example, never return needsToHold at $3.85 and cautionBelow at $3.95. momentumFailure is the decisive failure level that exposes lower support. mustClear is the first resistance/pivot needed to improve the setup, and breakoutContinuation is the meaningfully higher confirmation pivot that opens the listed targets.
-- targets are ordered upside continuation checkpoints after breakout confirmation. downsideCheckpoints are ordered lower structural areas exposed after momentumFailure. Include the meaningful lower areas a day trader would need if the long thesis fails, such as $1.20 then $1.05; do not bury those prices only in prose. These are scenario checkpoints, not predictions. The final upside target should be above the supplied current price and the final downside checkpoint below it whenever evidence supports a usable mapped range; do not return an already-crossed price as the outer edge of a fresh map.
-- Give each top-level target and downside checkpoint a unique id and explicit dependsOn IDs. Use breakoutContinuation as the upside root and momentumFailure as the downside root. If a checkpoint only needs that root, name only the root; if it requires an earlier checkpoint, name that checkpoint as well. Do not reference future, unknown or opposite-side IDs. Candidate-specific breakout targets retain their separate primary/alternate dependency roots. These IDs stay internal, not in the visible analysis.
-- Do not stop the upside map at a nearby first target when the supplied daily history shows a distinct, evidence-backed continuation boundary within roughly 50% of current price. Include that boundary as the final target when it remains practical and is not contradicted by intervening price action; otherwise return fewer targets rather than inventing range.
+- The required downside ordering applies to retained values: currentPrice >= needsToHold >= cautionBelow >= momentumFailure. Equal prices are allowed when one structural boundary serves two roles; null is better than inventing a distinction. momentumFailure is failure of the stated broader momentum structure, not every local dip or failed breakout attempt. Explain which scenario weakens or fails. When mustClear is present it is an independently meaningful earlier improvement pivot below breakoutContinuation; otherwise omit mustClear and retain the supported main breakout alone.
+- Candidate targets are ordered upside checkpoints AFTER that candidate's breakout. Separately, approachCheckpoints describe up to two meaningful observed resistance areas ABOVE currentPrice but BELOW the main breakout; a bounce or recovery can reach these before a breakout occurs. Root their dependsOn at the exact identifier currentPrice, optionally with an earlier approach checkpoint ID. Their conditions must be self-contained and must not require breakout confirmation. If no breakout is supported, an independently supported upside path can still use approachCheckpoints. Do not duplicate the breakout level or invent nearby steps to fill slots. downsideCheckpoints are ordered lower structural areas exposed after momentumFailure. These are conditional price paths, not mandatory entries or exits.
+- Give each downside checkpoint a unique id and explicit dependsOn IDs rooted at the EXACT identifier momentumFailure (not momentum-failure). Include earlier checkpoint IDs only when its condition requires them. Breakout candidate targets use their candidate identifier primary or alternate as the root, never breakoutContinuation or breakout-continuation. Do not reference future, unknown or opposite-side IDs. These IDs are internal, not visible analysis.
+- momentumContextCandidates are brief local pauses, not selectable principal dip-buy zones. They may inform immediate momentum commentary. For pullbackPlans and failureRecovery, evidenceIds must contain only IDs from pullbackCandidates; do not mix breakoutEvidence IDs into this list. A deeper candidate may be the only meaningful pullback: keep that coverage instead of filling shallow with a tiny local pause.
+- Build an ordered upside route, not just a first objective and a distant endpoint. After selecting the breakout, review the supplied session and daily highs for meaningful intervening resistance, including repeated nearby supply and prior expansion highs. Use the available target slots for several distinct supported checkpoints when the tape provides them. A farther objective extends that route; it must not replace or leap over meaningful intermediate resistance merely to satisfy range coverage. Combine genuinely duplicate observations at one price, but do not discard distinct useful levels because their spacing is smaller than the jump to the outer objective. Explain the evidence for every selected checkpoint and its conditional progression.
+- Do not stop the upside map at a nearby first target when the supplied daily history shows a distinct, evidence-backed continuation boundary within roughly 50% of current price. Include that boundary as the final target when it remains practical and is not contradicted by intervening price action, while retaining the meaningful intermediate checkpoints before it. Return fewer targets only when fewer distinct levels are supported, not as a brevity shortcut. Do not invent levels to fill slots.
 - When confirmedPriorPlanBoundary is supplied, price has already confirmed an exit from the prior published map. Build one new plan for the current regime; do not recreate or switch back to the old plan. Preserve that prior boundary as useful retest/reclaim context in the new plan when it remains relevant: an upper exit normally turns the old ceiling into a downside hold/retest reference, while a lower exit normally turns the old floor into an upside reclaim reference. Do not relabel it as the current session high/low or force it into a role contradicted by the new tape.
 - Compare the current-session high with material highs and supply from the immediately preceding regular and after-hours sessions. Do not automatically stop the upside map at today's premarket high when a recent prior-session high remains a practical outer checkpoint, and do not mechanically include an obsolete isolated spike. If the nearer current-session high is the better final target, explain from the tape why the higher prior-session boundary is not presently actionable.
 - Any number described as today's, current, premarket, or session high must exactly match the supplied session summary. A separate breakout-continuation boundary or prior-session resistance must never be relabeled as the current high.
@@ -1072,7 +1084,7 @@ function keepTradeFirstCurrentRead(value: unknown, listingIsNearTerm: boolean): 
     : "Use the extended-hours price action and live tape to judge the active day-trade setup.";
 }
 
-function normalizeModelRead(value: unknown, sources: TradersLinkAiReadSource[]): ModelRead {
+function normalizeModelRead(value: unknown, sources: TradersLinkAiReadSource[], ownerReview = false): ModelRead {
   if (typeof value !== "object" || value === null) {
     throw new Error("OpenAI returned a non-object TradersLink AI Read.");
   }
@@ -1095,14 +1107,14 @@ function normalizeModelRead(value: unknown, sources: TradersLinkAiReadSource[]):
   const riskSummary = Array.isArray(candidate.riskSummary)
     ? candidate.riskSummary
         .map((item) => normalizeText(item, ""))
-        .filter((item) => Boolean(item) && (listingIsNearTerm || !LISTING_FOCUSED_TEXT.test(item)))
+        .filter((item) => Boolean(item) && (ownerReview || listingIsNearTerm || !LISTING_FOCUSED_TEXT.test(item)))
         .slice(0, 6)
     : [];
 
   return {
     bias,
     confidence,
-    currentRead: keepTradeFirstCurrentRead(candidate.currentRead, listingIsNearTerm),
+    currentRead: ownerReview ? normalizeText(candidate.currentRead, "") : keepTradeFirstCurrentRead(candidate.currentRead, listingIsNearTerm),
     needsToHold: normalizeLevel(candidate.needsToHold, "Needs to hold"),
     cautionBelow: normalizeLevel(candidate.cautionBelow, "Caution below"),
     momentumFailure: normalizeLevel(candidate.momentumFailure, "Momentum failure"),
@@ -1118,14 +1130,14 @@ function normalizeModelRead(value: unknown, sources: TradersLinkAiReadSource[]):
           .slice(0, 4)
       : [],
     pullbackPlans: {
-      shallow: confidence === "low"
+      shallow: !ownerReview && confidence === "low"
         ? null
         : normalizePullbackScenario(
             typeof candidate.pullbackPlans === "object" && candidate.pullbackPlans !== null
               ? (candidate.pullbackPlans as Record<string, unknown>).shallow
               : null,
           ),
-      deep: confidence === "low"
+      deep: !ownerReview && confidence === "low"
         ? null
         : normalizePullbackScenario(
             typeof candidate.pullbackPlans === "object" && candidate.pullbackPlans !== null
@@ -1142,6 +1154,28 @@ function normalizeModelRead(value: unknown, sources: TradersLinkAiReadSource[]):
 }
 
 const MATERIAL_QUOTE_DISAGREEMENT_PCT = 5;
+
+/** Preserve the model's analysis for the owner. Semantic checks run separately;
+ * they must not erase the editable draft or choose what the owner can publish. */
+function ownerReviewModelRead(value: unknown, sources: TradersLinkAiReadSource[]): ModelRead {
+  const read = normalizeModelRead(value, sources, true);
+  const raw = value as Record<string, unknown>;
+  const branches = raw.breakoutCandidates;
+  if (branches && typeof branches === "object" && !Array.isArray(branches)) {
+    const candidates = branches as Record<string, unknown>;
+    const selected = candidates.primary ?? candidates.alternate;
+    if (selected && typeof selected === "object" && !Array.isArray(selected)) {
+      const branch = selected as Record<string, unknown>;
+      read.breakoutContinuation = normalizeLevel(branch.level, "Breakout continuation");
+      read.targets = Array.isArray(branch.targets)
+        ? branch.targets.map(normalizeTarget).filter((target): target is TradersLinkAiReadTarget => target !== null).slice(0, 4) : [];
+    }
+  }
+  const approach = Array.isArray(raw.approachCheckpoints)
+    ? raw.approachCheckpoints.map(normalizeTarget).filter((target): target is TradersLinkAiReadTarget => target !== null).slice(0, 2) : [];
+  read.targets = [...approach, ...read.targets];
+  return read;
+}
 
 function applyQuoteDisagreementGuard(
   read: ModelRead,
@@ -1694,7 +1728,7 @@ function assertTradersLinkAiTradeMap(
       fail(`${label} pullback zone is not below the generation reference price`);
     }
     const supported = assertEvidenceIds(`${label} pullback`, scenario.evidenceIds);
-    if (!matchesObservedZone(scenario.zoneLow, scenario.zoneHigh, supported)) {
+    if (!isSupportedPullbackZone(scenario.zoneLow, scenario.zoneHigh, supported)) {
       fail(`${label} pullback prices do not match a cited observed candidate zone`);
     }
     if (isAbove(scenario.invalidationPrice, scenario.zoneLow) ||
@@ -2466,6 +2500,10 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       `${symbol}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     const clientRequestId = `${generationId}-request-1`;
     const capture = (phase: AiReadAuditEvent["phase"], payload: unknown): void => {
+      if (input.ownerReviewRequired && phase === "validation" && payload && typeof payload === "object" &&
+        "stage" in payload && payload.stage !== "api_attempt") {
+        payload = { ...payload, reviewOnly: true };
+      }
       // Review provenance must not depend on optional/expiring diagnostics.
       if (phase === "validation" && payload && typeof payload === "object" &&
         "stage" in payload && payload.stage !== "api_attempt" && input.onValidationDecision) {
@@ -2913,7 +2951,11 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       ...databaseSources(input.research),
       ...extractWebSources(response, new Date().toISOString()),
     ]);
+    let ownerDraft: ModelRead | null = null;
     try {
+      if (input.ownerReviewRequired && text && response.status !== "incomplete") {
+        ownerDraft = ownerReviewModelRead(JSON.parse(text), availableSources);
+      }
       read = applyQuoteDisagreementGuard(
         parseAndValidate(text, availableSources),
         input.snapshot.currentPrice,
@@ -2924,10 +2966,24 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     } catch (error) {
       validationError = error instanceof Error ? error : new Error(String(error));
       capture("validation", { valid: false, error: validationError.message });
-      recordAttempt(initialAttemptType, "invalid_output", model, response, validationError, {
-        failureStage: failureStageFor(validationError, text),
-        rejectedDraft: text,
-      });
+      if (ownerDraft) {
+        capture("validation", { stage: "owner_review", issues: [validationError.message],
+          message: "Analysis retained for your review. You decide what to edit, hide or publish." });
+        recordAttempt(initialAttemptType, "success", model, response);
+      } else {
+        recordAttempt(initialAttemptType, "invalid_output", model, response, validationError, {
+          failureStage: failureStageFor(validationError, text), rejectedDraft: text,
+        });
+      }
+    }
+
+    if (ownerDraft) {
+      // The deterministic extension adds an observed frozen resistance; it does
+      // not replace, validate away or rewrite the model's intermediate prices.
+      read = appendFactualOuterDailyResistanceTarget(ownerDraft, input.snapshot,
+        referenceQuote.price, input.priceAction, dataAsOf);
+      capture("validation", { stage: "owner_review", retainedOriginal: true,
+        message: "Analysis retained for your review. You decide what to edit, hide or publish." });
     }
 
     // Optional-section recovery is local validation work, never a second paid

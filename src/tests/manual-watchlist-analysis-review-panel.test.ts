@@ -81,6 +81,14 @@ test("request inspector renders lazily with explicit truncation and unavailable 
   new Script(render + "\nrenderAudit(audit);").runInNewContext(context);
   assert.ok(elements.some(element => element.text === "Captured records — Input packet: 1 · AI response: 0 · Validation: 2 · Prepared analysis: 0 · Transport error: 1"));
   assert.ok(elements.some(element => element.text?.startsWith("A zero means no record is available here.")));
+  (context.audit.selectedEvents[0]!.body as any).validationDecisions = [
+    { stage: "owner_review", reviewOnly: true, message: "Analysis retained for your review. You decide what to edit, hide or publish." },
+    { stage: "checkpoint_dependencies", reviewOnly: true, field: "targets", issues: [{ reason: "Supporting observation needs review." }] },
+  ];
+  new Script(render + "\nrenderAudit(audit);").runInNewContext(context);
+  assert.ok(elements.some(element => element.text === "Analysis retained for your review. You decide what to edit, hide or publish."));
+  assert.ok(elements.some(element => element.text === "For your review: Supporting observation needs review. Kept in your draft."));
+  assert.equal(elements.some(element => element.text?.includes("— omitted:")), false);
 });
 
 test("receipt controls show only uncertain parts of the current approval and clear stale IDs", () => {

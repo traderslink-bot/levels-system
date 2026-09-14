@@ -1,6 +1,13 @@
 # Watchlist AI and Provider Corrections Progress
 
-**Status:** Active owner iteration; no staging review or deployment requested
+**Status:** Active owner iteration; September 14 runtime repairs are being released
+through the Visible release coordinator. Full five-ticker analysis acceptance remains open.
+
+**September 14 owner review:** [Deep generation and intact editable draft repair](watchlist-deep-setup-generation-repair.md).
+Completed responses remain intact for the owner's edit/approval decision; semantic
+checks are advisory only for persisted owner-review cycles. The 51 service, 30
+section/review and six private-activation focused checks pass; production acceptance
+and the historical candidate coverage investigation are not complete.
 
 **Outer-target safeguard:** [Watchlist AI Read Outer Target Safeguard Progress](watchlist-ai-read-outer-target-safeguard-progress-2026-08-27.md)
 
@@ -114,6 +121,10 @@ See [SOAR dependency repair](watchlist-soar-dependency-alias-fix.md) for the
 owner-requested narrow correction, exact allowlist, checks and release boundary.
 See [Potential Path fallback repair](watchlist-potential-path-fallback-repair.md)
 for the separate deterministic resistance-evidence correction.
+See [Deep setup generation experiment](watchlist-deep-setup-generation-repair.md)
+for the ongoing, not-yet-accepted request-order/prompt correction and its separate
+real-model verification boundary. Do not include this experiment in the already
+authorized two-commit price-path release.
 
 ## Verification and release boundary
 

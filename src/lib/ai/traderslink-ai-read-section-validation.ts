@@ -39,6 +39,18 @@ function matchesObservedPrice(actual: number, observed: number): boolean {
   return Math.abs(actual - observed) <= tolerance + Number.EPSILON * Math.max(1, actual, observed);
 }
 
+export function isSupportedPullbackZone(low: number, high: number,
+  candidates: ScenarioValidationContext["candidates"]): boolean {
+  if (!positive(low) || !positive(high) || low > high) return false;
+  // Both boundaries must be observed in cited bases, and one cited base must
+  // contain the entire interval. This allows a supported narrower zone, never
+  // an invented boundary or a union spanning separate structures.
+  return candidates.some(c => matchesObservedPrice(low, c.zoneLow)) &&
+    candidates.some(c => matchesObservedPrice(high, c.zoneHigh)) &&
+    candidates.some(c => (low >= c.zoneLow || matchesObservedPrice(low, c.zoneLow)) &&
+      (high <= c.zoneHigh || matchesObservedPrice(high, c.zoneHigh)));
+}
+
 export function validateBreakoutOrdering(
   mustClear: TradersLinkAiReadLevel,
   continuation: TradersLinkAiReadLevel,
@@ -88,6 +100,7 @@ function evidenceIssues(
   low: number,
   high: number,
   context: ScenarioValidationContext,
+  allowSupportedSubzone = false,
 ): AnalysisSectionIssue[] {
   const issues: AnalysisSectionIssue[] = [];
   const add = (code: AnalysisSectionIssue["code"], field: string) =>
@@ -95,11 +108,12 @@ function evidenceIssues(
   if (!ids.length) add("missing_evidence", "evidenceIds");
   const candidates = new Map(context.candidates.map((candidate) => [candidate.id, candidate]));
   if (ids.some((id) => !candidates.has(id))) add("unknown_evidence", "evidenceIds");
-  if (!ids.some((id) => {
+  const cited = ids.flatMap(id => candidates.has(id) ? [candidates.get(id)!] : []);
+  if (!(allowSupportedSubzone ? isSupportedPullbackZone(low, high, cited) : ids.some((id) => {
     const candidate = candidates.get(id);
     return candidate && matchesObservedPrice(low, candidate.zoneLow) &&
       matchesObservedPrice(high, candidate.zoneHigh);
-  })) add("zone_evidence_mismatch", "zone");
+  }))) add("zone_evidence_mismatch", "zone");
   return issues;
 }
 
@@ -110,7 +124,7 @@ export function validatePullbackSection(
 ): SectionValidationResult<TradersLinkAiReadPullbackScenario> {
   if (!scenario) return { value: null, issues: [], changedPaths: [] };
   const path = `pullbackPlans.${name}`;
-  const issues = evidenceIssues(path, scenario.evidenceIds, scenario.zoneLow, scenario.zoneHigh, context);
+  const issues = evidenceIssues(path, scenario.evidenceIds, scenario.zoneLow, scenario.zoneHigh, context, true);
   const add = (code: AnalysisSectionIssue["code"], field: string, action: AnalysisSectionIssue["action"] = "omit_section") =>
     issues.push({ path: `${path}.${field}`, code, action });
   const tolerance = Math.max(context.referencePrice * 0.005, 0.0001);

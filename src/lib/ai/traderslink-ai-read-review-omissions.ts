@@ -30,6 +30,7 @@ export function remainingGeneratedSectionOmissions(review: ReviewState, draftRev
   const hidden = (path: string) => Array.isArray(payload.ownerHiddenSections) &&
     payload.ownerHiddenSections.includes(path.replace("pullbackPlans.", ""));
   for (const decision of origin.body.validationDecisions ?? []) {
+    if (decision.reviewOnly === true) continue;
     if (decision.stage === "optional_sections" && Array.isArray(decision.issues)) {
       for (const raw of decision.issues) {
         const issue = object(raw);

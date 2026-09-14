@@ -306,6 +306,14 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     [...diagnosticEvents, ...savedValidationEvents].forEach(event => {
       if (event.phase !== "validation" || !event.payload || typeof event.payload !== "object") return;
       const result = event.payload;
+      if (result.reviewOnly === true) {
+        if (result.stage === "owner_review" && typeof result.message === "string") checks.push(result.message);
+        if (Array.isArray(result.issues)) result.issues.forEach(issue => {
+          const detail = typeof issue === "string" ? issue : issue && (issue.reason || reasons[issue.code]);
+          if (typeof detail === "string") checks.push("For your review: " + detail.slice(0, 600) + " Kept in your draft.");
+        });
+        return;
+      }
       if (result.stage === "checkpoint_dependencies" && Array.isArray(result.issues)) result.issues.forEach(issue => {
         if (!issue || typeof issue.reason !== "string") return;
         checks.push((result.field === "targets" ? "Upside checkpoint" : "Downside checkpoint") +

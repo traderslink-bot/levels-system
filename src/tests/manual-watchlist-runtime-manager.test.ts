@@ -466,7 +466,9 @@ test(`private activation saves an AI draft without website publication or Discor
         research: { ticker: "PDSB", businessDays: 5, count: 0, articles: [] } }),
       tradersLinkAiReadService: {
         getConfiguredModel: () => "test", getReasoningEffort: () => "medium",
-        generate: async ({ generationId, onValidationDecision }: any) => { aiCalls += 1; if (rejectNextRead) throw new Error("Mock rejected analysis");
+        generate: async ({ generationId, onValidationDecision, ownerReviewRequired }: any) => { aiCalls += 1;
+          assert.equal(ownerReviewRequired, true, "durable review cycle must request an intact editable draft");
+          if (rejectNextRead) throw new Error("Mock rejected analysis");
           onValidationDecision({ stage: "optional_sections", issues: [{ path: "pullbackPlans.shallow.zoneHigh", action: "omit_section" }] });
           return {
           symbol: "PDSB", generationId, currentPrice: 0.5, generatedAt: now, model: "test", currentRead: "Original",

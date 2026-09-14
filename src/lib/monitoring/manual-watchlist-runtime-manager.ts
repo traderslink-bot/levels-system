@@ -4379,6 +4379,7 @@ export class ManualWatchlistRuntimeManager {
           dataAsOf,
         });
         read = await service.generate({
+          ownerReviewRequired: Boolean(reviewCycleId),
           onValidationDecision: (decision) => { validationDecisions.push(decision); },
           snapshot,
           research,
