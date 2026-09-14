@@ -640,6 +640,35 @@ Interpretation contract:
 - For volatile micro/nano caps, do not choose a shallow pullback merely because it is the closest candidate. Compare observed base coverage, subsequent retests, distanceInMeanCandleRanges, wick behavior and retracementOfObservedMovePct across the whole session move. A nearby shelf inside ordinary candle noise can be immediate momentum context without being a useful shallow pullback. Select meaningful shallow and deep setups from observed structure, not universal minimum percentages; never invent or widen candidate prices to meet a percentage. Candidate ordering is an evidence heuristic, not a success probability. meanCandleRange is mean high-low range, not ATR; reportedVolumeFraction describes coverage, not zero-volume trading. Retain broader-origin and post-failure recovery context for different trading styles.
 - Return only the requested structured JSON.`;
 
+export function buildTradersLinkAiReadDeveloperPrompt(ownerReview = false): string {
+  if (!ownerReview) return DEVELOPER_PROMPT;
+  return DEVELOPER_PROMPT
+    .replace("Select zones only from supplied pullbackCandidates and cite their exact candidate IDs.",
+      "Use supplied pullbackCandidates as research aids, not an exhaustive list of support. Also evaluate the actual supplied daily, four-hour and intraday candles for meaningful defended areas, prior range boundaries and reclaimed supply. When a useful zone is absent from the catalog, choose its boundaries from actual supplied OHLC prices and cite the supporting timeframe and candle timestamp as daily:<timestamp>, 4h:<timestamp>, 5m:<timestamp> or 1m:<timestamp>. Explain the evidence and subsequent behavior. An empty candidate list does not mean the chart has no pullback or recovery possibilities.")
+    .replace("Low confidence must return both pullback scenarios as null.",
+      "Confidence describes uncertainty; it does not require deleting supported conditional pullback scenarios.")
+    .replace("Use a supplied lower candidate for the recovery-watch zone,",
+      "Use a supplied lower candidate or a lower area established by the actual supplied chart history for the recovery-watch zone,")
+    .replace("For pullbackPlans and failureRecovery, evidenceIds must contain only IDs from pullbackCandidates; do not mix breakoutEvidence IDs into this list.",
+      "For pullbackPlans and failureRecovery, cite candidate IDs or exact timeframe:timestamp references to the supplied supporting candles. Do not treat the absence of a precomputed candidate as absence of chart evidence.");
+}
+
+export function buildTradersLinkAiReadResponseSchema(ownerReview = false) {
+  if (!ownerReview) return AI_READ_SCHEMA;
+  const pullback = { ...PULLBACK_SCENARIO_SCHEMA, properties: { ...PULLBACK_SCENARIO_SCHEMA.properties,
+    zoneLow: { type: "number", description: "Lower observed price boundary of the evidenced pullback area." },
+    zoneHigh: { type: "number", description: "Upper observed price boundary of the same evidenced pullback area." },
+  } };
+  const breakout = { ...BREAKOUT_CANDIDATE_SCHEMA, properties: { ...BREAKOUT_CANDIDATE_SCHEMA.properties,
+    targets: { ...BREAKOUT_CANDIDATE_SCHEMA.properties.targets, maxItems: 6 },
+  } };
+  return { ...AI_READ_SCHEMA, properties: { ...AI_READ_SCHEMA.properties,
+    pullbackPlans: { ...PULLBACK_PLANS_SCHEMA, properties: { shallow: pullback, deep: pullback } },
+    breakoutCandidates: { ...AI_READ_SCHEMA.properties.breakoutCandidates,
+      properties: { primary: breakout, alternate: breakout } },
+  } };
+}
+
 function normalizeSymbol(value: string): string {
   return value.trim().toUpperCase();
 }
@@ -1168,7 +1197,7 @@ function ownerReviewModelRead(value: unknown, sources: TradersLinkAiReadSource[]
       const branch = selected as Record<string, unknown>;
       read.breakoutContinuation = normalizeLevel(branch.level, "Breakout continuation");
       read.targets = Array.isArray(branch.targets)
-        ? branch.targets.map(normalizeTarget).filter((target): target is TradersLinkAiReadTarget => target !== null).slice(0, 4) : [];
+        ? branch.targets.map(normalizeTarget).filter((target): target is TradersLinkAiReadTarget => target !== null).slice(0, 6) : [];
     }
   }
   const approach = Array.isArray(raw.approachCheckpoints)
@@ -1454,6 +1483,27 @@ function outerDailyTargetCondition(candidate: LiveWatchlistLevelMapLevel, priceA
   return observedHigh
     ? "Daily resistance aligned with an observed daily candle high in the analysis packet."
     : "Farther daily resistance from Potential Path, conditional on continued momentum through the nearer levels.";
+}
+
+function appendOwnerReviewPotentialPath(read: ModelRead, snapshot: LevelSnapshotPayload, currentPrice: number): ModelRead {
+  if (!(currentPrice > 0)) return read;
+  const furthest = Math.max(currentPrice, read.breakoutContinuation.price ?? 0,
+    ...read.targets.flatMap(point => point.price !== null && Number.isFinite(point.price) ? [point.price] : []));
+  const coveragePrice = currentPrice * (1 + OUTER_DAILY_TARGET_MIN_DISTANCE_PCT);
+  if (furthest >= coveragePrice) return read;
+  const mapped = buildLiveWatchlistPotentialPathPresentation(snapshot).levelMap?.resistanceLevels ?? [];
+  const candidates = mapped.filter(level => Number.isFinite(level.price) && level.price > furthest)
+    .sort((left, right) => left.price - right.price);
+  const additions: TradersLinkAiReadTarget[] = [];
+  let previous = furthest;
+  for (const level of candidates) {
+    if (level.price - previous <= numericOrderingTolerance(currentPrice)) continue;
+    additions.push({ label: "Resistance", price: level.price,
+      condition: `If price clears and holds above $${previous}, the next mapped resistance is $${level.price}.` });
+    previous = level.price;
+    if (level.price >= coveragePrice || additions.length === 6) break;
+  }
+  return additions.length ? { ...read, targets: [...read.targets, ...additions] } : read;
 }
 
 function appendFactualOuterDailyResistanceTarget(
@@ -2310,13 +2360,13 @@ function buildRequestBody(args: {
         type: "json_schema",
         name: "traderslink_ai_read",
         strict: true,
-        schema: AI_READ_SCHEMA,
+        schema: buildTradersLinkAiReadResponseSchema(args.input.ownerReviewRequired),
       },
     },
     input: [
       {
         role: "developer",
-        content: [{ type: "input_text", text: DEVELOPER_PROMPT }],
+        content: [{ type: "input_text", text: buildTradersLinkAiReadDeveloperPrompt(args.input.ownerReviewRequired) }],
       },
       {
         role: "user",
@@ -2654,7 +2704,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
           // conditions or allowed to remove an otherwise usable breakout.
           const targets: BreakoutTarget[] = [];
           if (!Array.isArray(value.targets)) candidateParsingIssues.push({ path: `breakoutCandidates.${id}.targets`, reason: "Malformed optional targets omitted." });
-          else value.targets.slice(0, 4).forEach((target, index) => {
+          else value.targets.slice(0, input.ownerReviewRequired ? 6 : 4).forEach((target, index) => {
             if (!target || typeof target !== "object" || Array.isArray(target) ||
               typeof target.label !== "string" || typeof target.condition !== "string" || !target.condition.trim() ||
               typeof target.price !== "number" || !Number.isFinite(target.price) || target.price <= 0 ||
@@ -2980,8 +3030,10 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     if (ownerDraft) {
       // The deterministic extension adds an observed frozen resistance; it does
       // not replace, validate away or rewrite the model's intermediate prices.
-      read = appendFactualOuterDailyResistanceTarget(ownerDraft, input.snapshot,
-        referenceQuote.price, input.priceAction, dataAsOf);
+      read = appendOwnerReviewPotentialPath(ownerDraft, input.snapshot, referenceQuote.price);
+      if (read !== ownerDraft) capture("validation", { stage: "potential_path_extension",
+        source: "frozen_potential_path", addedTargets: read.targets.slice(ownerDraft.targets.length),
+        referencePrice: referenceQuote.price, coveragePrice: referenceQuote.price * (1 + OUTER_DAILY_TARGET_MIN_DISTANCE_PCT) });
       capture("validation", { stage: "owner_review", retainedOriginal: true,
         message: "Analysis retained for your review. You decide what to edit, hide or publish." });
     }

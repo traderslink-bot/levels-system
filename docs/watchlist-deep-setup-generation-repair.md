@@ -124,3 +124,60 @@ automatic-path rejection and single-request behavior; the 30 review/section test
 and six private activation/approval tests also pass. No full local build/server.
 This is readiness to reconcile and verify the narrow repair, not completed live
 acceptance of all five symbols or finished analysis-quality work.
+
+## Chart-evidence follow-up (separate from the in-flight owner-draft release)
+
+Original live NCT supplied daily history down to 0.26 but no selectable catalog
+zones. The current historical-base detector still finds no three-overlapping-body
+candidate in those 27 bars; deploying that detector alone cannot resolve the gap.
+ELMT similarly has chart observations beyond its two supplied candidate areas.
+
+Bounded same-input experiments changed only the candidate-only prompt restriction:
+NCT then returned shallow 0.4397–0.4445, deep 0.4271–0.4354 and a daily recovery
+zone 0.279–0.301. The shallow boundary/cited bars and deeper premarket lows were
+checked directly in the original supplied OHLC data. ELMT returned both shallow
+21.15–21.645 and deep 20.33–20.89, plus recovery. These prove the catalog restriction
+was excluding available chart-based scenarios; they do not prove every selected
+level is the best professional interpretation. Old catalog-only validator results
+are not acceptance for this new evidence protocol.
+
+The follow-up source is deliberately review-mode-only:
+
+- Owner-reviewed prompts may use the actual supplied chart history, with exact
+  timeframe/timestamp references, rather than only precomputed candidates.
+- Confidence describes uncertainty; it does not tell the model to erase supported
+  conditional scenarios before the owner can see them.
+- The reviewed response allows six continuation checkpoints plus two approach
+  checkpoints. The previous four-slot branch cap could force a choice between
+  intermediate levels and the farther boundary. The owner draft retains all six.
+- Ordinary automatic-mode prompt/schema remain unchanged. No additional market
+  fetch, article lookup, API retry or automatic fallback was added.
+- The SOAR original-packet call using the actual proposed prompt/schema completed
+  with both pullbacks and .259/.265/.272, but still omitted farther resistance.
+  Six available slots alone do not guarantee sufficient range.
+- Owner-reviewed drafts now append actual frozen Potential Path resistance in
+  ascending order when the existing route is less than 30% above the analysis
+  reference price. Preserve the original AI points, include intervening mapped
+  resistance, and stop at the first mapped point reaching that distance (at most
+  six additions). Missing mapped levels do not manufacture a price. No additional
+  provider request is made. The automatic-mode fallback remains unchanged.
+- All 53 service tests pass serially, including frozen intermediate/farther map
+  supplementation, unchanged original AI points, and one-request behavior.
+
+## Production draft-preservation acceptance — September 14
+
+Coordinator confirmed production deployment 98021436-47bc-4f76-a015-95e87d370a0c
+healthy on reconciled source e58d650. Five new real production generations all
+completed and prepared drafts: SOAR, BMGL, FTFT, NCT and ELMT. Admin shows all five
+Ready for review; no ticker was approved or published. Private exact request,
+response and prepared evidence is saved under data/analysis-replay.
+
+This proves preservation, not final analysis quality: FTFT and NCT returned both
+pullbacks; SOAR and ELMT returned only deep; BMGL returned neither. The missing
+branches were already absent from the model responses, not removed by validation.
+The chart-evidence follow-up above addresses the restrictive generation contract
+and still requires live verification after its separate coordinated release.
+Known hosted spend is $0.8466 with one unpriced earlier timeout. Private experiment
+costs are conservatively tracked separately ($1.415134); a $2 hosted reserve is
+used in the private runner's $5 total budget check. These are not an exact combined
+billed total. No approval/publication or Discord test message has been sent.

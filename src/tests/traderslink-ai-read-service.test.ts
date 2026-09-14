@@ -7,6 +7,8 @@ import { describe, it } from "node:test";
 import type { LevelSnapshotPayload } from "../lib/alerts/alert-types.js";
 import {
   AI_READ_SCHEMA,
+  buildTradersLinkAiReadDeveloperPrompt,
+  buildTradersLinkAiReadResponseSchema,
   createTradersLinkAiReadServiceFromEnv,
   OpenAITradersLinkAiReadService,
 } from "../lib/ai/traderslink-ai-read-service.js";
@@ -30,7 +32,7 @@ it("owner review retains both pullbacks, original narrative and every upside che
     rationale: "Original explanation.", evidenceIds: ["unknown-base"] };
   const deep = { ...shallow, zoneLow: 1.1, zoneHigh: 1.2, invalidationPrice: 1.15 };
   draft.pullbackPlans = { shallow, deep };
-  const levels = [1.7, 1.8, 1.9, 2.1].map((price, i) => ({ id: `p${i}`, dependsOn: ["unmatched"],
+  const levels = [1.7, 1.8, 1.9, 2.1, 2.2, 2.4].map((price, i) => ({ id: `p${i}`, dependsOn: ["unmatched"],
     price, label: `Level ${i}`, condition: "Original continuation explanation." }));
   draft.breakoutCandidates = { primary: { level: { price: 1.65, label: "Breakout", rationale: "Original breakout." },
     targets: levels, evidenceIds: ["unknown"], anchorPrice: 1.65, basis: "observed_level" }, alternate: null };
@@ -51,12 +53,44 @@ it("owner review retains both pullbacks, original narrative and every upside che
   assert.ok(decisions.every(d => d.reviewOnly === true));
 });
 
+it("owner-reviewed generation can use supplied chart evidence beyond the catalog and retain six upside checkpoints", () => {
+  const ordinary = buildTradersLinkAiReadDeveloperPrompt();
+  const reviewed = buildTradersLinkAiReadDeveloperPrompt(true);
+  assert.match(ordinary, /Select zones only from supplied pullbackCandidates/);
+  assert.match(reviewed, /not an exhaustive list of support/);
+  assert.match(reviewed, /daily:<timestamp>/);
+  assert.doesNotMatch(reviewed, /Select zones only|evidenceIds must contain only IDs from pullbackCandidates|Low confidence must return both/);
+  assert.equal(buildTradersLinkAiReadResponseSchema(), AI_READ_SCHEMA);
+  assert.equal(buildTradersLinkAiReadResponseSchema(true).properties.breakoutCandidates.properties.primary.properties.targets.maxItems, 6);
+  assert.equal(AI_READ_SCHEMA.properties.breakoutCandidates.properties.primary.properties.targets.maxItems, 4);
+});
+
 it("owner review cannot fabricate a draft from a truncated response", async () => {
   const service = new OpenAITradersLinkAiReadService({ apiKey: "test-key", model: "test-model",
     fetchImpl: async () => new Response(JSON.stringify({ status: "incomplete", output: [{ type: "message",
       content: [{ type: "output_text", text: '{"currentRead":' }] }] }), { status: 200 }) });
   await assert.rejects(service.generate({ snapshot: snapshot(), priceAction: priceAction(), ownerReviewRequired: true,
     research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } }), /incomplete/);
+});
+
+it("owner review supplements its unchanged upside route with the displayed intermediate and farther resistance", async () => {
+  const levels = snapshot();
+  levels.resistanceZones = [1.75, 1.9, 2.3].map(price => ({ ...levels.resistanceZones[0]!,
+    representativePrice: price, lowPrice: price - 0.005, highPrice: price + 0.005,
+    sourceLabel: "daily structure", strengthLabel: "moderate" }));
+  const draft = modelRead();
+  draft.targets = [{ label: "AI checkpoint", price: 1.7, condition: "Original condition." }];
+  const decisions: Record<string, unknown>[] = [];
+  let requests = 0;
+  const service = new OpenAITradersLinkAiReadService({ apiKey: "test-key", model: "test-model",
+    fetchImpl: async () => { requests++; return new Response(JSON.stringify({ output: [{ type: "message",
+      content: [{ type: "output_text", text: JSON.stringify(draft) }] }] }), { status: 200 }); } });
+  const read = await service.generate({ snapshot: levels, priceAction: priceAction(), ownerReviewRequired: true,
+    research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] }, onValidationDecision: d => decisions.push(d) });
+  assert.deepEqual(read.targets.map(target => target.price), [1.7, 1.75, 1.9]);
+  assert.deepEqual(read.targets[0], (draft.targets as unknown[])[0]);
+  assert.equal(requests, 1);
+  assert.ok(decisions.some(d => d.stage === "potential_path_extension" && d.source === "frozen_potential_path"));
 });
 
 it("requests pullback structures before the final core failure without changing required fields", () => {
