@@ -650,7 +650,9 @@ export function buildTradersLinkAiReadDeveloperPrompt(ownerReview = false): stri
     .replace("Use a supplied lower candidate for the recovery-watch zone,",
       "Use a supplied lower candidate or a lower area established by the actual supplied chart history for the recovery-watch zone,")
     .replace("For pullbackPlans and failureRecovery, evidenceIds must contain only IDs from pullbackCandidates; do not mix breakoutEvidence IDs into this list.",
-      "For pullbackPlans and failureRecovery, cite candidate IDs or exact timeframe:timestamp references to the supplied supporting candles. Do not treat the absence of a precomputed candidate as absence of chart evidence.");
+      "For pullbackPlans and failureRecovery, cite candidate IDs or exact timeframe:timestamp references to the supplied supporting candles. Do not treat the absence of a precomputed candidate as absence of chart evidence.")
+    .replace("Then audit every candidate ID and pullback/recovery price against supplied candidate zones,",
+      "Then audit every evidence reference and pullback/recovery boundary against the actual supplied candles or candidate zones,");
 }
 
 export function buildTradersLinkAiReadResponseSchema(ownerReview = false) {

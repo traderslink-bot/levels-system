@@ -186,3 +186,8 @@ The manual refresh completion banner said "Published" even for a held review
 draft. Corrected that banner to "Generated" and failures to generation wording;
 the separate row state and approval action remain authoritative. No publication
 logic changed. This is a distinct small copy follow-up to the generation commit.
+
+Final prompt consistency review also replaced the closing candidate-only self-audit
+instruction in review mode: direct candle evidence must remain allowed through the
+model's final check, not merely during initial selection. A focused regression
+assertion covers this remaining contradictory clause.
