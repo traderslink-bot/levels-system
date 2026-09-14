@@ -2358,10 +2358,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
                 return;
               }
               setStatus(payload.generated
-                ? "Published a fresh TradersLink AI Read for " + entry.symbol + "."
+                ? "Generated a fresh TradersLink Analysis for " + entry.symbol + ". Check the ticker row to review it."
                 : payload.failure?.reason
-                  ? "AI Read was not published for " + entry.symbol + ": " + payload.failure.reason
-                  : "No AI Read was published for " + entry.symbol + ". Check the ticker row for the reason.",
+                  ? "Analysis generation did not complete for " + entry.symbol + ": " + payload.failure.reason
+                  : "No new analysis was generated for " + entry.symbol + ". Check the ticker row for the reason.",
                 !payload.generated);
               await loadEntries();
               await loadRuntimeStatus();

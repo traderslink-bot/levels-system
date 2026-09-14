@@ -4,6 +4,12 @@ import { Script } from "node:vm";
 import { WATCHLIST_ROW_REVIEW } from "../runtime/manual-watchlist-row-review.js";
 import { MANUAL_WATCHLIST_PAGE } from "../runtime/manual-watchlist-page.js";
 
+test("manual generation acknowledgement does not claim a draft was published", () => {
+  assert.match(MANUAL_WATCHLIST_PAGE, /Generated a fresh TradersLink Analysis/);
+  assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /Published a fresh TradersLink AI Read/);
+  assert.match(MANUAL_WATCHLIST_PAGE, /Analysis generation did not complete/);
+});
+
 function harness(status = "Ready for review", canReview = true) {
   const calls: { url: string; body?: Record<string, unknown> }[] = [];
   const listeners: Record<string, (event: any) => void> = {};

@@ -181,3 +181,8 @@ Known hosted spend is $0.8466 with one unpriced earlier timeout. Private experim
 costs are conservatively tracked separately ($1.415134); a $2 hosted reserve is
 used in the private runner's $5 total budget check. These are not an exact combined
 billed total. No approval/publication or Discord test message has been sent.
+
+The manual refresh completion banner said "Published" even for a held review
+draft. Corrected that banner to "Generated" and failures to generation wording;
+the separate row state and approval action remain authoritative. No publication
+logic changed. This is a distinct small copy follow-up to the generation commit.
