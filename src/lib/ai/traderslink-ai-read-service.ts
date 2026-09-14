@@ -493,7 +493,7 @@ const LISTING_CONTEXT_SCHEMA = {
   required: ["status", "immediacy", "summary", "dayTradeRelevance", "sourceUrls"],
 } as const;
 
-const AI_READ_SCHEMA = {
+export const AI_READ_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {

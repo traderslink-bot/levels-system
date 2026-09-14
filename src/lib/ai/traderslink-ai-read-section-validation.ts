@@ -55,6 +55,7 @@ export function validateBreakoutOrdering(
   mustClear: TradersLinkAiReadLevel,
   continuation: TradersLinkAiReadLevel,
   referencePrice: number,
+  independentContinuation = false,
 ) {
   if (!positive(referencePrice)) throw new Error("Invalid shared analysis reference.");
   const tolerance = Math.max(referencePrice * 0.005, 0.0001);
@@ -65,20 +66,21 @@ export function validateBreakoutOrdering(
     if (code) issues.push({ path, code, action: "omit_section" });
     return code !== null;
   };
-  const clearInvalid = invalid("mustClear", mustClear);
+  let clearInvalid = invalid("mustClear", mustClear);
   let continuationInvalid = invalid("breakoutContinuation", continuation);
   if (!clearInvalid && !continuationInvalid && mustClear.price !== null && continuation.price !== null &&
       continuation.price - mustClear.price <= tolerance) {
-    continuationInvalid = true;
-    issues.push({ path: "breakoutContinuation", code: "confirmation_order", action: "omit_section" });
+    if (independentContinuation) clearInvalid = true;
+    else continuationInvalid = true;
+    issues.push({ path: independentContinuation ? "mustClear" : "breakoutContinuation", code: "confirmation_order", action: "omit_section" });
   }
   const empty = (): TradersLinkAiReadLevel => ({ label: "", price: null, rationale: "" });
   return {
     mustClear: clearInvalid ? empty() : { ...mustClear },
-    breakoutContinuation: clearInvalid || continuationInvalid ? empty() : { ...continuation },
-    omitDependentUpside: clearInvalid || continuationInvalid,
+    breakoutContinuation: (!independentContinuation && clearInvalid) || continuationInvalid ? empty() : { ...continuation },
+    omitDependentUpside: (!independentContinuation && clearInvalid) || continuationInvalid,
     issues,
-    changedPaths: clearInvalid ? ["mustClear", "breakoutContinuation", "targets"] : continuationInvalid ? ["breakoutContinuation", "targets"] : [],
+    changedPaths: clearInvalid ? (independentContinuation ? ["mustClear"] : ["mustClear", "breakoutContinuation", "targets"]) : continuationInvalid ? ["breakoutContinuation", "targets"] : [],
   };
 }
 
@@ -91,7 +93,7 @@ export function hasCompleteValidatedSetup(read: {
   failureRecovery: TradersLinkAiReadFailureRecoveryPlan | null;
 }): boolean {
   if (read.pullbackPlans.shallow || read.pullbackPlans.deep || read.failureRecovery) return true;
-  return positive(read.momentumFailure.price) && positive(read.mustClear.price) && positive(read.breakoutContinuation.price);
+  return positive(read.momentumFailure.price) && positive(read.breakoutContinuation.price);
 }
 
 function evidenceIssues(
