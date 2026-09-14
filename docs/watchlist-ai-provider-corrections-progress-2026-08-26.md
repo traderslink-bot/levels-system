@@ -108,6 +108,11 @@ The historic VMAR records predate reasoning-effort persistence, so their exact
 effort cannot be reconstructed without guessing. New attempt, run, and cost
 records persist that fact for the expandable history.
 
+## SOAR dependency compatibility follow-up
+
+See [SOAR dependency repair](watchlist-soar-dependency-alias-fix.md) for the
+owner-requested narrow correction, exact allowlist, checks and release boundary.
+
 ## Verification and release boundary
 
 - [x] `git diff --check` passed before targeted lint.

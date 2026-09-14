@@ -57,7 +57,7 @@ export type BreakoutCandidate = {
 export type BreakoutTarget = TradersLinkAiReadTarget & { id: string; dependsOn: string[] };
 
 export function retainBreakoutTargets(input: {
-  candidateId: "primary" | "alternate"; continuationPrice: number;
+  candidateId: "primary" | "alternate"; continuationPrice: number; symbol?: string;
   targets: readonly BreakoutTarget[]; spacing: number;
   validate: (target: TradersLinkAiReadTarget) => boolean;
 }) {
@@ -66,11 +66,23 @@ export function retainBreakoutTargets(input: {
   const accepted = new Set<string>([input.candidateId]);
   const counts = new Map<string, number>();
   for (const target of input.targets) counts.set(target.id, (counts.get(target.id) ?? 0) + 1);
+  // Model spelling variants identify only this candidate, never the other
+  // branch. A target with that name makes the reference ambiguous: fail it.
+  const symbol = input.symbol?.toLowerCase();
+  const branchAliases = (branch: string) => [ `${branch}-breakout`, `breakout-${branch}`,
+    ...(symbol && /^[a-z0-9][a-z0-9.\-]{0,19}$/.test(symbol)
+      ? [`${symbol}-${branch}-breakout`, `${symbol}-breakout-${branch}`] : []) ];
+  const rootAliases = new Set(branchAliases(input.candidateId));
+  const reservedIds = new Set(["primary", "alternate", ...branchAliases("primary"), ...branchAliases("alternate")]);
+  const dependencyAvailable = (id: string) => rootAliases.has(id)
+    ? !counts.has(id) && accepted.has(input.candidateId)
+    : accepted.has(id);
   let prior = input.continuationPrice;
   for (const target of input.targets) {
-    const invalidIdentity = !target.id || counts.get(target.id) !== 1 || target.id === "primary" || target.id === "alternate";
+    const invalidIdentity = !target.id || counts.get(target.id) !== 1 ||
+      reservedIds.has(target.id);
     const reason = invalidIdentity ? "Invalid or duplicate target identity."
-      : target.dependsOn.some(id => !accepted.has(id)) ? "Required prior branch or level is unavailable."
+      : target.dependsOn.some(id => !dependencyAvailable(id)) ? "Required prior branch or level is unavailable."
       : target.price === null || !Number.isFinite(target.price) || target.price <= 0 || target.price - prior < input.spacing ? "Invalid upside sequence."
       : !input.validate(structuredClone(target)) ? "Unsupported upside level." : null;
     if (reason) { issues.push({ id: target.id, reason }); continue; }

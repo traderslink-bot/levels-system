@@ -9,6 +9,51 @@ const candidate = (id: BreakoutCandidate["id"], price: number): BreakoutCandidat
 });
 const base = { referencePrice: 0.5, mustClear: { label: "Must clear", price: 0.52, rationale: "Range ceiling" }, validateEvidence: () => [] as string[] };
 
+test("SOAR saved-response dependency spellings retain all three upside checkpoints without mutating source", () => {
+  const targets = [
+    { id: "primary-target-259", price: 0.259, dependsOn: ["primary-breakout"] },
+    { id: "primary-target-265", price: 0.265, dependsOn: ["primary-breakout", "primary-target-259"] },
+    { id: "primary-target-272", price: 0.272, dependsOn: ["primary-breakout", "primary-target-265"] },
+  ].map(row => ({ ...row, label: row.id, condition: "Conditional daily high" }));
+  const original = JSON.stringify(targets);
+  const run = (validate: (value: { price: number | null }) => boolean) => retainBreakoutTargets({
+    candidateId: "primary", continuationPrice: 0.255, spacing: 0.0001, targets, validate });
+  assert.deepEqual(run(() => true).retained.map(row => row.price), [0.259, 0.265, 0.272]);
+  assert.deepEqual(run(row => row.price !== 0.259).retained, [], "failed evidence still removes dependent chain");
+  assert.equal(JSON.stringify(targets), original);
+});
+
+test("breakout aliases cannot resolve another branch, a missing target or an identity collision", () => {
+  for (const candidateId of ["primary", "alternate"] as const) {
+    const alias = `${candidateId}-breakout`;
+    const row = (id: string, dependsOn: string[], price = 1.2) => ({ id, dependsOn, price, label: id, condition: "Observed high" });
+    const run = (targets: ReturnType<typeof row>[]) => retainBreakoutTargets({ candidateId,
+      continuationPrice: 1, spacing: 0.01, targets, validate: () => true });
+    assert.equal(run([row("valid", [alias])]).retained.length, 1);
+    for (const bad of [candidateId === "primary" ? "alternate-breakout" : "primary-breakout", "unknown", "https://example.com/primary"]) {
+      assert.equal(run([row("invalid", [bad])]).retained.length, 0);
+    }
+    assert.equal(run([row(alias, []), row("child", [alias], 1.3)]).retained.length, 0);
+    assert.equal(run([row("child", [alias]), row(alias, [], 1.3)]).retained.length, 0);
+    assert.equal(run([row("bad-order", [alias], 0.9)]).retained.length, 0);
+  }
+});
+
+test("BMGL saved-response symbol-prefixed upside roots preserve prices only for the current ticker", () => {
+  const targets = [
+    { id: "bmgl-primary-target-948", price: 9.48, dependsOn: ["bmgl-breakout-primary"] },
+    { id: "bmgl-primary-target-1060", price: 10.6, dependsOn: ["bmgl-breakout-primary", "bmgl-primary-target-948"] },
+  ].map(row => ({ ...row, label: row.id, condition: "Observed daily high" }));
+  const original = JSON.stringify(targets);
+  const run = (symbol: string, rows = targets) => retainBreakoutTargets({ candidateId: "primary", symbol,
+    continuationPrice: 8.95, spacing: 0.01, targets: rows, validate: () => true });
+  assert.deepEqual(run("BMGL").retained.map(row => row.price), [9.48, 10.6]);
+  assert.deepEqual(run("SOAR").retained, []);
+  assert.deepEqual(run("BMGL", [{ ...targets[0]!, id: "bmgl-breakout-primary" }, ...targets]).retained, []);
+  assert.deepEqual(run("BMGL", targets.map(row => ({ ...row, dependsOn: ["bmgl-breakout-alternate"] }))).retained, []);
+  assert.equal(JSON.stringify(targets), original);
+});
+
 test("optional targets retain independent levels but drop dependent chains", () => {
   const target = (id: string, price: number, dependsOn: string[]) => ({ id, price, dependsOn, label: id, condition: "Observed daily high" });
   const result = retainBreakoutTargets({ candidateId: "alternate", continuationPrice: 0.54, spacing: 0.01,

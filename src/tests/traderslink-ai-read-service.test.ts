@@ -966,6 +966,20 @@ describe("OpenAITradersLinkAiReadService", () => {
     tape.dailyCandles.push({ timestamp: DATA_AS_OF - 22 * 86400000,
       open: 2.1, high: 2.2, low: 2.05, close: 2.15, volume: 100000 });
     const dependenciesRead = await generate(withDependencies);
+    // The live SOAR response used a branch spelling alias. Run through the
+    // complete service, not only the dependency helper, with real candle evidence.
+    const aliasDependencies = structuredClone(withDependencies);
+    aliasDependencies.breakoutCandidates.alternate.targets[2].dependsOn = ["alternate-breakout"];
+    const aliasRead = await generate(aliasDependencies);
+    assert.deepEqual(aliasRead.targets, dependenciesRead.targets);
+    aliasDependencies.breakoutCandidates.alternate.targets[2].dependsOn = ["tghl-breakout-alternate"];
+    assert.deepEqual((await generate(aliasDependencies)).targets, dependenciesRead.targets);
+    aliasDependencies.breakoutCandidates.alternate.targets[2].dependsOn = ["bmgl-breakout-alternate"];
+    assert.deepEqual((await generate(aliasDependencies)).targets, [], "foreign symbol cannot bind");
+    aliasDependencies.breakoutCandidates.alternate.targets[2].dependsOn = ["alternate-breakout"];
+    const unsupportedAlias = structuredClone(aliasDependencies);
+    unsupportedAlias.breakoutCandidates.alternate.targets[2].price = 99;
+    assert.deepEqual((await generate(unsupportedAlias)).targets, []);
     const badTargetText = structuredClone(withDependencies);
     badTargetText.breakoutCandidates.alternate.targets[2].condition = "Premarket volume was zero.";
     const textPartial = await generate(badTargetText);
