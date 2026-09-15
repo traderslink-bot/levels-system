@@ -33,7 +33,7 @@ test("wrong destination never posts; transport errors never disclose webhook sec
 });
 test("webhook receipt verification uses webhook-owned read endpoint, not bot API", async () => {
   const gateway = new DiscordRestThreadGateway({ botToken: "test", watchlistChannelId: channel, webhookUrl: webhook,
-    fetchImpl: async (url, init) => { assert.equal(init?.method, "GET"); assert.equal(new Headers(init.headers).get("Authorization"), null);
+    fetchImpl: async (url, init) => { assert.equal(init?.method, "GET"); assert.equal(new Headers(init?.headers).get("Authorization"), null);
       return String(url).endsWith(messageId) ? Response.json({ id: messageId, channel_id: channel, webhook_id: "12345678901234567", content: chunk.content, timestamp: new Date(2000).toISOString() }) : Response.json({ channel_id: channel }); } });
   assert.deepEqual(await gateway.verifyApprovedAnalysisMessage(chunk, messageId, 1000), { messageId, channelId: channel });
 });
