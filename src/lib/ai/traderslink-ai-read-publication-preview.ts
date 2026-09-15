@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { buildWatchlistDiscordLinkMessage } from "../alerts/watchlist-discord-link-message.js";
 import type { TradersLinkAiReadPayload } from "../live-watchlist/live-watchlist-types.js";
 
 export type ReviewPublication = {
@@ -27,67 +28,7 @@ export function splitApprovedAnalysisText(text: string): string[] {
   return chunks;
 }
 
-/** Deterministic owner preview and Discord body; no model/provider calls.
- * Diagnostic evidence, model metadata and source URLs are not post copy.
- */
+/** Preserve the established linked notification; analysis belongs on the website. */
 export function renderApprovedAnalysisDiscord(read: TradersLinkAiReadPayload): string[] {
-  const hidden = new Set(read.ownerHiddenSections ?? []);
-  if (read.analysisFormat === "simple" && read.simpleAnalysis) {
-    const simple = read.simpleAnalysis;
-    const sections = [read.symbol + " — TradersLink Analysis", "Analysis price: $" + read.currentPrice];
-    const area = (low:number,high:number) => low === high ? "$"+low : "$"+low+"–$"+high;
-    if (!hidden.has("currentRead") && simple.setup.trim()) sections.push(simple.setup);
-    const visible = simple.pullbacks.map((plan,index)=>({plan,key:index === 0 ? "shallow" : "deep"})).filter(item=>!hidden.has(item.key));
-    visible.forEach(({plan},index)=>sections.push((index === 0 ? "Pullback" : "Deeper pullback")+"\n"+
-      area(plan.low,plan.high)+"\n"+plan.explanation+"\nConfirmation: "+plan.confirmation+"\nInvalidation: $"+plan.invalidation));
-    if (!hidden.has("targets") && simple.upside.length) sections.push("Where it could go next\n"+
-      simple.upside.map(level=>area(level.low,level.high)+" — "+level.explanation).join("\n"));
-    if (!hidden.has("momentumFailure") && simple.invalidation) sections.push("Thesis invalidation\n$"+
-      simple.invalidation.price+" — "+simple.invalidation.explanation);
-    return splitApprovedAnalysisText(sections.join("\n\n"));
-  }
-  const price = (value: number | null) => value === null ? null : `$${value}`;
-  const sections = [`${read.symbol} — TradersLink Analysis`,
-    `Analysis price: ${price(read.currentPrice)}\nBias: ${read.bias}. Confidence: ${read.confidence}.`];
-  const add = (key: string, title: string, lines: Array<string | null | undefined>) => {
-    if (hidden.has(key)) return;
-    const body = lines.filter((line): line is string => typeof line === "string" && Boolean(line.trim())).join("\n");
-    if (body) sections.push(title ? `${title}\n${body}` : body);
-  };
-  add("currentRead", "", [read.currentRead]);
-  for (const [key, title] of [
-    ["needsToHold", "Needs to hold"], ["cautionBelow", "Caution below"],
-    ["momentumFailure", "Momentum failure"], ["mustClear", "Must clear"],
-    ["breakoutContinuation", "Breakout continuation"],
-  ] as const) {
-    const level = read[key];
-    add(key, title, [level.label, price(level.price), level.rationale]);
-  }
-  for (const [key, title] of [["targets", "Where the trade could go next"], ["downsideCheckpoints", "Downside levels"]] as const) {
-    add(key, title, read[key].map((level) => [level.label, price(level.price), level.condition].filter(Boolean).join(" — ")));
-  }
-  const hasVisiblePullback = Boolean(read.pullbackPlans.shallow) && !hidden.has("shallow");
-  for (const [key, title] of [["shallow", "Pullback"], ["deep", hasVisiblePullback ? "Deeper pullback" : "Pullback"]] as const) {
-    const plan = read.pullbackPlans[key];
-    if (plan) add(key, title, [
-      `Area: ${price(plan.zoneLow)}–${price(plan.zoneHigh)}`,
-      `Confirmation: ${price(plan.confirmationPrice)}. ${plan.confirmation}`,
-      `Invalidation: ${price(plan.invalidationPrice)}`,
-      plan.firstObjectivePrice === null ? null : `Next level: ${price(plan.firstObjectivePrice)}`,
-      plan.rationale,
-    ]);
-  }
-  const recovery = read.failureRecovery;
-  if (recovery) add("failureRecovery", "Failure and recovery", [
-    `Area: ${price(recovery.recoveryZoneLow)}–${price(recovery.recoveryZoneHigh)}`,
-    `First reclaim: ${price(recovery.firstReclaimPrice)}`,
-    `Recovery setup established above: ${price(recovery.setupRestorePrice)}`,
-    recovery.firstObjectivePrice === null ? null : `Next level: ${price(recovery.firstObjectivePrice)}`,
-    recovery.rationale,
-  ]);
-  for (const [key, title] of [["catalystRealityCheck", "Catalyst / recent news"]] as const) {
-    add(key, title, [read[key].summary, read[key].dayTradeRelevance]);
-  }
-  add("riskSummary", "Risk notes", read.riskSummary);
-  return splitApprovedAnalysisText(sections.join("\n\n"));
+  return [buildWatchlistDiscordLinkMessage(read.symbol)];
 }

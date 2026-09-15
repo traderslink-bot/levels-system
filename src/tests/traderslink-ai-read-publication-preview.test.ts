@@ -11,23 +11,22 @@ test("preview splitting preserves every character, including surrogate pairs and
   }
 });
 
-test("preview retains optional scenario identity and owner text without private provenance", () => {
-  const level = { label: "Owner label", price: 0.4555, rationale: "Owner rationale" };
-  const read = {
-    symbol: "PDSB", currentPrice: 0.5, bias: "bullish", confidence: "medium", currentRead: "Owner analysis",
-    needsToHold: level, cautionBelow: level, momentumFailure: level, mustClear: level, breakoutContinuation: level,
-    targets: [{ label: "Next", price: 0.7, condition: "Above pivot" }], downsideCheckpoints: [],
-    pullbackPlans: { shallow: null, deep: { zoneLow: 0.4, zoneHigh: 0.42, confirmationPrice: 0.44, confirmation: "Reclaim", invalidationPrice: 0.38, firstObjectivePrice: null, rationale: "Deeper structure", evidenceIds: ["private-evidence"] } },
-    failureRecovery: null, catalystRealityCheck: { summary: "News", dayTradeRelevance: "Context" },
-    dilutionRisk: { summary: "Dilution", dayTradeRelevance: "Risk" }, listingStatus: { summary: "Listing", dayTradeRelevance: "Context" },
-    riskSummary: ["Risk note"], model: "private-model", ownerHiddenSections: ["cautionBelow"],
-  } as unknown as TradersLinkAiReadPayload;
-  const body = renderApprovedAnalysisDiscord(read).join("");
-  assert.match(body, /Deep pullback/);
-  assert.doesNotMatch(body, /Shallow pullback|Caution below|private-evidence|private-model|\$null/);
-  assert.match(body, /Owner label\n\$0\.4555\nOwner rationale/);
-  assert.match(body, /Where the trade could go next/);
-  const publication = { website: { symbol: "PDSB" }, discordChunks: [body] };
-  assert.equal(publicationPreviewHash(publication), publicationPreviewHash(structuredClone(publication)));
-  assert.notEqual(publicationPreviewHash(publication), publicationPreviewHash({ ...publication, discordChunks: [body + " change"] }));
+test("Current and Simple approval previews use the original linked notification only", () => {
+  const previous = process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL;
+  process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL = "https://app.traderslink.pro/watchlist";
+  try {
+    for (const analysisFormat of ["current", "simple"] as const) {
+      const read = {symbol:"ADBT", analysisFormat, currentRead:"PRIVATE ANALYSIS",
+        simpleAnalysis:{setup:"PRIVATE SIMPLE"}} as unknown as TradersLinkAiReadPayload;
+      const chunks = renderApprovedAnalysisDiscord(read);
+      assert.deepEqual(chunks, ["ADBT added to the watchlist.\n\nView the live watchlist: https://app.traderslink.pro/watchlist\nView ADBT ticker page: https://app.traderslink.pro/watchlist/ADBT"]);
+      assert.doesNotMatch(chunks.join(""), /PRIVATE|Analysis price|Pullback/);
+      const publication = {website:{symbol:"ADBT"},discordChunks:chunks};
+      assert.equal(publicationPreviewHash(publication),publicationPreviewHash(structuredClone(publication)));
+      assert.notEqual(publicationPreviewHash(publication),publicationPreviewHash({...publication,discordChunks:["different"]}));
+    }
+  } finally {
+    if(previous === undefined) delete process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL;
+    else process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL=previous;
+  }
 });
