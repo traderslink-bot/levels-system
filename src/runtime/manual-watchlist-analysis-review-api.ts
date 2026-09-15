@@ -1,4 +1,5 @@
 import type { ManualWatchlistRuntimeManager } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
+import { DiscordConfirmedRejection } from "../lib/alerts/discord-confirmed-rejection.js";
 
 type ReviewManager = Pick<ManualWatchlistRuntimeManager,
   "getTradersLinkAiReadReview" | "getTradersLinkAiReadPublicationPreview" | "listTradersLinkAiReadReviews" |
@@ -107,6 +108,12 @@ export async function dispatchAnalysisReviewRequest(input: {
     }
     return { status: 200, body: { review: await manager.publishApprovedTradersLinkAiReadToDiscord({ symbol, cycleId, approvalRevision: revision("approvalRevision") }) } };
   } catch (error) {
+    if (error instanceof DiscordConfirmedRejection) return {
+      status: 503,
+      body: { error: error.status === 429
+        ? "Your analysis is approved and published on the website. Discord is temporarily rate-limiting delivery. Your approval is saved."
+        : "Your analysis is approved. Discord could not accept the notification (HTTP " + error.status + "). Your approval is saved." },
+    };
     const message = error instanceof Error ? error.message : "";
     if (message === "Invalid review request.") return { status: 400, body: { error: message } };
     // Only fixed product messages are exposed. Provider errors can contain

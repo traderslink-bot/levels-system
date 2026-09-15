@@ -63,3 +63,36 @@ test("invalid approved chunks make no network request", async () => {
   await assert.rejects(rest.sendApprovedAnalysisChunk({ ...chunk, deliveryKey: "" }));
   assert.equal(calls, 0);
 });
+
+test("approved Discord rate limit waits and retries the same approved message automatically", async () => {
+  const bodies: string[] = [];
+  const started = Date.now();
+  const rest = new DiscordRestThreadGateway({botToken:"test",watchlistChannelId:receipt.channelId,
+    fetchImpl:async(_url,init)=>{
+      bodies.push(String(init?.body));
+      return bodies.length === 1
+        ? new Response(JSON.stringify({retry_after:0.025}),{status:429})
+        : new Response(JSON.stringify({id:receipt.messageId}),{status:200});
+    }});
+  assert.deepEqual(await rest.sendApprovedAnalysisChunk(chunk),receipt);
+  assert.equal(bodies.length,2);
+  assert.equal(bodies[0],bodies[1]);
+  assert.ok(Date.now()-started >= 20);
+});
+
+test("approved Discord repeated rate limits remain a confirmed rejection, not an uncertain send", async()=>{
+  let calls=0;
+  const rest=new DiscordRestThreadGateway({botToken:"test",watchlistChannelId:receipt.channelId,
+    fetchImpl:async()=>{calls++;return new Response('{"retry_after":0}',{status:429});}});
+  await assert.rejects(rest.sendApprovedAnalysisChunk(chunk),/Discord rejected.*429/);
+  assert.equal(calls,4);
+});
+
+test("Discord global block stops further network attempts until its cooldown ends",async()=>{
+  let calls=0;
+  const rest=new DiscordRestThreadGateway({botToken:"test",watchlistChannelId:receipt.channelId,
+    fetchImpl:async()=>{calls++;return new Response(JSON.stringify({code:0,message:"You are being blocked from accessing our API temporarily due to exceeding global rate limits."}),{status:429,headers:{"retry-after":"2641"}});}});
+  await assert.rejects(rest.sendApprovedAnalysisChunk(chunk),/429/);
+  await assert.rejects(rest.sendApprovedAnalysisChunk({...chunk,symbol:"OTHER"}),/429/);
+  assert.equal(calls,1);
+});

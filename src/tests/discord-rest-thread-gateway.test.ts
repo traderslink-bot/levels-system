@@ -27,7 +27,7 @@ test("owner-selected uncertain-message verification is read-only and requires ex
   }
 });
 
-test("approved chunks distinguish confirmed rejections from uncertain responses without retrying", async () => {
+test("approved chunks retry only explicit rate limits, never uncertain responses", async () => {
   for (const status of [400, 401, 403, 404, 429, 408, 500, 502]) {
     let calls = 0;
     const gateway = new DiscordRestThreadGateway({ botToken: "test-token", watchlistChannelId: "12345678901234567", transientRetryAttempts: 3,
@@ -39,7 +39,7 @@ test("approved chunks distinguish confirmed rejections from uncertain responses 
       if (error instanceof DiscordConfirmedRejection) assert.ok(!error.message.includes("private response body"));
       return true;
     });
-    assert.equal(calls, 1);
+    assert.equal(calls, status === 429 ? 4 : 1);
   }
 });
 
