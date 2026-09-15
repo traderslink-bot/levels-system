@@ -1711,6 +1711,7 @@ export type ApprovedAnalysisDiscordChunk = {
   /** Durable approval/channel/chunk identity, never generated at send time. */
   deliveryKey: string;
   content: string;
+  attachments?: readonly { filename: string; bytes: Uint8Array; description: string }[];
 };
 export type ApprovedAnalysisDiscordReceipt = { messageId: string; channelId: string };
 

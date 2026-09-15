@@ -5,6 +5,8 @@ import type { TradersLinkAiReadPayload } from "../live-watchlist/live-watchlist-
 export type ReviewPublication = {
   website: Record<string, unknown>;
   discordChunks: string[];
+  /** Only new owner-approved publications opt into image attachments. */
+  analysisImageVersion?: 1;
 };
 
 export function publicationPreviewHash(publication: ReviewPublication): string {

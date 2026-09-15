@@ -1,4 +1,5 @@
 import { appendFileSync, mkdirSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, resolve } from "node:path";
 
 import type {
@@ -41,6 +42,7 @@ export type DiscordDeliveryAuditEntry = {
   threadId?: string;
   messageId?: string;
   deliveryKey?: string;
+  imageAttachments?: Array<{ filename: string; bytes: number; sha256: string }>;
   symbol?: string;
   title?: string;
   bodyPreview?: string;
@@ -578,8 +580,10 @@ export class DiscordAuditedThreadGateway implements DiscordThreadGateway {
     const sendStartedAt = Date.now();
     // Deliberately no alert retry loop. The review ledger owns uncertain sends.
     const receipt = await this.inner.sendApprovedAnalysisChunk(chunk);
-    this.recordPosted("post_approved_analysis", {
-      symbol: chunk.symbol, body: chunk.content, deliveryKey: chunk.deliveryKey,
+      this.recordPosted("post_approved_analysis", {
+        symbol: chunk.symbol, body: chunk.content, deliveryKey: chunk.deliveryKey,
+        imageAttachments: (chunk.attachments ?? []).map(image => ({ filename: image.filename, bytes: image.bytes.length,
+          sha256: createHash("sha256").update(image.bytes).digest("hex") })),
       threadId: receipt.channelId, messageId: receipt.messageId,
     }, { sendStartedAt, sendDurationMs: Date.now() - sendStartedAt });
     return receipt;

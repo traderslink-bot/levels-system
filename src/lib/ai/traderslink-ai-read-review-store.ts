@@ -47,6 +47,10 @@ function requireDirectory(path: string): void {
 export class TradersLinkAiReadReviewStore {
   constructor(private readonly directory: string, private readonly now = Date.now) {}
 
+  imageDirectory(cycleId: string): string {
+    return join(this.cycleDirectory(cycleId), "image-attachments");
+  }
+
   private cycleDirectory(cycleId: string): string {
     if (!cycleId || cycleId.length > 200) throw new Error("Invalid review cycle ID.");
     return join(this.directory, digest(cycleId));

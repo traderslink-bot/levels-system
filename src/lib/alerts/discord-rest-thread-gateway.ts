@@ -228,7 +228,7 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
           signal: init?.signal ?? controller?.signal,
           headers: {
             Authorization: `Bot ${this.botToken}`,
-            "Content-Type": "application/json",
+            ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
             ...(init?.headers ?? {}),
           },
         });
@@ -555,15 +555,28 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
     if (!chunk.deliveryKey.trim() || chunk.deliveryKey.length > 512 || !chunk.symbol.trim()) throw new Error("Approved Discord chunk identity is required.");
     if (!chunk.content.trim() || chunk.content.length > DISCORD_MESSAGE_MAX_LENGTH) throw new Error("Approved Discord chunks must contain 1–2000 characters.");
     const nonce = createHash("sha256").update(chunk.deliveryKey).digest("hex").slice(0, 25);
+    const attachments = chunk.attachments ?? [];
+    if (attachments.length > 2 || attachments.some(file => !/^[A-Z][A-Z0-9.-]*-analysis-[12]\.png$/.test(file.filename)
+      || !file.bytes.length || file.bytes.length > 4_000_000 || file.description.length > 1024)) {
+      throw new Error("Invalid analysis image attachment");
+    }
+    const payload = {
+      content: chunk.content,
+      allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
+      flags: DISCORD_FLAG_SUPPRESS_EMBEDS,
+      nonce,
+      enforce_nonce: true,
+      ...(attachments.length ? { attachments: attachments.map((file, id) => ({ id, filename: file.filename, description: file.description })) } : {}),
+    };
+    let body: string | FormData = JSON.stringify(payload);
+    if (attachments.length) {
+      body = new FormData();
+      body.append("payload_json", JSON.stringify(payload));
+      attachments.forEach((file, index) => (body as FormData).append(`files[${index}]`, new Blob([new Uint8Array(file.bytes)], { type: "image/png" }), file.filename));
+    }
     const message = await this.request<DiscordMessageResponse>(`/channels/${this.watchlistChannelId}/messages`, {
       method: "POST",
-      body: JSON.stringify({
-        content: chunk.content,
-        allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
-        flags: DISCORD_FLAG_SUPPRESS_EMBEDS,
-        nonce,
-        enforce_nonce: true,
-      }),
+      body,
     }, 0, true);
     if (!message || !/^\d{17,20}$/.test(message.id)) throw new Error("Discord did not return an approved-message receipt; delivery is uncertain.");
     return { messageId: message.id, channelId: this.watchlistChannelId };

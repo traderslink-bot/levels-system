@@ -6,6 +6,8 @@ import { applyOwnerAnalysisEdit } from "../ai/traderslink-ai-read-owner-edit.js"
 import { publicationPreviewHash, renderApprovedAnalysisDiscord, type ReviewPublication } from "../ai/traderslink-ai-read-publication-preview.js";
 import type { TradersLinkAiReadReviewStore } from "../ai/traderslink-ai-read-review-store.js";
 import { remainingGeneratedSectionOmissions } from "../ai/traderslink-ai-read-review-omissions.js";
+import type { AnalysisImage } from "../ai/watchlist-analysis-image.js";
+import { approvedAnalysisImages } from "../ai/watchlist-analysis-image-cache.js";
 import { isWatchlistPatchApproved, isWatchlistRemovalPatch, requiresInitialWatchlistReview, type WatchlistPublicationCheck } from "../ai/traderslink-ai-read-review-policy.js";
 import { resolveTradersLinkAiReadReferenceQuote } from "../ai/traderslink-ai-read-price-action.js";
 
@@ -4842,7 +4844,7 @@ export class ManualWatchlistRuntimeManager {
     const read = draft.body.payload as unknown as TradersLinkAiReadPayload;
     const publication: ReviewPublication = existing?.kind === "approve" && existing.draftRevision === draft.revision && existing.publication
       ? existing.publication
-      : { website: this.buildReviewedWebsitePatch(read) as unknown as Record<string, unknown>, discordChunks: renderApprovedAnalysisDiscord(read) };
+      : { website: this.buildReviewedWebsitePatch(read) as unknown as Record<string, unknown>, discordChunks: renderApprovedAnalysisDiscord(read), analysisImageVersion: 1 };
     return { cycleId: review.cycleId, expectedHead: review.head, draftRevision: draft.revision,
       publication, previewHash: publicationPreviewHash(publication) };
   }
@@ -4890,6 +4892,17 @@ export class ManualWatchlistRuntimeManager {
     const approval = state?.approved;
     if (!state || state.cancelled || approval?.revision !== input.approvalRevision || approval.body.kind !== "approve" || !approval.body.publication) throw new Error("Publication approval changed.");
     if (!state.events.some((event) => event.body.kind === "delivery" && event.body.approvalRevision === approval.revision && event.body.channel === "website" && event.body.status === "acknowledged")) throw new Error("Website delivery must be confirmed before Discord publication.");
+    let images: AnalysisImage[] = [];
+    // Render only the frozen approved website read; never today's editable draft.
+    // Do this before claiming a send so an image failure cannot hold up the links.
+    if (approval.body.publication.analysisImageVersion === 1 && !state.events.some(event =>
+      event.body.kind === "discord_chunk" && event.body.approvalRevision === approval.revision && event.body.index === 0 && event.body.status === "acknowledged")) {
+      try {
+        images = await approvedAnalysisImages(store.imageDirectory(input.cycleId), approval.revision, approval.body.publication, symbol);
+      } catch {
+        console.warn(`[Watchlist analysis image] ${symbol}: image rendering unavailable; sending the approved linked message only.`);
+      }
+    }
     const channelClaim = store.claimDelivery(input.cycleId, state.head, approval.revision, "discord");
     if (channelClaim.reason === "acknowledged") return state;
     for (let index = 0; index < approval.body.publication.discordChunks.length; index++) {
@@ -4900,7 +4913,8 @@ export class ManualWatchlistRuntimeManager {
       if (!claim.shouldSend) throw new Error("Discord delivery is awaiting confirmation. It has not been sent again.");
       let receipt;
       try {
-        receipt = await this.options.discordAlertRouter.routeApprovedAnalysisChunk({ symbol, deliveryKey: claim.deliveryKey, content: claim.content });
+        receipt = await this.options.discordAlertRouter.routeApprovedAnalysisChunk({ symbol, deliveryKey: claim.deliveryKey, content: claim.content,
+          ...(index === 0 && images.length ? { attachments: images } : {}) });
       } catch (error) {
         if (error instanceof DiscordConfirmedRejection) {
           store.rejectDiscordChunk(input.cycleId, store.read(input.cycleId)!.head, approval.revision, index, error.status);
