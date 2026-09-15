@@ -15,7 +15,7 @@ const simple = (): TradersLinkAiReadPayload => ({ version: 3, analysisFormat: "s
       { low: 3.86, high: 3.99, explanation: "First zone", confirmation: "Buyer defense", invalidation: 3.78 },
       { low: 3.66, high: 3.80, explanation: "Deeper base", confirmation: "Reclaim", invalidation: 3.58 }],
     upside: [{ low: 4.73, high: 4.88, explanation: "Prior resistance" }], invalidation: { price: 3.4, explanation: "Base fails" },
-  } } as TradersLinkAiReadPayload);
+  } } as unknown as TradersLinkAiReadPayload);
 
 test("simple visibility matches selected sections and promotes deep-only Pullback", () => {
   const read = simple(); read.ownerHiddenSections = ["currentRead", "shallow", "targets", "momentumFailure"];
