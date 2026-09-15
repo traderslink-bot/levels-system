@@ -12,6 +12,7 @@ import { resolveTradersLinkAiReadReferenceQuote } from "../ai/traderslink-ai-rea
 import { CandleFetchService, type HistoricalFetchRequest } from "../market-data/candle-fetch-service.js";
 import type { MoomooAiReadCandleLoader } from "../market-data/platform-moomoo-ai-read-candle-loader.js";
 import type { WatchlistIndicatorCandleLoader } from "../market-data/platform-watchlist-indicator-loader.js";
+import { watchlistIndicatorPublicationTime } from "../market-data/watchlist-indicator-publication-time.js";
 import { NasdaqTradingHaltService, type NasdaqTradingHaltLookup } from "../auto-watchlist/nasdaq-trading-halt-service.js";
 import type { Candle, CandleProviderResponse, CandleTimeframe } from "../market-data/candle-types.js";
 import type {
@@ -7389,8 +7390,13 @@ export class ManualWatchlistRuntimeManager {
 
     const endTimeMs = Date.now();
     try {
-      const shared = typeof entry.activatedAt === "number"
-        ? await this.options.indicatorCandleLoader?.({ symbol, activatedAt: entry.activatedAt, asOfTimeMs: endTimeMs })
+      const publicationTime = this.options.indicatorCandleLoader
+        ? watchlistIndicatorPublicationTime(entry.activatedAt, entry.publicationReview?.required === true,
+          entry.publicationReview?.required ? this.getTradersLinkAiReadReview(symbol) : null)
+        : null;
+      if (this.options.indicatorCandleLoader && publicationTime === null) return;
+      const shared = publicationTime !== null
+        ? await this.options.indicatorCandleLoader?.({ symbol, activatedAt: publicationTime, asOfTimeMs: endTimeMs })
         : undefined;
       if (shared?.handled && !shared.candles.length) return;
       // Compatibility fallback only when the new Platform bridge itself is unavailable.
