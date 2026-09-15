@@ -23,12 +23,22 @@ test("simple visibility matches selected sections and promotes deep-only Pullbac
   assert.equal(sections.length, 1); assert.equal(sections[0]!.title, "Pullback");
   assert.match(JSON.stringify(sections), /3.66/); assert.doesNotMatch(JSON.stringify(sections), /3.86|4.73|Base fails/);
 });
-test("pagination balances intact sections and never shrinks/truncates oversized content", () => {
-  assert.equal(splitImageSections([300,400,500]),3);
-  assert.equal(splitImageSections([600,500,700,500]),2);
-  assert.equal(splitImageSections([2500]),1);
-  assert.throws(()=>splitImageSections([4300,4300]));
-  assert.throws(()=>splitImageSections([]));
+test("pagination splits at Pullback, not the height-balanced middle", () => {
+  assert.deepEqual(splitImageSections([300,400,500],['currentRead','shallow','targets']),[[0,1,2]]);
+  assert.deepEqual(splitImageSections([1200,1200,300,300],['currentRead','targets','shallow','deep']),[[0,1],[2,3]]);
+  assert.deepEqual(splitImageSections([2500],['currentRead']),[[0]]);
+  assert.throws(()=>splitImageSections([4300,4300],['currentRead','shallow']));
+  assert.throws(()=>splitImageSections([],[]));
+});
+test("news and risk stay below pullbacks unless a third image is needed", () => {
+  const keys=['currentRead','targets','shallow','deep','failureRecovery','catalystRealityCheck','riskSummary'];
+  assert.deepEqual(splitImageSections([800,800,600,600,500,400,300],keys),[[0,1],[2,3,4,5,6]]);
+  assert.deepEqual(splitImageSections([800,800,1200,1200,1000,900,600],keys),[[0,1],[2,3,4],[5,6]]);
+});
+test("hidden sections do not create blank images or separate the remaining pullback", () => {
+  assert.deepEqual(splitImageSections([1800,900,900],['currentRead','deep','riskSummary']),[[0],[1,2]]);
+  assert.deepEqual(splitImageSections([1200,900],['deep','riskSummary']),[[0,1]]);
+  assert.deepEqual(splitImageSections([1500,900],['currentRead','riskSummary']),[[0],[1]]);
 });
 test("exports retain the website's source-name concealment without mutating saved text", () => {
   const read=simple(); read.simpleAnalysis!.setup='News from https://www.stocktitan.net/example and Stock%2554itan';
@@ -89,12 +99,13 @@ test("Discord multipart preserves original linked text, nonce and mention policy
     const form=init!.body as FormData;const payload=JSON.parse(String(form.get('payload_json')));
     assert.equal(payload.content,'VEEA added.\nWatchlist link\nTicker link');
     assert.deepEqual(payload.allowed_mentions,{parse:[],users:[],roles:[],replied_user:false});
-    assert.equal(payload.enforce_nonce,true);assert.equal(payload.attachments.length,2);
+    assert.equal(payload.enforce_nonce,true);assert.equal(payload.attachments.length,3);
     assert.ok(form.get('files[0]') instanceof Blob);assert.ok(form.get('files[1]') instanceof Blob);
+    assert.ok(form.get('files[2]') instanceof Blob);
     assert.equal(new Headers(init!.headers).get('content-type'),null);
     return new Response(JSON.stringify({id:'12345678901234567'}),{status:200});
   }});
-  const files=[1,2].map(i=>({filename:`VEEA-analysis-${i}.png`,description:'Saved VEEA analysis',bytes:new Uint8Array([1,2,3])}));
+  const files=[1,2,3].map(i=>({filename:`VEEA-analysis-${i}.png`,description:'Saved VEEA analysis',bytes:new Uint8Array([1,2,3])}));
   await gateway.sendApprovedAnalysisChunk({symbol:'VEEA',deliveryKey:'approved-five',content:'VEEA added.\nWatchlist link\nTicker link',attachments:files});
   assert.equal(calls,1);
 });

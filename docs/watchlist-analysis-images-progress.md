@@ -1,5 +1,9 @@
 # Approved analysis image attachments
 
+## Owner correction — section grouping
+
+This supersedes the earlier balanced one/two-page rule below. Short content stays on one image. Longer content splits at the first visible Pullback: everything above stays on image 1; Pullback and everything below stay on image 2. Only when that second group exceeds the existing readable-height bound do catalyst/recent news and risk notes move together to image 3. No midpoint balancing, section truncation, font shrinking or empty pages. Hidden shallow pullback makes deep the split boundary; if no pullback is visible, use recovery/downside or news as available. Transport and frozen-image cache now accept up to three PNGs. Sixteen focused pagination/render/cache/transport checks passed. No deployment or real Discord post.
+
 Owner approved the two-image VEEA visual prototype on September 15, 2026 and requested automatic one/two-page section-aware exports. The controlling design is Platform's `docs/migration/watchlist-analysis-image-preview-plan.md`.
 
 Implementation complete locally: deterministic saved-payload rendering for current/simple reads; hidden-section preservation; fixed font, measured wrapping and section-boundary one/two-image pagination; repeated watermark and per-image ticker/time. Normal linked Discord content and mention policy preserved; multipart attachments on first message only. No AI call or real Discord send. Old frozen approvals remain unchanged.

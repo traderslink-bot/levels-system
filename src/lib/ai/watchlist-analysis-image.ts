@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
 export type ImageBlock = { text: string; kind: "body" | "price" };
-export type ImageSection = { title: string; blocks: ImageBlock[] };
+export type ImageSection = { key: string; title: string; blocks: ImageBlock[] };
 export type AnalysisImage = { filename: string; bytes: Uint8Array; description: string };
 const price = (n: number | null) => n === null ? "" : `$${n.toLocaleString("en-US", { maximumFractionDigits: 4 })}`;
 const area = (lo: number, hi: number) => lo === hi ? price(lo) : `${price(lo)}–${price(hi)}`;
@@ -30,7 +30,7 @@ export function analysisImageSections(read: TradersLinkAiReadPayload, dipVisible
   const sections: ImageSection[] = [];
   const add = (key: string, title: string, blocks: ImageBlock[]) => {
     const visible = blocks.map(block => ({ ...block, text: visibleText(block.text) })).filter(block => block.text.trim());
-    if (!hidden.has(key) && visible.length) sections.push({ title, blocks: visible });
+    if (!hidden.has(key) && visible.length) sections.push({ key, title, blocks: visible });
   };
   if (read.analysisFormat === "simple") {
     const simple = read.simpleAnalysis;
@@ -82,22 +82,28 @@ export function analysisImageSections(read: TradersLinkAiReadPayload, dipVisible
   return sections;
 }
 
-/** One page when comfortable; otherwise balance at an intact section boundary. */
-export function splitImageSections(heights: readonly number[], comfortable = 1900, maximum = 4200): number {
+/** Keep the owner's semantic split: overview, pullbacks onward, optional news/risk. */
+export function splitImageSections(heights: readonly number[], keys: readonly string[], comfortable = 1900, maximum = 4200): number[][] {
   if (!heights.length || heights.some(h => !Number.isFinite(h) || h <= 0)) throw new Error("Empty image content");
+  if (heights.length !== keys.length) throw new Error("Image section mismatch");
+  const all = heights.map((_, i) => i);
   const total = heights.reduce((a, b) => a + b, 0);
-  if (total <= comfortable) return heights.length;
-  let split = -1, imbalance = Infinity, left = 0;
-  for (let i = 1; i < heights.length; i++) {
-    left += heights[i - 1]!;
-    const right = total - left;
-    if (Math.max(left, right) <= maximum && Math.abs(left - right) < imbalance) { split = i; imbalance = Math.abs(left - right); }
+  if (total <= comfortable) return [all];
+  const pullback = keys.findIndex(key => key === "shallow" || key === "deep");
+  const news = keys.findIndex(key => key === "catalystRealityCheck" || key === "riskSummary");
+  // Hidden pullbacks never create an empty page. Recovery/downside remains a
+  // useful second group when no pullback is visible; otherwise use news/risk.
+  const recovery = keys.findIndex(key => key === "downsideCheckpoints" || key === "failureRecovery");
+  const boundary = pullback >= 0 ? pullback : recovery >= 0 ? recovery : news;
+  const pages = boundary > 0 ? [all.slice(0, boundary), all.slice(boundary)] : [all];
+  const last = pages.at(-1)!;
+  if (news > (last[0] ?? 0) && last.reduce((sum, i) => sum + heights[i]!, 0) > maximum) {
+    pages.splice(pages.length - 1, 1, last.filter(i => i < news), last.filter(i => i >= news));
   }
-  if (split < 0) {
-    if (total <= maximum) return heights.length;
-    throw new Error("Analysis exceeds two readable images");
+  if (pages.some(page => page.reduce((sum, i) => sum + heights[i]!, 0) > maximum)) {
+    throw new Error("Analysis exceeds readable section groups");
   }
-  return split;
+  return pages;
 }
 
 /** Sharp/Pango measures wrapped glyphs; no guessed character widths or font shrinking. */
@@ -117,8 +123,8 @@ export async function renderAnalysisImages(read: TradersLinkAiReadPayload, dipVi
     const { data, info } = await sharp({ text: { text: markup, font: "Lato 28", fontfile, width: 880, rgba: true, spacing: 8, wrap: "word-char" } }).png().toBuffer({ resolveWithObject: true });
     rasters.push({ input: data, height: info.height + 48 });
   }
-  const split = splitImageSections(rasters.map(r => r.height));
-  const pages = split === rasters.length ? [rasters] : [rasters.slice(0, split), rasters.slice(split)];
+  const pages = splitImageSections(rasters.map(r => r.height), sections.map(section => section.key))
+    .map(indices => indices.map(i => rasters[i]!));
   const output: AnalysisImage[] = [];
   const time = new Date(read.generatedAt).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" });
   for (let i = 0; i < pages.length; i++) {

@@ -556,7 +556,7 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
     if (!chunk.content.trim() || chunk.content.length > DISCORD_MESSAGE_MAX_LENGTH) throw new Error("Approved Discord chunks must contain 1–2000 characters.");
     const nonce = createHash("sha256").update(chunk.deliveryKey).digest("hex").slice(0, 25);
     const attachments = chunk.attachments ?? [];
-    if (attachments.length > 2 || attachments.some(file => !/^[A-Z][A-Z0-9.-]*-analysis-[12]\.png$/.test(file.filename)
+    if (attachments.length > 3 || attachments.some(file => !/^[A-Z][A-Z0-9.-]*-analysis-[123]\.png$/.test(file.filename)
       || !file.bytes.length || file.bytes.length > 4_000_000 || file.description.length > 1024)) {
       throw new Error("Invalid analysis image attachment");
     }

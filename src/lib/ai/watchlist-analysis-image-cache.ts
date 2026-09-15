@@ -13,7 +13,7 @@ export async function approvedAnalysisImages(directory: string, revision: number
   const file = join(directory, `analysis-images-${revision}.json`);
   const load = (): AnalysisImage[] => {
     const stored = JSON.parse(readFileSync(file, "utf8")) as { images: Array<{ filename: string; description: string; base64: string }> };
-    if (!Array.isArray(stored.images) || stored.images.length > 2) throw new Error("Invalid image cache");
+    if (!Array.isArray(stored.images) || stored.images.length > 3) throw new Error("Invalid image cache");
     return stored.images.map(image => ({ filename: image.filename, description: image.description, bytes: Buffer.from(image.base64, "base64") }));
   };
   if (existsSync(file)) return load();
