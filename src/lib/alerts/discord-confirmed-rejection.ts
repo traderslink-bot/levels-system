@@ -3,9 +3,10 @@ export function isConfirmedDiscordRejectionStatus(status: number): boolean {
 }
 
 /** Only a received HTTP rejection, never a timeout or an inferred failure. */
+export type DiscordRateLimit = { retryAt: number; scope: string; reason: string };
 export class DiscordConfirmedRejection extends Error {
-  constructor(readonly status: number) {
-    super(`Discord rejected the approved message (${status}).`);
+  constructor(readonly status: number, readonly rateLimit?: DiscordRateLimit) {
+    super(rateLimit ? `Discord rate limited delivery (429, ${rateLimit.scope}); retry after ${new Date(rateLimit.retryAt).toISOString()}. ${rateLimit.reason}` : `Discord rejected the approved message (${status}).`);
     if (!isConfirmedDiscordRejectionStatus(status)) throw new Error("Not a confirmed Discord rejection status.");
     this.name = "DiscordConfirmedRejection";
   }

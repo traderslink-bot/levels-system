@@ -39,7 +39,7 @@ test("approved chunks retry only explicit rate limits, never uncertain responses
       if (error instanceof DiscordConfirmedRejection) assert.ok(!error.message.includes("private response body"));
       return true;
     });
-    assert.equal(calls, status === 429 ? 4 : 1);
+    assert.equal(calls, 1);
   }
 });
 
@@ -509,7 +509,7 @@ test("DiscordRestThreadGateway fails fast when Discord retry-after would stale a
         messageKind: "intelligent_alert",
       },
     }),
-    /retry delay 120000ms exceeds max 5000ms/,
+    /Discord rate limited delivery.*429/,
   );
 
   assert.equal(calls.length, 1);

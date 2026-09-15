@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { DiscordConfirmedRejection } from "../alerts/discord-confirmed-rejection.js";
+import { approvedDiscordRetryAt } from "../ai/approved-discord-retry.js";
 import { applyOwnerAnalysisEdit } from "../ai/traderslink-ai-read-owner-edit.js";
 import { publicationPreviewHash, renderApprovedAnalysisDiscord, type ReviewPublication } from "../ai/traderslink-ai-read-publication-preview.js";
 import type { TradersLinkAiReadReviewStore } from "../ai/traderslink-ai-read-review-store.js";
@@ -3153,6 +3154,8 @@ export class ManualWatchlistRuntimeManager {
   private monitoringRestartQueue: Promise<void> = Promise.resolve();
   private readonly stuckActivationWarnings = new Set<string>();
   private activationWatchdogTimer: NodeJS.Timeout | null = null;
+  private approvedDiscordRetryTimer: NodeJS.Timeout | null = null;
+  private approvedDiscordRetryRunning = false;
   private haltConfirmationTimer: NodeJS.Timeout | null = null;
   private haltConfirmationInFlight = false;
   private readonly tradingHaltLookup: NasdaqTradingHaltLookup;
@@ -4804,7 +4807,7 @@ export class ManualWatchlistRuntimeManager {
           if (approved.body.draftRevision !== review.draft.revision) status = "New draft — awaiting review";
           else status = confirmed("website") && confirmed("discord")
             ? (remainingGeneratedSectionOmissions(review, approved.body.draftRevision).length ? "Published with omissions" : "Published")
-            : "Approved — delivery needs attention";
+            : approvedDiscordRetryAt(review) !== null ? "Approved — waiting for Discord cooldown; delivery will retry automatically" : "Approved — delivery needs attention";
         }
         return { symbol: entry.symbol, status, canReview: true };
       } catch { return { symbol: entry.symbol, status: "Review storage unavailable", canReview: false }; }
@@ -4910,6 +4913,7 @@ export class ManualWatchlistRuntimeManager {
       if (!current?.active || current.publicationReview?.cycleId !== input.cycleId) throw new Error("Ticker review changed.");
       const claim = store.claimDiscordChunk(input.cycleId, store.read(input.cycleId)!.head, approval.revision, index);
       if (claim.reason === "acknowledged") continue;
+      if (claim.reason === "cooldown") return store.read(input.cycleId);
       if (!claim.shouldSend) throw new Error("Discord delivery is awaiting confirmation. It has not been sent again.");
       let receipt;
       try {
@@ -4917,7 +4921,7 @@ export class ManualWatchlistRuntimeManager {
           ...(index === 0 && images.length ? { attachments: images } : {}) });
       } catch (error) {
         if (error instanceof DiscordConfirmedRejection) {
-          store.rejectDiscordChunk(input.cycleId, store.read(input.cycleId)!.head, approval.revision, index, error.status);
+          store.rejectDiscordChunk(input.cycleId, store.read(input.cycleId)!.head, approval.revision, index, error.status, error.rateLimit);
         }
         throw error;
       }
@@ -7974,6 +7978,26 @@ export class ManualWatchlistRuntimeManager {
       ACTIVATION_WATCHDOG_INTERVAL_MS,
     );
     this.activationWatchdogTimer.unref();
+  }
+
+  private async retryApprovedDiscordDeliveries(): Promise<void> {
+    if (this.approvedDiscordRetryRunning) return;
+    this.approvedDiscordRetryRunning = true;
+    try {
+      for (const entry of this.watchlistStore.getActiveEntries()) {
+        if (!this.approvedDiscordRetryTimer) break;
+        try {
+          const review = this.getTradersLinkAiReadReview(entry.symbol);
+          const retryAt = approvedDiscordRetryAt(review);
+          if (retryAt === null || retryAt > Date.now() || !review?.approved) continue;
+          await this.publishApprovedTradersLinkAiReadToDiscord({ symbol: entry.symbol, cycleId: review.cycleId, approvalRevision: review.approved.revision });
+        } catch (error) {
+          // A further 429 saves its new cooldown. Uncertain sends retain their
+          // started claim and are never automatically replayed.
+          console.warn(`[Watchlist Discord retry] ${entry.symbol}: ${error instanceof DiscordConfirmedRejection ? error.message : "Delivery requires receipt verification; no blind retry."}`);
+        }
+      }
+    } finally { this.approvedDiscordRetryRunning = false; }
   }
 
   private stopActivationWatchdog(): void {
@@ -11402,6 +11426,8 @@ export class ManualWatchlistRuntimeManager {
 
     this.isStarted = true;
     this.startActivationWatchdog();
+    this.approvedDiscordRetryTimer = setInterval(() => void this.retryApprovedDiscordDeliveries(), 30_000);
+    this.approvedDiscordRetryTimer.unref();
     this.emitLifecycle("runtime_started", {
       details: {
         activeSymbolCount: this.watchlistStore.getActiveEntries().length,
@@ -11544,6 +11570,8 @@ export class ManualWatchlistRuntimeManager {
     this.stopPullbackReadIntradayPolling();
     this.stopHaltConfirmationPolling();
     this.stopActivationWatchdog();
+    if (this.approvedDiscordRetryTimer) clearInterval(this.approvedDiscordRetryTimer);
+    this.approvedDiscordRetryTimer = null;
     for (const timer of this.pendingAutomaticAiReadSchedules.values()) {
       clearTimeout(timer);
     }

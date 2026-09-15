@@ -1,4 +1,7 @@
 import { createHash } from "node:crypto";
+import { join } from "node:path";
+import { DiscordCooldown } from "./discord-rate-limit.js";
+import { resolveManualWatchlistDurableDirectory } from "../monitoring/manual-watchlist-durable-storage.js";
 import { DiscordConfirmedRejection, isConfirmedDiscordRejectionStatus } from "./discord-confirmed-rejection.js";
 import type { ApprovedAnalysisDiscordChunk, ApprovedAnalysisDiscordReceipt } from "./alert-router.js";
 import type {
@@ -46,6 +49,7 @@ export type DiscordRestThreadGatewayOptions = {
   transientRetryDelayMs?: number;
   maxTransientRetryDelayMs?: number;
   requestTimeoutMs?: number;
+  cooldownFile?: string;
 };
 
 export type DiscordPermissionPreflightStatus = "pass" | "fail" | "skipped";
@@ -176,7 +180,8 @@ function delay(ms: number): Promise<void> {
 }
 
 export class DiscordRestThreadGateway implements DiscordThreadGateway {
-  private globalBlockedUntil = 0;
+  private readonly cooldown: DiscordCooldown;
+  private requestTail: Promise<unknown> = Promise.resolve();
   private readonly botToken: string;
   private readonly watchlistChannelId: string;
   private readonly guildId?: string;
@@ -190,6 +195,8 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
   private readonly requestTimeoutMs: number;
 
   constructor(options: DiscordRestThreadGatewayOptions) {
+    this.cooldown = new DiscordCooldown(options.cooldownFile ?? (!options.fetchImpl
+      ? join(resolveManualWatchlistDurableDirectory(), `discord-cooldown-${createHash("sha256").update(options.botToken).digest("hex").slice(0, 16)}.json`) : undefined));
     this.botToken = normalizeNonEmpty(options.botToken, "Discord bot token");
     this.watchlistChannelId = normalizeNonEmpty(
       options.watchlistChannelId,
@@ -212,10 +219,16 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
   }
 
   private async request<T>(path: string, init?: RequestInit, retryAttempts = this.transientRetryAttempts, approvedChunk = false): Promise<T> {
+    const operation = this.requestTail.then(() => this.requestSerial<T>(path, init, retryAttempts, approvedChunk));
+    this.requestTail = operation.catch(() => {});
+    return operation;
+  }
+
+  private async requestSerial<T>(path: string, init?: RequestInit, retryAttempts = this.transientRetryAttempts, approvedChunk = false): Promise<T> {
     let lastError: Error | null = null;
-    let approvedRateLimitRetries = 0;
     for (let attempt = 0; attempt <= retryAttempts; attempt += 1) {
-      if (Date.now() < this.globalBlockedUntil) throw new DiscordConfirmedRejection(429);
+      const cooldown = this.cooldown.current();
+      if (cooldown) throw new DiscordConfirmedRejection(429, cooldown);
       const controller = this.requestTimeoutMs > 0 ? new AbortController() : null;
       const timeout = controller
         ? setTimeout(() => controller.abort(), this.requestTimeoutMs)
@@ -259,30 +272,13 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
         const rateLimit = await response.clone().json().catch(() => ({})) as {global?: boolean; message?: string; retry_after?: number};
         const globalBlock = rateLimit.global === true || response.headers.get("x-ratelimit-global") === "true" ||
           /blocked from accessing our API.*global rate limits/i.test(rateLimit.message ?? "");
-        if (globalBlock) {
-          const seconds = typeof rateLimit.retry_after === "number" && Number.isFinite(rateLimit.retry_after) && rateLimit.retry_after >= 0
-            ? rateLimit.retry_after * 1000 : this.transientRetryDelayMs;
-          this.globalBlockedUntil = Date.now() + Math.max(seconds, parseRetryAfterMs(response, seconds));
-          // Do not keep probing other Discord endpoints during a global block.
-          throw new DiscordConfirmedRejection(429);
-        }
-      }
-      if (approvedChunk && response.status === 429 && approvedRateLimitRetries < 3) {
-        // Discord explicitly did not accept this message. Honor its cooldown;
-        // this is not a retry of an uncertain send or another approval decision.
-        let bodyDelay: number | undefined;
-        try {
-          const rateLimit = await response.json() as { retry_after?: unknown };
-          if (typeof rateLimit.retry_after === "number" && Number.isFinite(rateLimit.retry_after) && rateLimit.retry_after >= 0) {
-            bodyDelay = rateLimit.retry_after * 1000;
-          }
-        } catch { /* A header can still supply the required cooldown. */ }
-        const retryDelay = Math.max(bodyDelay ?? 0, parseRetryAfterMs(response, bodyDelay ?? this.transientRetryDelayMs));
-        if (retryDelay > 120_000) throw new DiscordConfirmedRejection(429);
-        approvedRateLimitRetries++;
-        await delay(retryDelay);
-        attempt--;
-        continue;
+        const seconds = typeof rateLimit.retry_after === "number" && Number.isFinite(rateLimit.retry_after) && rateLimit.retry_after >= 0
+          ? rateLimit.retry_after * 1000 : 60_000;
+        const detail = { retryAt: Date.now() + Math.ceil(Math.max(1_000, seconds, parseRetryAfterMs(response, seconds))) + 1_000,
+          scope: globalBlock ? "global" : ["user", "shared"].includes(response.headers.get("x-ratelimit-scope") ?? "") ? response.headers.get("x-ratelimit-scope")! : "route",
+          reason: globalBlock ? "Discord temporarily blocked API access." : "Discord requested a delivery cooldown." };
+        this.cooldown.record(detail);
+        throw new DiscordConfirmedRejection(429, detail);
       }
       if (approvedChunk && isConfirmedDiscordRejectionStatus(response.status)) throw new DiscordConfirmedRejection(response.status);
       const body = await response.text();

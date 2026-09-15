@@ -64,7 +64,7 @@ test("invalid approved chunks make no network request", async () => {
   assert.equal(calls, 0);
 });
 
-test("approved Discord rate limit waits and retries the same approved message automatically", async () => {
+test("approved Discord rate limit returns a cooldown for durable scheduling without blocking the approval request", async () => {
   const bodies: string[] = [];
   const started = Date.now();
   const rest = new DiscordRestThreadGateway({botToken:"test",watchlistChannelId:receipt.channelId,
@@ -74,18 +74,18 @@ test("approved Discord rate limit waits and retries the same approved message au
         ? new Response(JSON.stringify({retry_after:0.025}),{status:429})
         : new Response(JSON.stringify({id:receipt.messageId}),{status:200});
     }});
-  assert.deepEqual(await rest.sendApprovedAnalysisChunk(chunk),receipt);
-  assert.equal(bodies.length,2);
-  assert.equal(bodies[0],bodies[1]);
-  assert.ok(Date.now()-started >= 20);
+  await assert.rejects(rest.sendApprovedAnalysisChunk(chunk), /429/);
+  await assert.rejects(rest.sendApprovedAnalysisChunk(chunk), /429/);
+  assert.equal(bodies.length,1);
+  assert.ok(Date.now()-started < 2000);
 });
 
 test("approved Discord repeated rate limits remain a confirmed rejection, not an uncertain send", async()=>{
   let calls=0;
   const rest=new DiscordRestThreadGateway({botToken:"test",watchlistChannelId:receipt.channelId,
     fetchImpl:async()=>{calls++;return new Response('{"retry_after":0}',{status:429});}});
-  await assert.rejects(rest.sendApprovedAnalysisChunk(chunk),/Discord rejected.*429/);
-  assert.equal(calls,4);
+  await assert.rejects(rest.sendApprovedAnalysisChunk(chunk),/429/);
+  assert.equal(calls,1);
 });
 
 test("Discord global block stops further network attempts until its cooldown ends",async()=>{

@@ -111,7 +111,7 @@ export async function dispatchAnalysisReviewRequest(input: {
     if (error instanceof DiscordConfirmedRejection) return {
       status: 503,
       body: { error: error.status === 429
-        ? "Your analysis is approved and published on the website. Discord is temporarily rate-limiting delivery. Your approval is saved."
+        ? "Your analysis is approved and published on the website. Discord is temporarily rate-limiting delivery. Delivery will retry automatically after the cooldown; you do not need to approve again."
         : "Your analysis is approved. Discord could not accept the notification (HTTP " + error.status + "). Your approval is saved." },
     };
     const message = error instanceof Error ? error.message : "";
