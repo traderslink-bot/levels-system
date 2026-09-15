@@ -125,6 +125,7 @@ export function createDiscordAlertRouter(options: {
             watchlistChannelId: env.watchlistChannelId!,
             guildId: env.guildId ?? undefined,
             premiumRoleId: env.premiumRoleId,
+            webhookUrl: process.env.DISCORD_WATCHLIST_WEBHOOK_URL?.trim() || undefined,
           }),
         ),
         liveWatchlistPublisher,

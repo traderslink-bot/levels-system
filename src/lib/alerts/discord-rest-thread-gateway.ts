@@ -50,6 +50,7 @@ export type DiscordRestThreadGatewayOptions = {
   maxTransientRetryDelayMs?: number;
   requestTimeoutMs?: number;
   cooldownFile?: string;
+  webhookUrl?: string;
 };
 
 export type DiscordPermissionPreflightStatus = "pass" | "fail" | "skipped";
@@ -193,8 +194,17 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
   private readonly transientRetryDelayMs: number;
   private readonly maxTransientRetryDelayMs: number;
   private readonly requestTimeoutMs: number;
+  private readonly webhookUrl?: string;
+  private webhookDestinationVerified = false;
 
   constructor(options: DiscordRestThreadGatewayOptions) {
+    if (options.webhookUrl) {
+      let parsed: URL;
+      try { parsed = new URL(options.webhookUrl); } catch { throw new Error("Invalid Watchlist webhook configuration."); }
+      if (parsed.protocol !== "https:" || parsed.hostname !== "discord.com" || parsed.port || parsed.username || parsed.password || parsed.search || parsed.hash ||
+        !/^\/api\/(?:v10\/)?webhooks\/\d{17,20}\/[A-Za-z0-9_-]+$/.test(parsed.pathname)) throw new Error("Invalid Watchlist webhook configuration.");
+      this.webhookUrl = parsed.toString();
+    }
     this.cooldown = new DiscordCooldown(options.cooldownFile ?? (!options.fetchImpl
       ? join(resolveManualWatchlistDurableDirectory(), `discord-cooldown-${createHash("sha256").update(options.botToken).digest("hex").slice(0, 16)}.json`) : undefined));
     this.botToken = normalizeNonEmpty(options.botToken, "Discord bot token");
@@ -226,6 +236,9 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
 
   private async requestSerial<T>(path: string, init?: RequestInit, retryAttempts = this.transientRetryAttempts, approvedChunk = false): Promise<T> {
     let lastError: Error | null = null;
+    const webhook = Boolean(this.webhookUrl && (path.startsWith("/watchlist-webhook") || (path === `/channels/${this.watchlistChannelId}/messages` && init?.method === "POST")));
+    const url = webhook ? path.startsWith("/watchlist-webhook")
+      ? this.webhookUrl! + path.slice("/watchlist-webhook".length) : this.webhookUrl! + "?wait=true" : `${this.apiBaseUrl}${path}`;
     for (let attempt = 0; attempt <= retryAttempts; attempt += 1) {
       const cooldown = this.cooldown.current();
       if (cooldown) throw new DiscordConfirmedRejection(429, cooldown);
@@ -236,17 +249,17 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
       let response: Response;
 
       try {
-        response = await this.fetchImpl(`${this.apiBaseUrl}${path}`, {
+        response = await this.fetchImpl(url, {
           ...init,
           signal: init?.signal ?? controller?.signal,
           headers: {
-            Authorization: `Bot ${this.botToken}`,
+            ...(webhook ? {} : { Authorization: `Bot ${this.botToken}` }),
             ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
             ...(init?.headers ?? {}),
           },
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = webhook ? "Webhook transport did not return a confirmed response." : error instanceof Error ? error.message : String(error);
         lastError = new Error(
           controller?.signal.aborted
             ? `Discord API request timed out after ${this.requestTimeoutMs}ms for ${path}.`
@@ -281,7 +294,7 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
         throw new DiscordConfirmedRejection(429, detail);
       }
       if (approvedChunk && isConfirmedDiscordRejectionStatus(response.status)) throw new DiscordConfirmedRejection(response.status);
-      const body = await response.text();
+      const body = webhook ? "Webhook request failed." : await response.text();
       lastError = new Error(
         `Discord API request failed (${response.status}) for ${path}: ${body || response.statusText}`,
       );
@@ -330,6 +343,7 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
   }
 
   private async postTickerAddedAnnouncement(content: string): Promise<DiscordMessageResponse> {
+    await this.verifyWebhookDestination();
     if (!this.premiumRoleId) {
       throw new Error(
         "Discord Premium role configuration is required for new-ticker Watchlist announcements.",
@@ -550,6 +564,7 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
   async sendApprovedAnalysisChunk(chunk: ApprovedAnalysisDiscordChunk): Promise<ApprovedAnalysisDiscordReceipt> {
     if (!chunk.deliveryKey.trim() || chunk.deliveryKey.length > 512 || !chunk.symbol.trim()) throw new Error("Approved Discord chunk identity is required.");
     if (!chunk.content.trim() || chunk.content.length > DISCORD_MESSAGE_MAX_LENGTH) throw new Error("Approved Discord chunks must contain 1–2000 characters.");
+    await this.verifyWebhookDestination();
     const nonce = createHash("sha256").update(chunk.deliveryKey).digest("hex").slice(0, 25);
     const attachments = chunk.attachments ?? [];
     if (attachments.length > 3 || attachments.some(file => !/^[A-Z][A-Z0-9.-]*-analysis-[123]\.png$/.test(file.filename)
@@ -560,8 +575,7 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
       content: chunk.content,
       allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
       flags: DISCORD_FLAG_SUPPRESS_EMBEDS,
-      nonce,
-      enforce_nonce: true,
+      ...(!this.webhookUrl ? { nonce, enforce_nonce: true } : {}),
       ...(attachments.length ? { attachments: attachments.map((file, id) => ({ id, filename: file.filename, description: file.description })) } : {}),
     };
     let body: string | FormData = JSON.stringify(payload);
@@ -578,6 +592,13 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
     return { messageId: message.id, channelId: this.watchlistChannelId };
   }
 
+  private async verifyWebhookDestination(): Promise<void> {
+    if (!this.webhookUrl || this.webhookDestinationVerified) return;
+    const hook = await this.request<{ channel_id?: string }>("/watchlist-webhook", { method: "GET" }, 0);
+    if (hook.channel_id !== this.watchlistChannelId) throw new Error("Watchlist webhook belongs to a different channel. No notification was sent.");
+    this.webhookDestinationVerified = true;
+  }
+
   async sendLevelSnapshot(threadId: string, payload: LevelSnapshotPayload): Promise<void> {
     await this.postMessage(threadId, formatLevelSnapshotMessage(payload));
   }
@@ -588,6 +609,15 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
   async verifyApprovedAnalysisMessage(chunk: ApprovedAnalysisDiscordChunk, messageId: string, notBefore: number): Promise<ApprovedAnalysisDiscordReceipt> {
     if (!/^\d{17,20}$/.test(messageId) || !Number.isFinite(notBefore) || notBefore <= 0 ||
       !chunk.content.trim() || !chunk.deliveryKey.trim()) throw new Error("Invalid Discord verification request.");
+    if (this.webhookUrl) {
+      await this.verifyWebhookDestination();
+      const message = await this.request<{ id: string; channel_id: string; webhook_id?: string; content?: string; timestamp?: string }>(`/watchlist-webhook/messages/${messageId}`, { method: "GET" }, 0);
+      const webhookId = new URL(this.webhookUrl).pathname.split("/").at(-2);
+      const timestamp = typeof message.timestamp === "string" ? Date.parse(message.timestamp) : NaN;
+      if (message.id !== messageId || message.channel_id !== this.watchlistChannelId || message.webhook_id !== webhookId ||
+        message.content !== chunk.content || !Number.isFinite(timestamp) || timestamp < notBefore) throw new Error("Discord message does not match the approved delivery. No delivery status was changed.");
+      return { messageId, channelId: this.watchlistChannelId };
+    }
     const self = await this.request<{ id: string; bot?: boolean }>("/users/@me", { method: "GET" }, 0);
     const message = await this.request<{ id: string; channel_id: string; content?: string; author?: { id: string }; webhook_id?: string;
       timestamp?: string; nonce?: string | number }>(`/channels/${this.watchlistChannelId}/messages/${messageId}`, { method: "GET" }, 0);
