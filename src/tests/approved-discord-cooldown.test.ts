@@ -59,7 +59,7 @@ test("concurrent sends make only one network call when Discord returns global 42
     const gateway = new DiscordRestThreadGateway(options);
     const chunk = { symbol: "TEST", deliveryKey: "key", content: "approved" };
     const results = await Promise.allSettled([gateway.sendApprovedAnalysisChunk(chunk), gateway.sendApprovedAnalysisChunk({ ...chunk, deliveryKey: "other" })]);
-    for (const r of results) { assert.equal(r.status, "rejected"); if (r.status === "rejected") { assert(r.reason instanceof DiscordConfirmedRejection); assert.equal(r.reason.rateLimit.scope, "global"); assert(r.reason.rateLimit.retryAt > Date.now() + 2_500_000); } }
+    for (const r of results) { assert.equal(r.status, "rejected"); if (r.status === "rejected") { assert(r.reason instanceof DiscordConfirmedRejection); const rateLimit = r.reason.rateLimit; assert(rateLimit); assert.equal(rateLimit.scope, "global"); assert(rateLimit.retryAt > Date.now() + 2_500_000); } }
     await assert.rejects(new DiscordRestThreadGateway(options).sendApprovedAnalysisChunk(chunk), /429/);
     assert.equal(calls, 1);
   } finally { rmSync(dir, { recursive: true, force: true }); }
