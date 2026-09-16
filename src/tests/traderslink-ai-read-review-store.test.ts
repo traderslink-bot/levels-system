@@ -14,6 +14,23 @@ function setup() {
 afterEach(() => { for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true }); });
 const payload = { symbol: "PDSB", currentRead: "Original analysis", price: 0.5 };
 
+test("listing without an AI draft preserves later private drafts and silent approval through restart", () => {
+  const { directory, store } = setup();
+  store.begin("listing-only", "PDSB", true, "owner");
+  const publication = { website: { symbol: "PDSB", cards: {} }, discordChunks: ["Watchlist links"], notificationKind: "listing" as const, notifyUsers: true };
+  const listing = store.approveListingOnly("listing-only", 1, "owner", publication);
+  assert.equal(store.read("listing-only")!.draft, null);
+  assert.equal(store.approveListingOnly("listing-only", 1, "owner", publication).revision, listing.revision);
+  store.recordDelivery("listing-only", 2, listing.revision, "website", "acknowledged", "receipt");
+  const draft = store.saveDraft({ cycleId: "listing-only", expectedHead: 3, actor: "generator", generationId: "later", payload });
+  assert.equal(store.read("listing-only")!.approved!.revision, listing.revision);
+  const approval = store.approve("listing-only", 4, draft.revision, "owner", { ...publication, notificationKind: "analysis", notifyUsers: false });
+  const restarted = new TradersLinkAiReadReviewStore(directory);
+  assert.throws(() => restarted.claimDiscordChunk("listing-only", 5, approval.revision, 0), /without notifications/);
+  assert.throws(() => restarted.claimDelivery("listing-only", 5, approval.revision, "discord"), /without notifications/);
+  assert.throws(() => restarted.approve("listing-only", 5, draft.revision, "owner", { ...publication, notificationKind: "analysis", notifyUsers: true }), /cannot change/);
+});
+
 test("validation decisions survive restart and edits without permitting original provenance replacement", () => {
   const { directory, store } = setup();
   store.begin("decisions", "PDSB", true, "owner");

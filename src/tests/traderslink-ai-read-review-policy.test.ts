@@ -9,6 +9,23 @@ import { WatchlistStore } from "../lib/monitoring/watchlist-store.js";
 import { WatchlistStatePersistence } from "../lib/monitoring/watchlist-state-persistence.js";
 
 const directories: string[] = [];
+test("listing-only approval publishes only its snapshot until acknowledged, never an unapproved analysis", () => {
+  const directory = mkdtempSync(join(tmpdir(), "listing-policy-")); directories.push(directory);
+  const store = new TradersLinkAiReadReviewStore(directory);
+  store.begin("listing", "PDSB", true, "owner");
+  const patch = { symbol: "PDSB", cards: {} };
+  const gate = { cycleId: "listing", required: true };
+  const load = (id: string) => store.read(id);
+  const approval = store.approveListingOnly("listing", 1, "owner", { website: patch, discordChunks: ["links"], notificationKind: "listing", notifyUsers: true });
+  assert.equal(isWatchlistPatchApproved(patch, gate, load), true);
+  assert.equal(isWatchlistPatchApproved({ ...patch, latestPrice: 4 } as any, gate, load), false);
+  store.recordDelivery("listing", 2, approval.revision, "website", "acknowledged", "receipt");
+  assert.equal(isWatchlistPatchApproved({ ...patch, latestPrice: 4 } as any, gate, load), true);
+  const draft = store.saveDraft({ cycleId: "listing", expectedHead: 3, actor: "generator", generationId: "later", payload: { symbol: "PDSB" } });
+  assert.equal(isWatchlistPatchApproved({ ...patch, cards: { tradersLinkAiRead: { body: JSON.stringify({ symbol: "PDSB" }) } } } as any, gate, load), false);
+  assert.equal(store.read("listing")!.approved!.revision, approval.revision);
+  assert.equal(draft.revision, 4);
+});
 test("held or unavailable review allows only a content-free removal", () => {
   const removal = { symbol: "PDSB", status: "deactivated" as const, updatedAt: Date.now(), cards: {} };
   const held = { cycleId: "held", required: true };

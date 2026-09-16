@@ -407,10 +407,10 @@ test("legacy public ticker manual replacement is persisted for review before dis
     manager.setTradersLinkAiReadGenerationSettings({ ...beforeSettings, automaticUpdatesEnabled: true });
     const failed = { generationId: "failed-replacement", runId: "run-failed", trigger: "automatic", model: "test", dataAsOf: now };
     reviewStore.recordGeneration(latest.cycleId, { ...failed, status: "started" });
-    assert.deepEqual(manager.listTradersLinkAiReadReviews(), [{ symbol: "PDSB",
+    assert.deepEqual(manager.listTradersLinkAiReadReviews().map(({symbol,status,canReview}) => ({symbol,status,canReview})), [{ symbol: "PDSB",
       status: "Preparing replacement — previous version available", canReview: true }]);
     reviewStore.recordGeneration(latest.cycleId, { ...failed, status: "failed" });
-    assert.deepEqual(manager.listTradersLinkAiReadReviews(), [{ symbol: "PDSB",
+    assert.deepEqual(manager.listTradersLinkAiReadReviews().map(({symbol,status,canReview}) => ({symbol,status,canReview})), [{ symbol: "PDSB",
       status: "Replacement failed — previous version available", canReview: true }]);
     assert.equal(manager.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger: "automatic" }).allowed, false);
     assert.equal(manager.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger: "manual" }).allowed, true);
@@ -424,7 +424,7 @@ test("legacy public ticker manual replacement is persisted for review before dis
     assert.equal(calls, 3, "storage failure does not buy a retry");
     assert.equal(manager.getTradersLinkAiReadReview("PDSB")!.draft!.hash, latest.draft!.hash);
     assert.equal(publisher.cardPatches.filter(patch => patch.cards.tradersLinkAiRead).length, 0);
-    assert.deepEqual(manager.listTradersLinkAiReadReviews(), [{ symbol: "PDSB",
+    assert.deepEqual(manager.listTradersLinkAiReadReviews().map(({symbol,status,canReview}) => ({symbol,status,canReview})), [{ symbol: "PDSB",
       status: "Analysis storage needs attention", canReview: true }]);
     assert.equal(manager.getTradersLinkAiReadGenerationAvailability(now, { symbol: "PDSB", requestedTrigger: "automatic" }).allowed, false);
   } finally { rmSync(directory, { recursive: true, force: true }); }
@@ -517,8 +517,8 @@ test(`private activation saves an AI draft without website publication or Discor
     assert.notEqual(entry.publicationReview?.cycleId, "previous-post");
     assert.equal(manager.getTradersLinkAiReadReview("PDSB")?.approved, null);
     assert.deepEqual(manager.getHistoricalTradersLinkAiReadReview("PDSB", "previous-post"), oldReview);
-    assert.deepEqual(manager.listTradersLinkAiReadReviews(), [{ symbol: "PDSB", status: "Ready for review", canReview: true }]);
-    assert.deepEqual(manager.getTradersLinkAiReadReviewControls(), { automaticUpdatesEnabled: false, reviewBeforePublishingEnabled: true });
+    assert.deepEqual(manager.listTradersLinkAiReadReviews().map(({symbol,status,canReview}) => ({symbol,status,canReview})), [{ symbol: "PDSB", status: "Ready for review", canReview: true }]);
+    assert.deepEqual(manager.getTradersLinkAiReadReviewControls(), { automaticUpdatesEnabled: false, reviewBeforePublishingEnabled: true, analysisFormat: "current" });
     manager.setTradersLinkAiReadReviewBeforePublishing(false);
     assert.equal(watchlistStore.getEntry("PDSB")?.publicationReview?.required, true);
     assert.equal(manager.isWatchlistPublicationApproved({ symbol: "PDSB", cards: {} }), false);
@@ -567,8 +567,9 @@ test(`private activation saves an AI draft without website publication or Discor
     assert.equal(approvedDiscord.length, 1);
     assert.equal(discordAttempts.length, 2);
     assert.deepEqual(discordAttempts[0], discordAttempts[1]);
-    assert.deepEqual(manager.listTradersLinkAiReadReviews(), [{ symbol: "PDSB", status: "Published with omissions", canReview: true }]);
-    assert.match(approvedDiscord[0]!, /Original/);
+    assert.deepEqual(manager.listTradersLinkAiReadReviews().map(({symbol,status,canReview}) => ({symbol,status,canReview})), [{ symbol: "PDSB", status: "Published with omissions", canReview: true }]);
+    assert.match(approvedDiscord[0]!, /PDSB added to the watchlist/);
+    assert.doesNotMatch(approvedDiscord[0]!, /Original/);
     assert.equal(aiCalls, 1);
     await manager.activateSymbol({ symbol: "PDSB", source: "manual" });
     assert.equal(aiCalls, 1);
@@ -590,7 +591,8 @@ test(`private activation saves an AI draft without website publication or Discor
     assert.equal((restored.draft!.body as any).payload.breakoutContinuation.price, 0.54321);
     assert.equal((restored.draft!.body as any).payload.generationId, (lastOriginal.body as any).payload.generationId);
     const correctedPreview = manager.getTradersLinkAiReadPublicationPreview("PDSB");
-    assert.match(correctedPreview.publication.discordChunks.join(""), /Owner confirmation above the pivot/);
+    assert.match(correctedPreview.publication.discordChunks.join(""), /Analysis is now available for PDSB/);
+    assert.match(JSON.stringify(correctedPreview.publication.website), /Owner confirmation above the pivot/);
     assert.equal(manager.getHistoricalTradersLinkAiReadReview("PDSB", beforeEdit.cycleId).head, restored.head);
     assert.throws(() => manager.getHistoricalTradersLinkAiReadReview("TNON", beforeEdit.cycleId), /unavailable/);
     assert.equal(aiCalls, 2);
@@ -604,7 +606,7 @@ test(`private activation saves an AI draft without website publication or Discor
     assert.equal(publisher.cardPatches.length, 1);
     const latestReview = manager.getTradersLinkAiReadReview("PDSB")!;
     const editedApproval = { symbol: "PDSB", cycleId: latestReview.cycleId, expectedHead: latestReview.head,
-      draftRevision: latestReview.draft!.revision, actor: "test-owner" };
+      draftRevision: latestReview.draft!.revision, actor: "test-owner", notifyUsers: true };
     await manager.approveTradersLinkAiReadForWebsite(editedApproval);
     await manager.approveTradersLinkAiReadForWebsite(editedApproval);
     assert.equal(publisher.cardPatches.length, 2);
@@ -659,7 +661,7 @@ test(`private activation saves an AI draft without website publication or Discor
     const attempt = rejected.events.filter((event) => event.body.kind === "generation").at(-1)!;
     assert.equal(attempt.body.kind, "generation");
     assert.equal((attempt.body as any).status, "failed");
-    assert.deepEqual(manager.listTradersLinkAiReadReviews(), [{ symbol: "PDSB",
+    assert.deepEqual(manager.listTradersLinkAiReadReviews().map(({symbol,status,canReview}) => ({symbol,status,canReview})), [{ symbol: "PDSB",
       status: "Replacement failed — previous version available", canReview: true }]);
     assert.equal(rejected.events.filter((event) => event.body.kind === "original").length, 2);
     assert.equal(publisher.cardPatches.length, 2);

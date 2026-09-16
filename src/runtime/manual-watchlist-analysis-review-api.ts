@@ -4,11 +4,12 @@ import { DiscordConfirmedRejection } from "../lib/alerts/discord-confirmed-rejec
 type ReviewManager = Pick<ManualWatchlistRuntimeManager,
   "getTradersLinkAiReadReview" | "getTradersLinkAiReadPublicationPreview" | "listTradersLinkAiReadReviews" |
   "listTradersLinkAiReadHistory" | "getHistoricalTradersLinkAiReadReview" |
-  "saveTradersLinkAiReadOwnerEdit" | "approveTradersLinkAiRead" |
+  "saveTradersLinkAiReadOwnerEdit" | "approveTradersLinkAiRead" | "publishTickerWithoutAnalysis" |
   "verifyTradersLinkAiReadDiscordReceipt" |
   "publishApprovedTradersLinkAiReadToDiscord">;
 
 export const ANALYSIS_REVIEW_PATHS = new Set([
+  "/api/watchlist/analysis-review/publish-without-analysis",
   "/api/watchlist/analysis-review/verify-discord",
   "/api/watchlist/analysis-review/history",
   "/api/watchlist/analysis-review/export",
@@ -77,8 +78,9 @@ export async function dispatchAnalysisReviewRequest(input: {
       ? manager.getTradersLinkAiReadPublicationPreview(symbol)
       : { review: selectedCycle ? manager.getHistoricalTradersLinkAiReadReview(symbol, selectedCycle) : manager.getTradersLinkAiReadReview(symbol), historical: Boolean(selectedCycle) } };
     const action = input.pathname.split("/").at(-1);
-    const allowed = action === "save" ? ["symbol", "cycleId", "expectedHead", "patch"]
-      : action === "approve" ? ["symbol", "cycleId", "expectedHead", "draftRevision", "previewHash"]
+    const allowed = action === "publish-without-analysis" ? ["symbol", "cycleId", "expectedHead"]
+      : action === "save" ? ["symbol", "cycleId", "expectedHead", "patch"]
+      : action === "approve" ? ["symbol", "cycleId", "expectedHead", "draftRevision", "previewHash", "notifyUsers"]
       : action === "verify-discord" ? ["symbol", "cycleId", "expectedHead", "approvalRevision", "index", "messageId"]
       : ["symbol", "cycleId", "approvalRevision"];
     if (Object.keys(fields).some((key) => !allowed.includes(key))) throw new Error("Invalid review request.");
@@ -89,6 +91,9 @@ export async function dispatchAnalysisReviewRequest(input: {
       if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) throw new Error("Invalid review request.");
       return value;
     };
+    if (action === "publish-without-analysis") return { status: 200, body: { review: await manager.publishTickerWithoutAnalysis({
+      symbol, cycleId, expectedHead: revision("expectedHead"), actor: input.actor,
+    }) } };
     if (action === "save") return { status: 200, body: manager.saveTradersLinkAiReadOwnerEdit({
       symbol, cycleId, expectedHead: revision("expectedHead"), patch: fields.patch, actor: input.actor,
     }) };
@@ -101,9 +106,10 @@ export async function dispatchAnalysisReviewRequest(input: {
       }) } };
     }
     if (action === "approve") {
+      if (fields.notifyUsers !== undefined && typeof fields.notifyUsers !== "boolean") throw new Error("Invalid review request.");
       if (typeof fields.previewHash !== "string" || !/^[a-f0-9]{64}$/.test(fields.previewHash)) throw new Error("Invalid review request.");
       return { status: 200, body: { review: await manager.approveTradersLinkAiRead({ symbol, cycleId,
-        expectedHead: revision("expectedHead"), draftRevision: revision("draftRevision"), previewHash: fields.previewHash, actor: input.actor,
+        expectedHead: revision("expectedHead"), draftRevision: revision("draftRevision"), previewHash: fields.previewHash, actor: input.actor, notifyUsers: fields.notifyUsers as boolean | undefined,
       }) } };
     }
     return { status: 200, body: { review: await manager.publishApprovedTradersLinkAiReadToDiscord({ symbol, cycleId, approvalRevision: revision("approvalRevision") }) } };

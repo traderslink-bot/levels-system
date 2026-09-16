@@ -3,6 +3,9 @@ import { buildWatchlistDiscordLinkMessage } from "../alerts/watchlist-discord-li
 import type { TradersLinkAiReadPayload } from "../live-watchlist/live-watchlist-types.js";
 
 export type ReviewPublication = {
+  /** Missing fields preserve historical approved delivery behavior. */
+  notifyUsers?: boolean;
+  notificationKind?: "listing" | "analysis";
   website: Record<string, unknown>;
   discordChunks: string[];
   /** Only new owner-approved publications opt into image attachments. */
@@ -10,7 +13,12 @@ export type ReviewPublication = {
 };
 
 export function publicationPreviewHash(publication: ReviewPublication): string {
-  return createHash("sha256").update(JSON.stringify(publication)).digest("hex");
+  // Delivery choice is frozen by approval, not part of the content preview.
+  // A retry with the original preview must still identify that same content.
+  const content = { ...publication };
+  delete content.notifyUsers;
+  delete content.notificationKind;
+  return createHash("sha256").update(JSON.stringify(content)).digest("hex");
 }
 
 /** Split without truncating, dropping lines or changing the previewed text.
@@ -31,6 +39,7 @@ export function splitApprovedAnalysisText(text: string): string[] {
 }
 
 /** Preserve the established linked notification; analysis belongs on the website. */
-export function renderApprovedAnalysisDiscord(read: TradersLinkAiReadPayload): string[] {
-  return [buildWatchlistDiscordLinkMessage(read.symbol)];
+export function renderApprovedAnalysisDiscord(read: TradersLinkAiReadPayload, analysisUpdate = false): string[] {
+  const linked = buildWatchlistDiscordLinkMessage(read.symbol);
+  return [analysisUpdate ? `TradersLink Analysis is now available for ${read.symbol}.` + linked.slice(linked.indexOf("\n\n")) : linked];
 }

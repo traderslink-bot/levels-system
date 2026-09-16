@@ -186,6 +186,21 @@ export class TradersLinkAiReadReviewStore {
       : { kind: "edit", parentDraft: state.draft!.revision, payload: input.payload });
   }
 
+  approveListingOnly(cycleId: string, expectedHead: number, actor: string, publication: ReviewPublication): ReviewEvent {
+    const state = this.read(cycleId);
+    if (!state || state.cancelled) throw new Error("Review cycle is unavailable.");
+    if (state.approved?.body.kind === "approve" && state.approved.body.draftRevision === 0) return state.approved;
+    if (state.preserveExistingPublication || state.approved) throw new Error("Ticker is already listed or approved.");
+    const cards = publication.website.cards;
+    if (!cards || typeof cards !== "object" || Array.isArray(cards) || "tradersLinkAiRead" in cards ||
+      publication.notificationKind !== "listing" || publication.notifyUsers !== true || publication.analysisImageVersion !== undefined ||
+      publication.discordChunks.length !== 1 || !publication.discordChunks[0]?.trim() || publication.discordChunks[0].length > 2000) {
+      throw new Error("Invalid listing-only publication.");
+    }
+    // Revision zero denotes no analysis selection, never an invented AI draft.
+    return this.append(cycleId, expectedHead, actor, { kind: "approve", draftRevision: 0, publication });
+  }
+
   approve(cycleId: string, expectedHead: number, draftRevision: number, actor: string, publication?: ReviewPublication): ReviewEvent {
     const state = this.read(cycleId);
     if (!state || state.cancelled || state.draft?.revision !== draftRevision) throw new Error("Draft changed. Review the latest version.");
@@ -203,6 +218,7 @@ export class TradersLinkAiReadReviewStore {
     const approval = state?.approved;
     if (!state || state.cancelled || approval?.revision !== approvalRevision || approval.body.kind !== "approve") throw new Error("Publication approval changed.");
     const chunks = approval.body.publication?.discordChunks;
+    if (approval.body.publication?.notifyUsers === false) throw new Error("This analysis was approved without notifications.");
     if (!Number.isInteger(index) || index < 0 || !chunks?.[index]) throw new Error("Approved Discord chunk is unavailable.");
     const prior = state.events.findLast((event) => event.body.kind === "discord_chunk" && event.body.approvalRevision === approvalRevision && event.body.index === index);
     const deliveryKey = digest(`${cycleId}:${approvalRevision}:discord:${index}`);
@@ -248,6 +264,8 @@ export class TradersLinkAiReadReviewStore {
     const state = this.read(cycleId);
     if (!state || state.cancelled || state.approved?.revision !== approvalRevision) throw new Error("Publication approval changed.");
     const deliveryKey = digest(`${cycleId}:${approvalRevision}:${channel}`);
+    if (channel === "discord" && state.approved.body.kind === "approve" && state.approved.body.publication?.notifyUsers === false)
+      throw new Error("This analysis was approved without notifications.");
     const prior = state.events.findLast((event) => event.body.kind === "delivery" && event.body.approvalRevision === approvalRevision && event.body.channel === channel);
     if (prior?.body.kind === "delivery" && prior.body.status !== "failed") {
       return { shouldSend: false, deliveryKey, event: prior, reason: prior.body.status === "acknowledged" ? "acknowledged" : "uncertain" };

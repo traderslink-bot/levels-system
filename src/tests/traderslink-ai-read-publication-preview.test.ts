@@ -3,6 +3,18 @@ import test from "node:test";
 import { publicationPreviewHash, renderApprovedAnalysisDiscord, splitApprovedAnalysisText } from "../lib/ai/traderslink-ai-read-publication-preview.js";
 import type { TradersLinkAiReadPayload } from "../lib/live-watchlist/live-watchlist-types.js";
 
+test("delivery choices do not invalidate the content preview and analysis updates retain both links", () => {
+  const publication = { website: {}, discordChunks: ["links"] };
+  assert.equal(publicationPreviewHash(publication), publicationPreviewHash({ ...publication, notificationKind: "analysis", notifyUsers: false }));
+  const previous = process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL;
+  process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL = "https://app.traderslink.pro/watchlist";
+  const update = renderApprovedAnalysisDiscord({ symbol: "PDSB" } as TradersLinkAiReadPayload, true).join("\n");
+  if (previous === undefined) delete process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL; else process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL = previous;
+  assert.match(update, /Analysis is now available for PDSB/);
+  assert.match(update, /View the live watchlist/); assert.match(update, /View PDSB ticker page/);
+  assert.doesNotMatch(update, /added to the watchlist/);
+});
+
 test("preview splitting preserves every character, including surrogate pairs and long owner lines", () => {
   for (const text of ["a".repeat(1999) + "🚀" + "b".repeat(2200), ("VWAP confirmation\nEMA support\n").repeat(200)]) {
     const chunks = splitApprovedAnalysisText(text);

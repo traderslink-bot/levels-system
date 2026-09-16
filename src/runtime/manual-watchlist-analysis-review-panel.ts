@@ -26,10 +26,16 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   <div id="analysis-review-cycles" aria-label="Saved ticker histories"></div>
   <p id="analysis-review-status" role="status" aria-live="polite"></p>
   <div id="analysis-review-editor"></div>
+  <div class="inline-control" id="analysis-review-listing-area" hidden>
+    <button type="button" id="analysis-review-listing" class="secondary">Publish ticker without analysis</button>
+  </div>
   <div class="inline-control" id="analysis-review-actions" hidden>
     <button type="button" id="analysis-review-save">Save draft</button>
     <button type="button" id="analysis-review-preview">Preview</button>
+    <label id="analysis-review-notify-area" hidden><input type="checkbox" id="analysis-review-notify" style="width:auto" /> Notify users</label>
     <button type="button" id="analysis-review-approve" disabled>Approve and publish</button>
+  </div>
+  <div class="inline-control" id="analysis-review-delivery-area" hidden>
     <button type="button" id="analysis-review-retry" class="secondary">Retry Discord delivery</button>
   </div>
   <div class="inline-control" id="analysis-review-export-area" hidden>
@@ -61,6 +67,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   const recoveryFields = ["recoveryZoneLow", "recoveryZoneHigh", "firstReclaimPrice", "setupRestorePrice", "firstObjectivePrice", "rationale"];
   let review = null, patch = null, preview = null, dirty = false, busy = false, controlsLoaded = false;
   let historical = false;
+  const isListed = () => review?.preserveExistingPublication === true || Boolean(review?.events.some(event => event.body.kind === "delivery" && event.body.channel === "website" && event.body.status === "acknowledged"));
   const node = (tag, text, parent) => { const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (parent) parent.append(el); return el; };
   const message = (text) => { status.textContent = text; };
   const changed = () => { dirty = true; preview = null; previewContent.replaceChildren(); byId("approve").disabled = true; };
@@ -129,6 +136,13 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     });
   }
   function renderEditor() {
+    const listed = isListed();
+    byId("delivery-area").hidden = historical || !review?.approved || review.approved.body.publication?.notifyUsers === false;
+    byId("listing-area").hidden = historical || !review || review.cancelled || listed || Boolean(review.approved && review.approved.body.draftRevision !== 0);
+    byId("notify-area").hidden = !listed;
+    byId("notify").checked = false;
+    byId("approve").textContent = listed ? "Approve and publish analysis" : "Approve and publish";
+    byId("retry").hidden = review?.approved?.body.publication?.notifyUsers === false;
     renderVerificationControls();
     byId("audit-content").replaceChildren();
     editor.replaceChildren(); previewContent.replaceChildren(); preview = null;
@@ -151,7 +165,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     if (!draft || !draft.body.payload) {
       patch = null; dirty = false; actions.hidden = true;
       if (review) renderReviewHistory(review.events, editor);
-      message("No analysis draft is available yet. The ticker remains held if owner review is required."); return;
+      message(listed ? "Ticker published without analysis. No analysis draft is available yet." : "No analysis draft is available yet. You can publish the ticker without analysis."); return;
     }
     patch = editable(draft.body.payload); dirty = false; actions.hidden = false;
     if (patch.simpleAnalysis) {
@@ -268,8 +282,20 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   byId("approve").onclick = () => run(async () => {
     if (historical) throw new Error("Historical records are read only.");
     if (!preview || dirty) throw new Error("Preview the saved version before approving.");
-    const result = await request("/approve", { symbol: review.symbol, cycleId: preview.cycleId, expectedHead: preview.expectedHead, draftRevision: preview.draftRevision, previewHash: preview.previewHash });
-    review = result.review; renderEditor(); message("Approved version published to the website and Discord.");
+    const notifyUsers = byId("notify").checked;
+    const result = await request("/approve", { symbol: review.symbol, cycleId: preview.cycleId, expectedHead: preview.expectedHead, draftRevision: preview.draftRevision, previewHash: preview.previewHash, notifyUsers });
+    review = result.review; renderEditor(); message("Analysis approval recorded. Check publication and delivery status below.");
+  });
+  byId("listing").onclick = () => run(async () => {
+    if (historical || !review || isListed()) throw new Error("Open a current ticker that has not been listed yet.");
+    const result = await request("/publish-without-analysis", { symbol: review.symbol, cycleId: review.cycleId, expectedHead: review.head });
+    review = result.review;
+    if (dirty) {
+      byId("listing-area").hidden = true; byId("notify-area").hidden = false; byId("notify").checked = false;
+      byId("approve").textContent = "Approve and publish analysis";
+      byId("delivery-area").hidden = false; changed();
+    } else renderEditor();
+    message("Listing approval recorded. Your analysis draft has not been published." + (dirty ? " Your unsaved edits are still here." : ""));
   });
   byId("retry").onclick = () => run(async () => {
     if (historical) throw new Error("Historical records are read only.");

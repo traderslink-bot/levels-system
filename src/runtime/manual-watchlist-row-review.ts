@@ -3,7 +3,7 @@ export const WATCHLIST_ROW_REVIEW = String.raw`
 <script>
 (() => {
   let queue = new Map(), loading = null;
-  const pending = new Set(), errors = new Map();
+  const pending = new Set(), errors = new Map(), notificationChoices = new Map();
   async function request(path, body) {
     const response = await fetch("/api/watchlist/analysis-review" + path, {
       method: body ? 'POST' : 'GET', cache: 'no-store', signal: AbortSignal.timeout(30000),
@@ -36,7 +36,30 @@ export const WATCHLIST_ROW_REVIEW = String.raw`
       window.parent.postMessage({ source: 'traderslink-watchlist-admin', type: 'edit-analysis', symbol: entry.symbol }, window.location.origin);
     };
     actions.append(edit);
-    const approve = document.createElement('button'); approve.type = 'button'; approve.textContent = 'Approve and publish';
+    if (state?.canPublishWithoutAnalysis) {
+      const list = document.createElement('button'); list.type = 'button'; list.className = 'secondary';
+      list.textContent = 'Publish ticker without analysis'; list.disabled = pending.has(entry.symbol);
+      list.onclick = async () => {
+        if (pending.has(entry.symbol)) return;
+        pending.add(entry.symbol); errors.delete(entry.symbol); list.disabled = true; edit.disabled = true;
+        status.textContent = 'Publishing ticker without analysis…';
+        try {
+          await request('/publish-without-analysis', { symbol: entry.symbol, cycleId: state.cycleId, expectedHead: state.expectedHead });
+          status.textContent = 'Listing approved. Checking delivery status…';
+        } catch (error) { errors.set(entry.symbol, String(error.message || error) + ' Check delivery status before retrying.'); }
+        finally { pending.delete(entry.symbol); await refresh(); window.dispatchEvent(new Event('watchlist-review-updated')); }
+      };
+      actions.append(list);
+    }
+    const choiceKey = state?.cycleId + ':' + state?.draftRevision;
+    if (state?.listed) {
+      const label = document.createElement('label');
+      const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.style.width = 'auto';
+      checkbox.checked = notificationChoices.get(choiceKey) === true; checkbox.disabled = pending.has(entry.symbol);
+      checkbox.onchange = () => notificationChoices.set(choiceKey, checkbox.checked);
+      label.append(checkbox, document.createTextNode(' Notify users')); actions.append(label);
+    }
+    const approve = document.createElement('button'); approve.type = 'button'; approve.textContent = state?.listed ? 'Approve and publish analysis' : 'Approve and publish';
     // Do not offer a second publication for an already approved version or while a replacement is running.
     const ready = state && ['Ready for review', 'New draft — awaiting review', 'Replacement failed — previous version available'].includes(state.status);
     approve.disabled = !ready || pending.has(entry.symbol);
@@ -47,8 +70,9 @@ export const WATCHLIST_ROW_REVIEW = String.raw`
       try {
         const preview = await request('/preview?symbol=' + encodeURIComponent(entry.symbol));
         await request('/approve', { symbol: entry.symbol, cycleId: preview.cycleId, expectedHead: preview.expectedHead,
-          draftRevision: preview.draftRevision, previewHash: preview.previewHash });
-        status.textContent = 'Approval recorded. Checking website and Discord delivery…';
+          draftRevision: preview.draftRevision, previewHash: preview.previewHash, notifyUsers: notificationChoices.get(choiceKey) === true });
+        notificationChoices.delete(choiceKey);
+        status.textContent = 'Approval recorded. Checking publication status…';
       } catch (error) { errors.set(entry.symbol, String(error.message || error) + ' Check delivery status before retrying.'); status.textContent = errors.get(entry.symbol); }
       finally { pending.delete(entry.symbol); await refresh(); window.dispatchEvent(new Event('watchlist-review-updated')); }
     };

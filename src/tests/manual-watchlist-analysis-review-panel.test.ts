@@ -177,6 +177,7 @@ test("failed requests render history without a draft and clear stale editor stat
   const texts: string[] = [];
   const context = {
     editor, previewContent, actions, patch: { old: true }, dirty: true, preview: {}, historical: false,
+    isListed: () => false,
     review: { draft: null, events: [
       { revision: 2, at: 1, body: { kind: "generation", generationId: "request-1", status: "started", trigger: "manual" } },
       { revision: 3, at: 2, body: { kind: "generation", generationId: "request-1", status: "failed", trigger: "manual" } },

@@ -73,6 +73,7 @@ export function hasWatchlistPublicationApproval(
     if (!state.reviewRequired) return true;
     const approved = state.approved?.body;
     if (approved?.kind !== "approve") return false;
+    if (approved.draftRevision === 0 && approved.publication?.notificationKind === "listing") return true;
     // A new draft does not remove the prior approved public analysis.
     return state.events.some((event) => event.revision === approved.draftRevision &&
       (event.body.kind === "original" || event.body.kind === "edit"));
@@ -95,6 +96,13 @@ export function isWatchlistPatchApproved(patch: WatchlistPublicationCheck, rawRe
     if (!hasWatchlistPublicationApproval(patch.symbol, review, () => state)) return false;
     if (!state!.reviewRequired) return true;
     const card = "cards" in patch ? patch.cards.tradersLinkAiRead : undefined;
+    const listing = state?.approved?.body;
+    if (listing?.kind === "approve" && listing.draftRevision === 0 && listing.publication?.notificationKind === "listing") {
+      if (card) return false;
+      return JSON.stringify(patch) === JSON.stringify(listing.publication.website) || state!.events.some(event =>
+        event.body.kind === "delivery" && event.body.approvalRevision === state!.approved!.revision &&
+        event.body.channel === "website" && event.body.status === "acknowledged");
+    }
     if (!card) return state!.events.some((event) => event.body.kind === "delivery" &&
       event.body.channel === "website" && event.body.status === "acknowledged");
     const approval = state?.approved?.body;

@@ -10,12 +10,25 @@ function setup() {
     listTradersLinkAiReadReviews: call("queue"),
     saveTradersLinkAiReadOwnerEdit: call("save"), approveTradersLinkAiRead: call("approve"),
     publishApprovedTradersLinkAiReadToDiscord: call("retry"),
+    publishTickerWithoutAnalysis: call("listing"),
     verifyTradersLinkAiReadDiscordReceipt: call("verify"),
   };
   const send = (pathname: string, body?: unknown, actor: string | undefined = "platform-owner:test-owner", method = "POST") =>
     dispatchAnalysisReviewRequest({ pathname: `/api/watchlist/analysis-review${pathname}`, body, actor, method, searchParams: new URLSearchParams("symbol=PDSB") }, manager as any);
   return { calls, manager, send };
 }
+
+test("listing without analysis needs only current cycle/head; approval validates Notify users", async () => {
+  const { calls, send } = setup();
+  const body = { symbol: "PDSB", cycleId: "cycle", expectedHead: 2 };
+  assert.equal((await send("/publish-without-analysis", body)).status, 200);
+  assert.equal(calls[0]!.method, "listing");
+  assert.equal((await send("/publish-without-analysis", { ...body, actor: "spoof" })).status, 400);
+  const approval = { ...body, draftRevision: 2, previewHash: "a".repeat(64), notifyUsers: false };
+  assert.equal((await send("/approve", { ...approval, notifyUsers: "false" })).status, 400);
+  assert.equal((await send("/approve", approval)).status, 200);
+  assert.equal((calls.at(-1)!.input as any).notifyUsers, false);
+});
 
 test("format selection uses owner settings boundary and does not publish",async()=>{
   const {manager,calls}=setup();
