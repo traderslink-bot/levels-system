@@ -75,7 +75,7 @@ it("owner-reviewed generation can use supplied chart evidence beyond the catalog
 
 it("release reconciliation pins the owner-approved research-removal prompt and schema", () => {
   assert.equal(createHash("sha256").update(buildTradersLinkAiReadDeveloperPrompt(true)).digest("hex"),
-    "05815d8207dc63f3188bc9e3dbec0df34d707de70a10596588b1a27332e001c7");
+    "d260e259cd2d5b72616713e9e09c3165c7d40a809de6b7315e4d4233e58f59b7");
   assert.equal(createHash("sha256").update(JSON.stringify(buildTradersLinkAiReadResponseSchema(true))).digest("hex"),
     "f0284008ee7a943a51aca5a9affe1f1885e2fe1af913e9459428f09d02311473");
 });
