@@ -1,5 +1,6 @@
 import type { ManualWatchlistRuntimeManager } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
 import { DiscordConfirmedRejection } from "../lib/alerts/discord-confirmed-rejection.js";
+import { loadDiscordMentions, saveDiscordMentions } from "../lib/alerts/watchlist-discord-mentions.js";
 
 type ReviewManager = Pick<ManualWatchlistRuntimeManager,
   "getTradersLinkAiReadReview" | "getTradersLinkAiReadPublicationPreview" | "listTradersLinkAiReadReviews" |
@@ -9,6 +10,7 @@ type ReviewManager = Pick<ManualWatchlistRuntimeManager,
   "publishApprovedTradersLinkAiReadToDiscord">;
 
 export const ANALYSIS_REVIEW_PATHS = new Set([
+  "/api/watchlist/analysis-review/discord-mentions",
   "/api/watchlist/analysis-review/publish-without-analysis",
   "/api/watchlist/analysis-review/verify-discord",
   "/api/watchlist/analysis-review/history",
@@ -33,6 +35,11 @@ export async function dispatchAnalysisReviewRequest(input: {
 }): Promise<{ status: number; body: unknown }> {
   if (!input.actor || !/^platform-owner:[A-Za-z0-9_-]{1,128}$/.test(input.actor)) return { status: 403, body: { error: "Owner review authorization is required." } };
   if (!ANALYSIS_REVIEW_PATHS.has(input.pathname)) return { status: 404, body: { error: "Not found." } };
+  if (input.pathname.endsWith("/discord-mentions")) {
+    if (input.method !== "GET" && input.method !== "POST") return { status: 405, body: { error: "Method not allowed." } };
+    try { return { status: 200, body: { settings: input.method === "GET" ? loadDiscordMentions() : saveDiscordMentions(input.body) } }; }
+    catch { return { status: 400, body: { error: "Mention settings could not be read or saved. Check unique role IDs, labels and on/off choices, then try again." } }; }
+  }
   const settingsRequest = input.pathname.endsWith("/settings");
   const queueRequest = input.pathname.endsWith("/queue");
   const exportRequest = input.pathname.endsWith("/export");

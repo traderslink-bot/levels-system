@@ -4,6 +4,7 @@ import { DiscordCooldown } from "./discord-rate-limit.js";
 import { resolveManualWatchlistDurableDirectory } from "../monitoring/manual-watchlist-durable-storage.js";
 import { DiscordConfirmedRejection, isConfirmedDiscordRejectionStatus } from "./discord-confirmed-rejection.js";
 import type { ApprovedAnalysisDiscordChunk, ApprovedAnalysisDiscordReceipt } from "./alert-router.js";
+import { allowedDiscordMentions, appendDiscordMentions, discordAudience, loadDiscordMentions } from "./watchlist-discord-mentions.js";
 import type {
   AlertPayload,
   DiscordThread,
@@ -344,13 +345,10 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
 
   private async postTickerAddedAnnouncement(content: string): Promise<DiscordMessageResponse> {
     await this.verifyWebhookDestination();
-    if (!this.premiumRoleId) {
-      throw new Error(
-        "Discord Premium role configuration is required for new-ticker Watchlist announcements.",
-      );
-    }
+    let audience = { everyone: false, roles: [] as string[] };
+    try { audience = discordAudience(loadDiscordMentions(undefined, this.premiumRoleId ?? undefined)); } catch { /* Send without mentions if configuration is unreadable. */ }
     const [firstChunk, ...remainingChunks] = splitDiscordContent(
-      `${content}\n\n@everyone\n<@&${this.premiumRoleId}>`,
+      appendDiscordMentions(content, audience),
     );
     const firstResponse = await this.request<DiscordMessageResponse>(
       `/channels/${this.watchlistChannelId}/messages`,
@@ -358,7 +356,7 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
         method: "POST",
         body: JSON.stringify({
           content: firstChunk ?? "@everyone",
-          allowed_mentions: { parse: ["everyone"], roles: [this.premiumRoleId] },
+          allowed_mentions: allowedDiscordMentions(audience),
         }),
       },
     );
@@ -573,7 +571,7 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
     }
     const payload = {
       content: chunk.content,
-      allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
+      allowed_mentions: allowedDiscordMentions(chunk.audience),
       flags: DISCORD_FLAG_SUPPRESS_EMBEDS,
       ...(!this.webhookUrl ? { nonce, enforce_nonce: true } : {}),
       ...(attachments.length ? { attachments: attachments.map((file, id) => ({ id, filename: file.filename, description: file.description })) } : {}),

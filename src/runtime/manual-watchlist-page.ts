@@ -1,5 +1,6 @@
 import { ANALYSIS_REVIEW_PANEL } from "./manual-watchlist-analysis-review-panel.js";
 import { WATCHLIST_ROW_REVIEW } from "./manual-watchlist-row-review.js";
+import { WATCHLIST_DISCORD_MENTIONS_PANEL } from "./manual-watchlist-discord-mentions-panel.js";
 
 export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 <html lang="en">
@@ -591,6 +592,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       <div class="runtime-grid" id="runtime-grid"></div>
     </section>
 
+    ${WATCHLIST_DISCORD_MENTIONS_PANEL}
   </main>
 
   ${WATCHLIST_ROW_REVIEW}

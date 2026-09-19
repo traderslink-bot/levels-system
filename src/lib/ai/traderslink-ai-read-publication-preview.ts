@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
+import { appendDiscordMentions, type WatchlistDiscordAudience } from "../alerts/watchlist-discord-mentions.js";
 import { buildWatchlistDiscordLinkMessage } from "../alerts/watchlist-discord-link-message.js";
 import type { TradersLinkAiReadPayload } from "../live-watchlist/live-watchlist-types.js";
 
 export type ReviewPublication = {
+  discordAudience?: WatchlistDiscordAudience;
   /** Missing fields preserve historical approved delivery behavior. */
   notifyUsers?: boolean;
   notificationKind?: "listing" | "analysis";
@@ -39,7 +41,7 @@ export function splitApprovedAnalysisText(text: string): string[] {
 }
 
 /** Preserve the established linked notification; analysis belongs on the website. */
-export function renderApprovedAnalysisDiscord(read: TradersLinkAiReadPayload, analysisUpdate = false): string[] {
+export function renderApprovedAnalysisDiscord(read: TradersLinkAiReadPayload, analysisUpdate = false, audience?: WatchlistDiscordAudience): string[] {
   const linked = buildWatchlistDiscordLinkMessage(read.symbol);
-  return [analysisUpdate ? `TradersLink Analysis is now available for ${read.symbol}.` + linked.slice(linked.indexOf("\n\n")) : linked];
+  return [appendDiscordMentions(analysisUpdate ? `TradersLink Analysis is now available for ${read.symbol}.` + linked.slice(linked.indexOf("\n\n")) : linked, audience ?? { everyone: false, roles: [] })];
 }

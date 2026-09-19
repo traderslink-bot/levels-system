@@ -1707,6 +1707,7 @@ function normalizeSymbol(symbol: string): string {
 }
 
 export type ApprovedAnalysisDiscordChunk = {
+  audience?: import("./watchlist-discord-mentions.js").WatchlistDiscordAudience;
   symbol: string;
   /** Durable approval/channel/chunk identity, never generated at send time. */
   deliveryKey: string;

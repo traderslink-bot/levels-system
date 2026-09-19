@@ -5,6 +5,7 @@ import { DiscordConfirmedRejection } from "../alerts/discord-confirmed-rejection
 import { approvedDiscordRetryAt } from "../ai/approved-discord-retry.js";
 import { applyOwnerAnalysisEdit } from "../ai/traderslink-ai-read-owner-edit.js";
 import { publicationPreviewHash, renderApprovedAnalysisDiscord, type ReviewPublication } from "../ai/traderslink-ai-read-publication-preview.js";
+import { appendDiscordMentions, currentDiscordAudience } from "../alerts/watchlist-discord-mentions.js";
 import type { TradersLinkAiReadReviewStore } from "../ai/traderslink-ai-read-review-store.js";
 import { remainingGeneratedSectionOmissions } from "../ai/traderslink-ai-read-review-omissions.js";
 import type { AnalysisImage } from "../ai/watchlist-analysis-image.js";
@@ -4874,9 +4875,10 @@ export class ManualWatchlistRuntimeManager {
     const read = draft.body.payload as unknown as TradersLinkAiReadPayload;
     const alreadyListed = review.preserveExistingPublication === true || review.events.some(event =>
       event.body.kind === "delivery" && event.body.channel === "website" && event.body.status === "acknowledged");
+    const audience = currentDiscordAudience();
     const publication: ReviewPublication = existing?.kind === "approve" && existing.draftRevision === draft.revision && existing.publication
       ? existing.publication
-      : { website: this.buildReviewedWebsitePatch(read) as unknown as Record<string, unknown>, discordChunks: renderApprovedAnalysisDiscord(read, alreadyListed), analysisImageVersion: 1 };
+      : { website: this.buildReviewedWebsitePatch(read) as unknown as Record<string, unknown>, discordChunks: renderApprovedAnalysisDiscord(read, alreadyListed, audience), discordAudience: audience, analysisImageVersion: 1 };
     return { cycleId: review.cycleId, expectedHead: review.head, draftRevision: draft.revision,
       publication, previewHash: publicationPreviewHash(publication) };
   }
@@ -4934,8 +4936,9 @@ export class ManualWatchlistRuntimeManager {
       { pullbackReadEnabled: this.options.pullbackReadEnabled },
     ));
     delete snapshot.cards.tradersLinkAiRead;
+    const audience = currentDiscordAudience();
     const approval = store.approveListingOnly(input.cycleId,input.expectedHead,input.actor, {
-      website: snapshot as unknown as Record<string,unknown>, discordChunks: [buildWatchlistDiscordLinkMessage(symbol)],
+      website: snapshot as unknown as Record<string,unknown>, discordChunks: [appendDiscordMentions(buildWatchlistDiscordLinkMessage(symbol), audience)], discordAudience: audience,
       notificationKind: "listing", notifyUsers: true,
     });
     if (approval.body.kind !== "approve" || !approval.body.publication) throw new Error("Listing publication unavailable.");
@@ -4979,7 +4982,7 @@ export class ManualWatchlistRuntimeManager {
       if (!claim.shouldSend) throw new Error("Discord delivery is awaiting confirmation. It has not been sent again.");
       let receipt;
       try {
-        receipt = await this.options.discordAlertRouter.routeApprovedAnalysisChunk({ symbol, deliveryKey: claim.deliveryKey, content: claim.content,
+        receipt = await this.options.discordAlertRouter.routeApprovedAnalysisChunk({ symbol, deliveryKey: claim.deliveryKey, content: claim.content, audience: approval.body.publication.discordAudience,
           ...(index === 0 && images.length ? { attachments: images } : {}) });
       } catch (error) {
         if (error instanceof DiscordConfirmedRejection) {
