@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { ManualWatchlistRuntimeManager } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
 import { DiscordConfirmedRejection } from "../lib/alerts/discord-confirmed-rejection.js";
 import { loadDiscordMentions, saveDiscordMentions } from "../lib/alerts/watchlist-discord-mentions.js";
@@ -10,6 +11,7 @@ type ReviewManager = Pick<ManualWatchlistRuntimeManager,
   "publishApprovedTradersLinkAiReadToDiscord">;
 
 export const ANALYSIS_REVIEW_PATHS = new Set([
+  "/api/watchlist/published-analysis-history",
   "/api/watchlist/analysis-review/discord-mentions",
   "/api/watchlist/analysis-review/publish-without-analysis",
   "/api/watchlist/analysis-review/verify-discord",
@@ -33,6 +35,36 @@ export async function dispatchAnalysisReviewRequest(input: {
   save(input: { automaticUpdatesEnabled: boolean; reviewBeforePublishingEnabled: boolean; analysisFormat?: "current" | "simple" }): unknown;
   exportAudit?(symbol: string, generationId: string, cycleId?: string): unknown;
 }): Promise<{ status: number; body: unknown }> {
+  // Runtime bearer authentication has already succeeded. Unlike the private
+  // review API, this projection returns only acknowledged public time/price rows.
+  if (input.pathname === "/api/watchlist/published-analysis-history") {
+    if (input.method !== "GET") return { status: 405, body: { error: "Method not allowed." } };
+    const symbol = input.searchParams.get("symbol") ?? "";
+    const digest = input.searchParams.get("bodyHash") ?? "";
+    if (!/^[A-Za-z0-9.^-]{1,16}$/.test(symbol) || !/^[a-f0-9]{64}$/.test(digest)) return { status: 400, body: { error: "Invalid history request." } };
+    try {
+      const review = await manager.getTradersLinkAiReadReview(symbol);
+      const events = review?.events ?? [];
+      const acknowledged = new Set(events.filter(e => e.body.kind === "delivery" && e.body.channel === "website" && e.body.status === "acknowledged").map(e => e.body.kind === "delivery" ? e.body.approvalRevision : -1));
+      const approvals = events.filter(e => e.body.kind === "approve" && acknowledged.has(e.revision)).sort((a, b) => a.revision - b.revision);
+      const rows: { generatedAt: number; price: number }[] = [];
+      const seen = new Set<string>();
+      let matched = false;
+      for (const event of approvals) {
+        if (event.body.kind !== "approve") continue;
+        const cards = event.body.publication?.website.cards as { tradersLinkAiRead?: { body?: unknown } } | undefined;
+        const body = cards?.tradersLinkAiRead?.body;
+        if (typeof body !== "string" || !body) continue;
+        const read = JSON.parse(body) as { generationId?: string; generatedAt?: number; currentPrice?: number };
+        const time = read.generatedAt, price = read.currentPrice;
+        if (typeof time !== "number" || !Number.isFinite(time) || time <= 0 || typeof price !== "number" || !Number.isFinite(price) || price <= 0) continue;
+        const key = `${read.generationId ?? time}:${price}`;
+        if (!seen.has(key)) { rows.push({ generatedAt: time, price }); seen.add(key); }
+        if (createHash("sha256").update(body).digest("hex") === digest) { matched = true; break; }
+      }
+      return { status: 200, body: { rows: matched ? rows : [] } };
+    } catch { return { status: 503, body: { error: "Published analysis history is unavailable." } }; }
+  }
   if (!input.actor || !/^platform-owner:[A-Za-z0-9_-]{1,128}$/.test(input.actor)) return { status: 403, body: { error: "Owner review authorization is required." } };
   if (!ANALYSIS_REVIEW_PATHS.has(input.pathname)) return { status: 404, body: { error: "Not found." } };
   if (input.pathname.endsWith("/discord-mentions")) {
