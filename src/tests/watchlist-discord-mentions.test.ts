@@ -38,7 +38,7 @@ test("old approved posts retain no mentions; updated analysis links remain intac
   assert.deepEqual(allowedDiscordMentions(),{parse:[],roles:[],users:[],replied_user:false});
   const read = {symbol:"TEST"} as Parameters<typeof renderApprovedAnalysisDiscord>[0];
   const audience={everyone:false,roles:["12345678901234567"]};
-  assert.match(renderApprovedAnalysisDiscord(read,true,audience)[0]!,/^TradersLink Analysis is now available for TEST\./);
+  assert.match(renderApprovedAnalysisDiscord(read,true,audience)[0]!,/^TEST Analysis updated/);
   assert.match(renderApprovedAnalysisDiscord(read,true,audience)[0]!,/<@&12345678901234567>/);
   const a={website:{symbol:"TEST"},discordChunks:["same"],discordAudience:audience};
   assert.notEqual(publicationPreviewHash(a),publicationPreviewHash({...a,discordAudience:{everyone:false,roles:[]}}));

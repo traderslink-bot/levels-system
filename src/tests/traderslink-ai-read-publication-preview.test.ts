@@ -10,7 +10,7 @@ test("delivery choices do not invalidate the content preview and analysis update
   process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL = "https://app.traderslink.pro/watchlist";
   const update = renderApprovedAnalysisDiscord({ symbol: "PDSB" } as TradersLinkAiReadPayload, true).join("\n");
   if (previous === undefined) delete process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL; else process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL = previous;
-  assert.match(update, /Analysis is now available for PDSB/);
+  assert.match(update, /^PDSB Analysis updated/);
   assert.match(update, /View the live watchlist/); assert.match(update, /View PDSB ticker page/);
   assert.doesNotMatch(update, /added to the watchlist/);
 });

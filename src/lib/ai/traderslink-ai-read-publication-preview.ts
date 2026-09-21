@@ -43,5 +43,5 @@ export function splitApprovedAnalysisText(text: string): string[] {
 /** Preserve the established linked notification; analysis belongs on the website. */
 export function renderApprovedAnalysisDiscord(read: TradersLinkAiReadPayload, analysisUpdate = false, audience?: WatchlistDiscordAudience): string[] {
   const linked = buildWatchlistDiscordLinkMessage(read.symbol);
-  return [appendDiscordMentions(analysisUpdate ? `TradersLink Analysis is now available for ${read.symbol}.` + linked.slice(linked.indexOf("\n\n")) : linked, audience ?? { everyone: false, roles: [] })];
+  return [appendDiscordMentions(analysisUpdate ? `${read.symbol} Analysis updated` + linked.slice(linked.indexOf("\n\n")) : linked, audience ?? { everyone: false, roles: [] })];
 }
