@@ -4894,12 +4894,15 @@ export class ManualWatchlistRuntimeManager {
     if (!draft || draft.revision !== input.draftRevision || (draft.body.kind !== "original" && draft.body.kind !== "edit")) throw new Error("Draft changed. Review the latest version.");
     const read = draft.body.payload as unknown as TradersLinkAiReadPayload;
     const preview = this.getTradersLinkAiReadPublicationPreview(symbol);
-    if (input.previewHash !== undefined && preview.previewHash !== input.previewHash) throw new Error("Publication preview changed. Review it before publishing.");
+    // The owner approves the selected saved analysis, not a hash of changing live
+    // cards, confidence or audience settings. Freeze the publication at approval.
     const currentReview = store.read(input.cycleId)!;
     const alreadyListed = currentReview.preserveExistingPublication === true || currentReview.events.some(event =>
       event.body.kind === "delivery" && event.body.channel === "website" && event.body.status === "acknowledged");
     const frozen = currentReview.approved?.body;
-    const approval = store.approve(input.cycleId, input.expectedHead, input.draftRevision, input.actor,
+    // Non-draft audit events must not require another owner approval. The store
+    // still verifies the exact selected draft and keeps approved payloads frozen.
+    const approval = store.approve(input.cycleId, currentReview.head, input.draftRevision, input.actor,
       frozen?.kind === "approve" && frozen.draftRevision === input.draftRevision && frozen.publication ? frozen.publication : {
       ...preview.publication, notifyUsers: alreadyListed ? input.notifyUsers === true : true,
       notificationKind: alreadyListed ? "analysis" : "listing",

@@ -146,9 +146,10 @@ export async function dispatchAnalysisReviewRequest(input: {
     }
     if (action === "approve") {
       if (fields.notifyUsers !== undefined && typeof fields.notifyUsers !== "boolean") throw new Error("Invalid review request.");
-      if (typeof fields.previewHash !== "string" || !/^[a-f0-9]{64}$/.test(fields.previewHash)) throw new Error("Invalid review request.");
+      // Legacy clients may supply this display token; it is not approval authority.
+      const previewHash = typeof fields.previewHash === "string" ? fields.previewHash : "";
       return { status: 200, body: { review: await manager.approveTradersLinkAiRead({ symbol, cycleId,
-        expectedHead: revision("expectedHead"), draftRevision: revision("draftRevision"), previewHash: fields.previewHash, actor: input.actor, notifyUsers: fields.notifyUsers as boolean | undefined,
+        expectedHead: revision("expectedHead"), draftRevision: revision("draftRevision"), previewHash, actor: input.actor, notifyUsers: fields.notifyUsers as boolean | undefined,
       }) } };
     }
     return { status: 200, body: { review: await manager.publishApprovedTradersLinkAiReadToDiscord({ symbol, cycleId, approvalRevision: revision("approvalRevision") }) } };

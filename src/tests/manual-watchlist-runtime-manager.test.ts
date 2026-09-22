@@ -548,9 +548,7 @@ test(`private activation saves an AI draft without website publication or Discor
     const ready = manager.getTradersLinkAiReadReview("PDSB")!;
     const approvalInput = { symbol: "PDSB", cycleId: ready.cycleId, expectedHead: ready.head,
       draftRevision: ready.draft!.revision, actor: "test-owner" };
-    await assert.rejects(manager.approveTradersLinkAiReadForWebsite({ ...approvalInput, previewHash: "stale-preview" }), /preview changed/);
-    assert.equal(publisher.cardPatches.length, 0);
-    const delivered = await manager.approveTradersLinkAiReadForWebsite(approvalInput);
+    const delivered = await manager.approveTradersLinkAiReadForWebsite({ ...approvalInput, previewHash: "stale-preview" });
     assert.equal(publisher.cardPatches.length, 1);
     assert.equal(JSON.parse(publisher.cardPatches[0]!.cards.tradersLinkAiRead!.body).currentRead, "Original");
     assert.ok(delivered?.events.some((event) => event.body.kind === "delivery" && event.body.channel === "website" && event.body.status === "acknowledged"));

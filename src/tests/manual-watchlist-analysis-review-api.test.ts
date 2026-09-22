@@ -61,15 +61,17 @@ test("save takes actor from trusted context and rejects body actor injection", a
   assert.deepEqual(calls, [{ method: "save", input: { ...body, symbol: "PDSB", actor: "platform-owner:test-owner" } }]);
 });
 
-test("approval requires exact revision and preview hash; Discord retry does not regenerate", async () => {
+test("approval selects the exact draft without requiring a preview hash; Discord retry does not regenerate", async () => {
   const { calls, send } = setup();
   const body = { symbol: "PDSB", cycleId: "cycle", expectedHead: 2, draftRevision: 2, previewHash: "a".repeat(64) };
-  assert.equal((await send("/approve", { ...body, previewHash: "" })).status, 400);
   assert.equal((await send("/approve", { ...body, draftRevision: -1 })).status, 400);
   assert.equal(calls.length, 0);
+  assert.equal((await send("/approve", { ...body, previewHash: "" })).status, 200);
+  const { previewHash: _ignored, ...withoutHash } = body;
+  assert.equal((await send("/approve", withoutHash)).status, 200);
   assert.equal((await send("/approve", body)).status, 200);
   assert.equal((await send("/retry-discord", { symbol: "PDSB", cycleId: "cycle", approvalRevision: 3 })).status, 200);
-  assert.deepEqual(calls.map((call) => call.method), ["approve", "retry"]);
+  assert.deepEqual(calls.map((call) => call.method), ["approve", "approve", "approve", "retry"]);
 });
 
 test("conflicts are actionable but provider response details stay private", async () => {
