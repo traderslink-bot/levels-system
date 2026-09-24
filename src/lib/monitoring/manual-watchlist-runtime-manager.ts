@@ -741,6 +741,8 @@ type PriorRegularCloseReference = {
 };
 
 export type ManualWatchlistActivationInput = {
+  generateAnalysis?: boolean;
+  traderNotes?: string;
   symbol: string;
   note?: string;
   watchlistGroup?: WatchlistGroup;
@@ -790,7 +792,7 @@ function watchlistGroupForActivation(input: ManualWatchlistActivationInput): Wat
   if (
     input.watchlistGroup === "top_regular" ||
     input.watchlistGroup === "main" ||
-    input.watchlistGroup === "postmarket"
+    input.watchlistGroup === "postmarket" || input.watchlistGroup === "general"
   ) {
     return input.watchlistGroup;
   }
@@ -4816,7 +4818,7 @@ export class ManualWatchlistRuntimeManager {
           if (generation.body.status === "completed") return { symbol: entry.symbol,
             status: "Analysis storage needs attention", canReview: Boolean(review.draft) };
         }
-        if (!review.draft) return { symbol: entry.symbol, status: entry.tradersLinkAiReadFailure ? "Analysis failed — held for review" : "Preparing analysis", canReview: false };
+        if (!review.draft) return { symbol: entry.symbol, status: entry.automaticAnalysisEnabled === false ? "Notes ready for review" : entry.tradersLinkAiReadFailure ? "Analysis failed — held for review" : "Preparing analysis", canReview: false };
         const approved = review.approved;
         let status = "Ready for review";
         if (approved?.body.kind === "approve") {
@@ -4834,8 +4836,8 @@ export class ManualWatchlistRuntimeManager {
         const listed = review?.preserveExistingPublication === true || Boolean(review?.events.some(event =>
           event.body.kind === "delivery" && event.body.channel === "website" && event.body.status === "acknowledged"));
         const listingApproval = review?.approved?.body.kind === "approve" && review.approved.body.draftRevision === 0;
-        const listingDeliveryComplete = listed && review?.events.some(event => event.body.kind === "delivery" &&
-          event.body.channel === "discord" && event.body.approvalRevision === review.approved?.revision && event.body.status === "acknowledged");
+        const listingDeliveryComplete = listed && (review?.approved?.body.kind === "approve" && review.approved.body.publication?.notifyUsers === false || review?.events.some(event => event.body.kind === "delivery" &&
+          event.body.channel === "discord" && event.body.approvalRevision === review.approved?.revision && event.body.status === "acknowledged"));
         return { ...item, ...(listingApproval && !listingDeliveryComplete ? { status: "Approved — delivery needs attention" }
           : listed && !review?.draft ? { status: "Published without analysis" } : {}),
           listed, cycleId: review?.cycleId, expectedHead: review?.head, draftRevision: review?.draft?.revision,
@@ -4925,13 +4927,36 @@ export class ManualWatchlistRuntimeManager {
       const delivered = store.read(input.cycleId)!;
       store.recordDelivery(input.cycleId, delivered.head, approval.revision, "website", "acknowledged", claim.deliveryKey);
       this.acknowledgeTradersLinkAiReadPublication(read);
+      this.watchlistStore.patchEntry(symbol, { tradersLinkAiReadCardVisible: true });
+      this.persistWatchlist();
     } else if (claim.reason === "uncertain") {
       await publisher.replayPending?.();
     }
     return this.getTradersLinkAiReadReview(symbol);
   }
 
-  async publishTickerWithoutAnalysis(input: { symbol: string; cycleId: string; expectedHead: number; actor: string }) {
+  private buildTraderNotesCard(text: string): import("../live-watchlist/live-watchlist-types.js").LiveWatchlistCardContent | null {
+    return text.trim() ? { title: "Trader notes", body: text, updatedAt: this.options.now?.() ?? Date.now(), priceWhenPosted: null, source: "owner" } : null;
+  }
+
+  async saveTraderNotes(input: { symbol: string; cycleId: string; text: string; publish: boolean; actor: string }) {
+    const symbol = normalizeSymbol(input.symbol);
+    const entry = this.watchlistStore.getEntry(symbol);
+    const review = this.getTradersLinkAiReadReview(symbol);
+    if (!entry?.active || entry.publicationReview?.cycleId !== input.cycleId || !review || review.cancelled) throw new Error("Ticker review changed. Reload the ticker.");
+    if (typeof input.text !== "string" || input.text.length > 12000) throw new Error("Notes must be at most 12,000 characters.");
+    const listed = review.preserveExistingPublication === true || review.events.some(event => event.body.kind === "delivery" && event.body.channel === "website" && event.body.status === "acknowledged");
+    if (input.publish && !listed) throw new Error("Save your notes, then publish the ticker.");
+    this.watchlistStore.patchEntry(symbol, { traderNotesDraft: input.text });
+    this.persistWatchlist();
+    if (input.publish) {
+      if (!this.liveWatchlistPublisher) throw new Error("Website publisher is unavailable. Your draft is saved.");
+      await this.liveWatchlistPublisher.publish({ symbol, updatedAt: this.options.now?.() ?? Date.now(), cards: { traderNotes: this.buildTraderNotesCard(input.text) } });
+    }
+    return { saved: true, published: input.publish };
+  }
+
+  async publishTickerWithoutAnalysis(input: { symbol: string; cycleId: string; expectedHead: number; actor: string; notifyUsers?: boolean }) {
     const symbol = normalizeSymbol(input.symbol);
     const entry = this.watchlistStore.getEntry(symbol);
     const store = this.options.tradersLinkAiReadReviewStore;
@@ -4942,10 +4967,12 @@ export class ManualWatchlistRuntimeManager {
       { pullbackReadEnabled: this.options.pullbackReadEnabled },
     ));
     delete snapshot.cards.tradersLinkAiRead;
+    snapshot.tradersLinkAiReadCardVisible = false;
+    snapshot.cards.traderNotes = this.buildTraderNotesCard(entry.traderNotesDraft ?? "");
     const audience = currentDiscordAudience();
-    const approval = store.approveListingOnly(input.cycleId,input.expectedHead,input.actor, {
+    const approval = store.approveListingOnly(input.cycleId,store.read(input.cycleId)!.head,input.actor, {
       website: snapshot as unknown as Record<string,unknown>, discordChunks: [appendDiscordMentions(buildWatchlistDiscordLinkMessage(symbol), audience)], discordAudience: audience,
-      notificationKind: "listing", notifyUsers: true,
+      notificationKind: "listing", notifyUsers: input.notifyUsers !== false,
     });
     if (approval.body.kind !== "approve" || !approval.body.publication) throw new Error("Listing publication unavailable.");
     const claim=store.claimDelivery(input.cycleId,store.read(input.cycleId)!.head,approval.revision,"website");
@@ -11723,11 +11750,20 @@ export class ManualWatchlistRuntimeManager {
     if (!existing?.active || existing.lifecycle !== "active") {
       throw new Error(`${symbol} must be active before it can be moved to another watchlist.`);
     }
-    return this.queueActivation({
-      symbol,
+    // Moving changes placement only: keep the review cycle, notes, analysis and
+    // original tracking time. Do not run activation or schedule an AI request.
+    const moved = this.watchlistStore.patchEntry(symbol, {
       watchlistGroup,
-      source: "manual",
-    });
+      ...(existing.tags.includes("auto") ? { tags: ["manual"] } : {}),
+    })!;
+    this.persistWatchlist();
+    if (this.liveWatchlistPublisher && this.isWatchlistPublicationApproved({ symbol, cards: {} })) {
+      await this.liveWatchlistPublisher.publish(buildLiveWatchlistStatusPatch({
+        symbol, status: "live", watchlistGroup,
+        topRegularWatchlistVisible: this.topRegularWatchlistVisible,
+      }));
+    }
+    return moved;
   }
 
   ingestPremarketVolumeSnapshots(
@@ -12414,6 +12450,7 @@ export class ManualWatchlistRuntimeManager {
       const entry = this.watchlistStore.upsertManualEntry({
         symbol,
         aiReadAdmission: input.aiReadAdmission,
+        automaticAnalysisEnabled: input.generateAnalysis !== false, traderNotesDraft: input.traderNotes ?? "",
         tags: watchlistTagsForActivation(input),
         watchlistGroup: watchlistGroupForActivation(input),
         note: input.note,
@@ -13384,6 +13421,7 @@ export class ManualWatchlistRuntimeManager {
 
   private shouldPreparePrivateActivation(input: ManualWatchlistActivationInput): boolean {
     if (this.watchlistStore.getEntry(normalizeSymbol(input.symbol))?.active) return false;
+    if (input.generateAnalysis === false) return true;
     const settings = this.tradersLinkAiReadGenerationSettings;
     return requiresInitialWatchlistReview({
       reviewEnabled: this.reviewBeforePublishingEnabled || this.analysisFormat === "simple", generationEnabled: settings.enabled,
@@ -13410,7 +13448,9 @@ export class ManualWatchlistRuntimeManager {
       note: input.note, active: true, lifecycle: "active", activatedAt: now, discordThreadId: null,
       lastError: null,
       publicationReview: { cycleId, required: true }, refreshPending: false,
-      aiReadAdmission: this.captureAiReadAdmission(),
+      aiReadAdmission: { ...this.captureAiReadAdmission(), ...(input.generateAnalysis === false ? { initialGenerationEnabled: false } : {}) },
+      automaticAnalysisEnabled: input.generateAnalysis !== false, traderNotesDraft: input.traderNotes ?? "",
+      tradersLinkAiReadCardVisible: input.generateAnalysis !== false,
       pendingTradersLinkAiReadGeneration: null, operationStatus: "preparing private analysis",
     });
     this.watchlistStore.patchEntry(symbol, { tradersLinkAiReadBoundaryState: undefined, tradersLinkAiReadFailure: null });
@@ -13427,6 +13467,11 @@ export class ManualWatchlistRuntimeManager {
     try {
       await this.seedLevelsForSymbol(symbol);
       await this.restartMonitoringForPreparedActivation(assertCurrent());
+      if (input.generateAnalysis === false) {
+        this.watchlistStore.patchEntry(symbol, { operationStatus: "notes ready for review" });
+        this.persistWatchlist();
+        return assertCurrent();
+      }
       const priceAction = await this.buildTradersLinkAiReadPriceActionContext(symbol, now);
       assertCurrent();
       const reference = resolveTradersLinkAiReadReferenceQuote(priceAction, 0, now);
@@ -13587,6 +13632,7 @@ export class ManualWatchlistRuntimeManager {
     const queuedEntry = this.watchlistStore.upsertManualEntry({
       symbol,
       aiReadAdmission: activationInput.aiReadAdmission,
+      automaticAnalysisEnabled: input.generateAnalysis !== false, traderNotesDraft: input.traderNotes ?? "",
       tags: watchlistTagsForActivation(input),
       watchlistGroup: watchlistGroupForActivation(input),
       note: input.note,

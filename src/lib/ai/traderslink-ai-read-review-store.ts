@@ -193,7 +193,7 @@ export class TradersLinkAiReadReviewStore {
     if (state.preserveExistingPublication || state.approved) throw new Error("Ticker is already listed or approved.");
     const cards = publication.website.cards;
     if (!cards || typeof cards !== "object" || Array.isArray(cards) || "tradersLinkAiRead" in cards ||
-      publication.notificationKind !== "listing" || publication.notifyUsers !== true || publication.analysisImageVersion !== undefined ||
+      publication.notificationKind !== "listing" || typeof publication.notifyUsers !== "boolean" || publication.analysisImageVersion !== undefined ||
       publication.discordChunks.length !== 1 || !publication.discordChunks[0]?.trim() || publication.discordChunks[0].length > 2000) {
       throw new Error("Invalid listing-only publication.");
     }

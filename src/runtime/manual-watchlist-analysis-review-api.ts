@@ -6,7 +6,7 @@ import { loadDiscordMentions, saveDiscordMentions } from "../lib/alerts/watchlis
 type ReviewManager = Pick<ManualWatchlistRuntimeManager,
   "getTradersLinkAiReadReview" | "getTradersLinkAiReadPublicationPreview" | "listTradersLinkAiReadReviews" |
   "listTradersLinkAiReadHistory" | "getHistoricalTradersLinkAiReadReview" |
-  "saveTradersLinkAiReadOwnerEdit" | "approveTradersLinkAiRead" | "publishTickerWithoutAnalysis" |
+  "saveTraderNotes" | "saveTradersLinkAiReadOwnerEdit" | "approveTradersLinkAiRead" | "publishTickerWithoutAnalysis" |
   "verifyTradersLinkAiReadDiscordReceipt" |
   "publishApprovedTradersLinkAiReadToDiscord">;
 
@@ -20,6 +20,7 @@ export const ANALYSIS_REVIEW_PATHS = new Set([
   "/api/watchlist/analysis-review/queue",
   "/api/watchlist/analysis-review/settings",
   "/api/watchlist/analysis-review", "/api/watchlist/analysis-review/preview",
+  "/api/watchlist/analysis-review/save-notes",
   "/api/watchlist/analysis-review/save", "/api/watchlist/analysis-review/approve",
   "/api/watchlist/analysis-review/retry-discord",
 ]);
@@ -117,7 +118,8 @@ export async function dispatchAnalysisReviewRequest(input: {
       ? manager.getTradersLinkAiReadPublicationPreview(symbol)
       : { review: selectedCycle ? manager.getHistoricalTradersLinkAiReadReview(symbol, selectedCycle) : manager.getTradersLinkAiReadReview(symbol), historical: Boolean(selectedCycle) } };
     const action = input.pathname.split("/").at(-1);
-    const allowed = action === "publish-without-analysis" ? ["symbol", "cycleId", "expectedHead"]
+    const allowed = action === "save-notes" ? ["symbol", "cycleId", "text", "publish"]
+      : action === "publish-without-analysis" ? ["symbol", "cycleId", "expectedHead", "notifyUsers"]
       : action === "save" ? ["symbol", "cycleId", "expectedHead", "patch"]
       : action === "approve" ? ["symbol", "cycleId", "expectedHead", "draftRevision", "previewHash", "notifyUsers"]
       : action === "verify-discord" ? ["symbol", "cycleId", "expectedHead", "approvalRevision", "index", "messageId"]
@@ -130,8 +132,13 @@ export async function dispatchAnalysisReviewRequest(input: {
       if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) throw new Error("Invalid review request.");
       return value;
     };
+    if (action === "save-notes") {
+      if (typeof fields.text !== "string" || fields.text.length > 12000 || typeof fields.publish !== "boolean") throw new Error("Invalid notes request.");
+      return { status: 200, body: await manager.saveTraderNotes({ symbol, cycleId, text: fields.text, publish: fields.publish, actor: input.actor }) };
+    }
+    if (action === "publish-without-analysis" && fields.notifyUsers !== undefined && typeof fields.notifyUsers !== "boolean") throw new Error("Invalid review request.");
     if (action === "publish-without-analysis") return { status: 200, body: { review: await manager.publishTickerWithoutAnalysis({
-      symbol, cycleId, expectedHead: revision("expectedHead"), actor: input.actor,
+      symbol, cycleId, expectedHead: revision("expectedHead"), actor: input.actor, notifyUsers: fields.notifyUsers as boolean | undefined,
     }) } };
     if (action === "save") return { status: 200, body: manager.saveTradersLinkAiReadOwnerEdit({
       symbol, cycleId, expectedHead: revision("expectedHead"), patch: fields.patch, actor: input.actor,

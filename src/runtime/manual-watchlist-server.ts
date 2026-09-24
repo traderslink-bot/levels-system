@@ -2431,10 +2431,12 @@ async function main(): Promise<void> {
         const body = await readJsonBody(request);
         const symbol = typeof body.symbol === "string" ? body.symbol : "";
         const note = typeof body.note === "string" ? body.note : undefined;
+        if (body.generateAnalysis !== undefined && typeof body.generateAnalysis !== "boolean") { sendJson(response, 400, { error: "Invalid analysis choice." }); return; }
+        if (body.traderNotes !== undefined && (typeof body.traderNotes !== "string" || body.traderNotes.length > 12000)) { sendJson(response, 400, { error: "Notes must be at most 12,000 characters." }); return; }
         const watchlistGroup =
           body.watchlistGroup === "top_regular" ||
           body.watchlistGroup === "main" ||
-          body.watchlistGroup === "postmarket"
+          body.watchlistGroup === "postmarket" || body.watchlistGroup === "general"
             ? body.watchlistGroup
             : null;
 
@@ -2448,6 +2450,8 @@ async function main(): Promise<void> {
         const entry = await manager.queueActivation({
           symbol,
           note,
+          generateAnalysis: body.generateAnalysis !== false,
+          traderNotes: typeof body.traderNotes === "string" ? body.traderNotes : "",
           watchlistGroup,
           source: "manual",
         });
@@ -2524,7 +2528,7 @@ async function main(): Promise<void> {
         const watchlistGroup =
           body.watchlistGroup === "top_regular" ||
           body.watchlistGroup === "main" ||
-          body.watchlistGroup === "postmarket"
+          body.watchlistGroup === "postmarket" || body.watchlistGroup === "general"
             ? body.watchlistGroup
             : null;
         if (symbol.trim().length === 0 || watchlistGroup === null) {
@@ -2765,11 +2769,11 @@ async function main(): Promise<void> {
           scope !== "all" &&
           scope !== "top_regular" &&
           scope !== "main" &&
-          scope !== "postmarket" &&
+          scope !== "postmarket" && scope !== "general" &&
           scope !== "reversal"
         ) {
           sendJson(response, 400, {
-            error: "scope must be all, top_regular, main, postmarket, or reversal.",
+            error: "scope must be all, top_regular, main, postmarket, general, or reversal.",
           });
           return;
         }
