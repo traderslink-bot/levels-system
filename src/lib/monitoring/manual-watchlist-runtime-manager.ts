@@ -1,3 +1,5 @@
+import { overnightResumeAfter, isFreshDaySessionQuote } from "../live-watchlist/overnight-level-reference.js";
+import { loadPlatformOvernightQuote } from "../market-data/platform-overnight-quote-loader.js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -11132,6 +11134,12 @@ export class ManualWatchlistRuntimeManager {
   }
 
   private handlePriceUpdate = (update: LivePriceUpdate): void => {
+    const overnight = this.watchlistStore.getEntry(update.symbol)?.overnightLevelReference;
+    const releasedOvernight = overnight && isFreshDaySessionQuote(overnight, update.timestamp);
+    if (releasedOvernight) {
+      this.watchlistStore.patchEntry(update.symbol, { overnightLevelReference: undefined });
+      this.persistWatchlist();
+    }
     this.lastPriceUpdateAt = update.timestamp;
     this.lastPriceUpdateSymbol = update.symbol;
     const freshStructureKeys = this.captureFreshMarketStructureStory(update.symbol, update.timestamp);
@@ -11150,6 +11158,10 @@ export class ManualWatchlistRuntimeManager {
     });
     this.ingestLiveTechnicalContextPrice(update);
     this.publishLiveTickerData(update);
+    if (releasedOvernight && this.liveWatchlistPublisher && this.options.levelStore.getLevels(update.symbol)) {
+      const fresh = buildLiveWatchlistSnapshotPatch(this.buildLevelSnapshotPayload(update.symbol, update.timestamp, update.lastPrice));
+      void this.liveWatchlistPublisher.publish({ symbol: update.symbol, updatedAt: update.timestamp, cards: { nearestSupportResistance: fresh.cards.nearestSupportResistance, fullLadder: fresh.cards.fullLadder } }).catch(() => undefined);
+    }
     if (
       this.lastPriceUpdatePersistAt === null ||
       update.timestamp - this.lastPriceUpdatePersistAt >= PRICE_UPDATE_PERSIST_INTERVAL_MS
@@ -12506,6 +12518,8 @@ export class ManualWatchlistRuntimeManager {
         operationStatus: "posting level snapshot",
       });
 
+      await this.captureOvernightLevelReference(symbol, activationEpoch);
+      this.assertActivationCurrent(symbol, activationEpoch);
       let snapshotPayload: LevelSnapshotPayload | null = null;
       if (reuseExistingSameDayContext) {
         snapshotPayload = this.prepareLevelSnapshotForSameDayReactivation(symbol, Date.now());
@@ -12790,7 +12804,51 @@ export class ManualWatchlistRuntimeManager {
     });
   }
 
+  private readonly overnightQuoteAttemptEpochs = new Map<string, { epoch: number; attemptedAt: number; reference?: WatchlistEntry["overnightLevelReference"] }>();
+
+  private async captureOvernightLevelReference(symbol: string, activationEpoch?: number): Promise<void> {
+    const now = this.options.now?.() ?? Date.now();
+    const entry = this.watchlistStore.getEntry(symbol);
+    if (!entry || overnightResumeAfter(now) === null || (entry.overnightQuoteAttemptedAt ?? 0) >= (entry.activatedAt ?? now)) return;
+    const attempted = this.overnightQuoteAttemptEpochs.get(symbol);
+    if (activationEpoch !== undefined && attempted?.epoch === activationEpoch) {
+      this.watchlistStore.patchEntry(symbol, { overnightQuoteAttemptedAt: attempted.attemptedAt, overnightLevelReference: attempted.reference });
+      this.persistWatchlist();
+      return;
+    }
+    if (activationEpoch !== undefined) this.overnightQuoteAttemptEpochs.set(symbol, { epoch: activationEpoch, attemptedAt: now });
+    const cycleId = entry.publicationReview?.cycleId;
+    this.watchlistStore.patchEntry(symbol, { overnightQuoteAttemptedAt: now, overnightLevelReference: undefined });
+    this.persistWatchlist();
+    const reference = await loadPlatformOvernightQuote(symbol, now);
+    this.assertActivationCurrent(symbol, activationEpoch);
+    const current = this.watchlistStore.getEntry(symbol);
+    if (!current || current.lifecycle === "inactive" || current.activatedAt !== entry.activatedAt || current.publicationReview?.cycleId !== cycleId || current.overnightQuoteAttemptedAt !== now) return;
+    if (reference && !isFreshDaySessionQuote(reference, current.lastPriceUpdateAt ?? 0)) {
+      if (activationEpoch !== undefined) this.overnightQuoteAttemptEpochs.set(symbol, { epoch: activationEpoch, attemptedAt: now, reference });
+      this.watchlistStore.patchEntry(symbol, { overnightLevelReference: reference });
+      this.persistWatchlist();
+    }
+  }
+
+  private overnightLevelPatch(symbol: string, timestamp: number): LiveWatchlistCardPatch | null {
+    const reference = this.watchlistStore.getEntry(symbol)?.overnightLevelReference;
+    if (!reference) return null;
+    const patch = buildLiveWatchlistSnapshotPatch(this.buildLevelSnapshotPayload(symbol, timestamp, reference.price), { pullbackReadEnabled: this.options.pullbackReadEnabled });
+    if (patch.levelMap) patch.levelMap = { ...patch.levelMap, overnightReference: reference };
+    return patch;
+  }
+
   private applyLiveTraderReadCardVisibility(patch: LiveWatchlistCardPatch): LiveWatchlistCardPatch {
+    const overnight = patch.levelMap ? this.overnightLevelPatch(patch.symbol, patch.updatedAt) : null;
+    if (overnight?.levelMap) {
+      const cards = { ...patch.cards };
+      for (const key of ["nearestSupportResistance", "fullLadder"] as const) {
+        const mapped = overnight.cards[key];
+        if (mapped) cards[key] = { ...mapped, priceWhenPosted: patch.cards[key]?.priceWhenPosted ?? null };
+      }
+      patch = { ...patch, levelMap: overnight.levelMap, cards };
+    }
     const entry = this.watchlistStore.getEntry(patch.symbol);
     const lifecycleLabelsVisible = this.lifecycleLabelsVisibleForSymbol(
       patch.symbol,
@@ -13297,6 +13355,14 @@ export class ManualWatchlistRuntimeManager {
       return;
     }
 
+    const overnight = this.overnightLevelPatch(update.symbol, update.timestamp);
+    if (overnight?.levelMap) {
+      patch.levelMap = overnight.levelMap;
+      patch.nearestSupport = overnight.levelMap.nearestSupport?.price ?? null;
+      patch.nearestResistance = overnight.levelMap.nearestResistance?.price ?? null;
+      patch.nearestSupportLabel = overnight.levelMap.nearestSupport?.label ?? null;
+      patch.nearestResistanceLabel = overnight.levelMap.nearestResistance?.label ?? null;
+    }
     this.lastWebsiteTickerDataPublishAt.set(update.symbol, update.timestamp);
     if (
       previousMarketDataObservedAt === undefined ||
@@ -13496,7 +13562,7 @@ export class ManualWatchlistRuntimeManager {
       tradersLinkAiReadCardVisible: input.generateAnalysis !== false,
       pendingTradersLinkAiReadGeneration: null, operationStatus: "preparing private analysis",
     });
-    this.watchlistStore.patchEntry(symbol, { tradersLinkAiReadBoundaryState: undefined, tradersLinkAiReadFailure: null });
+    this.watchlistStore.patchEntry(symbol, { tradersLinkAiReadBoundaryState: undefined, tradersLinkAiReadFailure: null, overnightLevelReference: undefined, overnightQuoteAttemptedAt: undefined });
     this.aiReadState.delete(symbol);
     this.aiReadInitialGenerationSuppressedSymbols.delete(symbol);
     this.persistWatchlist();
@@ -13508,6 +13574,8 @@ export class ManualWatchlistRuntimeManager {
     };
     const completion = (async () => {
     try {
+      await this.captureOvernightLevelReference(symbol, activationEpoch);
+      assertCurrent();
       await this.seedLevelsForSymbol(symbol);
       await this.restartMonitoringForPreparedActivation(assertCurrent());
       if (input.generateAnalysis === false) {
@@ -13652,6 +13720,7 @@ export class ManualWatchlistRuntimeManager {
     try {
       const activationEpoch = this.nextActivationEpoch(symbol);
       const rollbackEntries = this.watchlistStore.getEntries();
+      this.watchlistStore.patchEntry(symbol, { overnightLevelReference: undefined, overnightQuoteAttemptedAt: undefined });
       // Thread creation also checks the publication gate, so detach the old
       // inactive cycle before that first external operation on a normal re-add.
       if (existing?.publicationReview) {

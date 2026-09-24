@@ -1,3 +1,4 @@
+import { normalizeOvernightLevelReference } from "../live-watchlist/overnight-level-reference.js";
 // 2026-04-14 09:28 PM America/Toronto
 // In-memory watchlist store with manual activate/deactivate operations.
 import { normalizeAiReadAdmission, normalizePublicationReview } from "../ai/traderslink-ai-read-review-policy.js";
@@ -154,6 +155,8 @@ export class WatchlistStore {
       note: entry.note?.trim() || undefined,
       automaticAnalysisEnabled: entry.automaticAnalysisEnabled !== false,
       traderNotesDraft: typeof entry.traderNotesDraft === "string" ? entry.traderNotesDraft : "",
+      overnightLevelReference: normalizeOvernightLevelReference(entry.overnightLevelReference) ?? undefined,
+      overnightQuoteAttemptedAt: normalizeFiniteTimestamp(entry.overnightQuoteAttemptedAt),
       discordThreadId: entry.discordThreadId?.trim() || null,
       lifecycle,
       refreshPending: entry.refreshPending ?? false,
@@ -323,6 +326,8 @@ export class WatchlistStore {
       aiReadAdmission: normalizeAiReadAdmission(input.aiReadAdmission ?? existing?.aiReadAdmission),
       automaticAnalysisEnabled: input.automaticAnalysisEnabled ?? existing?.automaticAnalysisEnabled ?? true,
       traderNotesDraft: input.traderNotesDraft ?? existing?.traderNotesDraft ?? "",
+      overnightLevelReference: input.activatedAt !== undefined && input.activatedAt !== existing?.activatedAt ? undefined : existing?.overnightLevelReference,
+      overnightQuoteAttemptedAt: input.activatedAt !== undefined && input.activatedAt !== existing?.activatedAt ? undefined : existing?.overnightQuoteAttemptedAt,
       tradersLinkAiReadFailure:
         input.tradersLinkAiReadFailure !== undefined
           ? input.tradersLinkAiReadFailure ?? undefined

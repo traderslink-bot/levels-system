@@ -335,6 +335,8 @@ export type WatchlistTradersLinkAiReadFailure = {
 export type WatchlistGroup = "top_regular" | "main" | "postmarket" | "general";
 
 export type WatchlistEntry = {
+  overnightLevelReference?: import("../live-watchlist/overnight-level-reference.js").OvernightLevelReference;
+  overnightQuoteAttemptedAt?: number;
   automaticAnalysisEnabled?: boolean;
   traderNotesDraft?: string;
   aiReadAdmission?: import("../ai/traderslink-ai-read-review-policy.js").WatchlistAiReadAdmission;

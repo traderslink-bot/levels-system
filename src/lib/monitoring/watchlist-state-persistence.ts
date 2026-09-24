@@ -1,3 +1,4 @@
+import { normalizeOvernightLevelReference } from "../live-watchlist/overnight-level-reference.js";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { normalizeAiReadAdmission, normalizePublicationReview } from "../ai/traderslink-ai-read-review-policy.js";
@@ -335,6 +336,8 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     active: value.active,
     automaticAnalysisEnabled: value.automaticAnalysisEnabled === undefined ? true : value.automaticAnalysisEnabled === true,
     traderNotesDraft: typeof value.traderNotesDraft === "string" ? value.traderNotesDraft : "",
+    overnightLevelReference: normalizeOvernightLevelReference(value.overnightLevelReference) ?? undefined,
+    overnightQuoteAttemptedAt: typeof value.overnightQuoteAttemptedAt === "number" && Number.isFinite(value.overnightQuoteAttemptedAt) ? value.overnightQuoteAttemptedAt : undefined,
     priority: value.priority,
     tags: [...value.tags],
     ...(value.watchlistGroup === "top_regular" ||
@@ -462,6 +465,8 @@ function buildPersistedState(entries: WatchlistEntry[], now = Date.now()): Persi
       note: entry.note?.trim() || undefined,
       automaticAnalysisEnabled: entry.automaticAnalysisEnabled !== false,
       traderNotesDraft: entry.traderNotesDraft ?? "",
+      overnightLevelReference: entry.overnightLevelReference,
+      overnightQuoteAttemptedAt: entry.overnightQuoteAttemptedAt,
       discordThreadId: entry.discordThreadId?.trim() || null,
       lifecycle: entry.lifecycle ?? (entry.active ? "active" : "inactive"),
       activatedAt: normalizeOptionalTimestamp(entry.activatedAt),
