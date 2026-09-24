@@ -6,6 +6,7 @@ import type {
 } from "../alerts/alert-types.js";
 
 export type LiveWatchlistCardKind =
+  | "traderNotes"
   | "companyInfo"
   | "levelMap"
   | "fullLadder"
@@ -18,7 +19,7 @@ export type LiveWatchlistCardKind =
   | "extendedQuote";
 
 export type LiveWatchlistStatus = "live" | "stale" | "deactivated";
-export type LiveWatchlistGroup = "top_regular" | "main" | "postmarket";
+export type LiveWatchlistGroup = "top_regular" | "main" | "postmarket" | "general";
 export type LiveWatchlistSlotState = "active" | "followup";
 export type LiveWatchlistMarketDataStatus = "live" | "stale" | "offline" | "starting" | "closed";
 export type LiveWatchlistTickerMarketDataStatus = "live" | "stale" | "halted";

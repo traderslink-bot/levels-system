@@ -2028,7 +2028,7 @@ export function buildLiveWatchlistStatusPatch(args: {
   status: LiveWatchlistStatus;
   updatedAt?: number;
   firstPostedAt?: number | null;
-  watchlistGroup?: "top_regular" | "main" | "postmarket";
+  watchlistGroup?: "top_regular" | "main" | "postmarket" | "general";
   watchlistSlotState?: "active" | "followup";
   reversalWatchEligible?: boolean;
   reversalWatchAttemptReady?: boolean;

@@ -40,7 +40,7 @@ function normalizeAiReadFailure(value: unknown): WatchlistTradersLinkAiReadFailu
 }
 
 function normalizeWatchlistGroup(value: unknown): WatchlistGroup | undefined {
-  return value === "top_regular" || value === "main" || value === "postmarket"
+  return value === "top_regular" || value === "main" || value === "postmarket" || value === "general"
     ? value
     : undefined;
 }
@@ -152,6 +152,8 @@ export class WatchlistStore {
         ? { watchlistGroup: normalizeWatchlistGroup(entry.watchlistGroup) }
         : {}),
       note: entry.note?.trim() || undefined,
+      automaticAnalysisEnabled: entry.automaticAnalysisEnabled !== false,
+      traderNotesDraft: typeof entry.traderNotesDraft === "string" ? entry.traderNotesDraft : "",
       discordThreadId: entry.discordThreadId?.trim() || null,
       lifecycle,
       refreshPending: entry.refreshPending ?? false,
@@ -238,6 +240,8 @@ export class WatchlistStore {
     pendingTradersLinkAiReadGeneration?: PendingTradersLinkAiReadGeneration | null;
     publicationReview?: WatchlistEntry["publicationReview"];
     aiReadAdmission?: WatchlistEntry["aiReadAdmission"];
+    automaticAnalysisEnabled?: boolean;
+    traderNotesDraft?: string;
     tradersLinkAiReadFailure?: WatchlistTradersLinkAiReadFailure | null;
   }): WatchlistEntry {
     const symbol = normalizeSymbol(input.symbol);
@@ -317,6 +321,8 @@ export class WatchlistStore {
           : existing?.pendingTradersLinkAiReadGeneration,
       publicationReview: normalizePublicationReview(input.publicationReview ?? existing?.publicationReview),
       aiReadAdmission: normalizeAiReadAdmission(input.aiReadAdmission ?? existing?.aiReadAdmission),
+      automaticAnalysisEnabled: input.automaticAnalysisEnabled ?? existing?.automaticAnalysisEnabled ?? true,
+      traderNotesDraft: input.traderNotesDraft ?? existing?.traderNotesDraft ?? "",
       tradersLinkAiReadFailure:
         input.tradersLinkAiReadFailure !== undefined
           ? input.tradersLinkAiReadFailure ?? undefined

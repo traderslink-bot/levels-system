@@ -3617,6 +3617,9 @@ export class ManualWatchlistRuntimeManager {
     }
     const symbol = context.symbol ? normalizeSymbol(context.symbol) : "";
     const entry = symbol ? this.watchlistStore.getEntry(symbol) : undefined;
+    if (entry?.automaticAnalysisEnabled === false && context.requestedTrigger !== "manual") {
+      return { allowed: false, session, reason: "Automatic analysis is disabled for this ticker. Use manual refresh to add an analysis.", topRegularActivationOverrideApplied: false };
+    }
     if (context.requestedTrigger === "activation" && entry?.aiReadAdmission?.initialGenerationEnabled === false) {
       return { allowed: false, session, reason: "Initial AI generation was disabled when this ticker was added. Use manual refresh.",
         topRegularActivationOverrideApplied: false };

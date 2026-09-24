@@ -332,9 +332,11 @@ export type WatchlistTradersLinkAiReadFailure = {
   trigger: string;
   failedAt: number;
 };
-export type WatchlistGroup = "top_regular" | "main" | "postmarket";
+export type WatchlistGroup = "top_regular" | "main" | "postmarket" | "general";
 
 export type WatchlistEntry = {
+  automaticAnalysisEnabled?: boolean;
+  traderNotesDraft?: string;
   aiReadAdmission?: import("../ai/traderslink-ai-read-review-policy.js").WatchlistAiReadAdmission;
   symbol: string;
   publicationReview?: import("../ai/traderslink-ai-read-review-policy.js").WatchlistPublicationReview;

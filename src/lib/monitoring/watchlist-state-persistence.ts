@@ -226,7 +226,7 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     value.watchlistGroup !== null &&
     value.watchlistGroup !== "top_regular" &&
     value.watchlistGroup !== "main" &&
-    value.watchlistGroup !== "postmarket"
+    value.watchlistGroup !== "postmarket" && value.watchlistGroup !== "general"
   ) {
     return null;
   }
@@ -333,11 +333,13 @@ function validateEntry(value: unknown): WatchlistEntry | null {
   return {
     symbol: value.symbol.trim().toUpperCase(),
     active: value.active,
+    automaticAnalysisEnabled: value.automaticAnalysisEnabled === undefined ? true : value.automaticAnalysisEnabled === true,
+    traderNotesDraft: typeof value.traderNotesDraft === "string" ? value.traderNotesDraft : "",
     priority: value.priority,
     tags: [...value.tags],
     ...(value.watchlistGroup === "top_regular" ||
     value.watchlistGroup === "main" ||
-    value.watchlistGroup === "postmarket"
+    value.watchlistGroup === "postmarket" || value.watchlistGroup === "general"
       ? { watchlistGroup: value.watchlistGroup }
       : {}),
     note:
@@ -458,6 +460,8 @@ function buildPersistedState(entries: WatchlistEntry[], now = Date.now()): Persi
       tags: [...entry.tags],
       ...(entry.watchlistGroup ? { watchlistGroup: entry.watchlistGroup } : {}),
       note: entry.note?.trim() || undefined,
+      automaticAnalysisEnabled: entry.automaticAnalysisEnabled !== false,
+      traderNotesDraft: entry.traderNotesDraft ?? "",
       discordThreadId: entry.discordThreadId?.trim() || null,
       lifecycle: entry.lifecycle ?? (entry.active ? "active" : "inactive"),
       activatedAt: normalizeOptionalTimestamp(entry.activatedAt),

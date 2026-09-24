@@ -9,7 +9,7 @@ export function getWatchlistEntrySessionGroup(
   if (
     entry.watchlistGroup === "top_regular" ||
     entry.watchlistGroup === "main" ||
-    entry.watchlistGroup === "postmarket"
+    entry.watchlistGroup === "postmarket" || entry.watchlistGroup === "general"
   ) {
     return entry.watchlistGroup;
   }
