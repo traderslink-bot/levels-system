@@ -1,3 +1,5 @@
+import { WATCHLIST_MODEL_PRICING, isWatchlistReasoningEffort } from "./watchlist-model-options.js";
+import type { WatchlistModel, WatchlistReasoningEffort } from "./watchlist-model-options.js";
 import { createHash } from "node:crypto";
 import { buildSimpleAnalysisTestRequest, SIMPLE_ANALYSIS_PROMPT, SIMPLE_ANALYSIS_SCHEMA } from "./watchlist-simple-analysis.js";
 import { parseSimpleAnalysis } from "./watchlist-simple-content.js";
@@ -68,9 +70,8 @@ export type ModelTokenPricing = {
 };
 
 const BUILT_IN_MODEL_PRICING: Record<string, ModelTokenPricing> = {
-  "gpt-5.6-terra": { inputPer1M: 2.5, cachedInputPer1M: 0.25, outputPer1M: 15 },
+  ...WATCHLIST_MODEL_PRICING,
   "gpt-5.4": { inputPer1M: 2.5, cachedInputPer1M: 0.25, outputPer1M: 15 },
-  "gpt-5.6-luna": { inputPer1M: 1, cachedInputPer1M: 0.1, outputPer1M: 6 },
 };
 
 type FetchLike = typeof fetch;
@@ -234,7 +235,7 @@ export type TradersLinkAiReadService = {
   getConfiguredModel(): string;
   getReasoningEffort(): NonNullable<OpenAITradersLinkAiReadServiceOptions["reasoningEffort"]>;
   setRuntimeConfiguration(input: {
-    model: "gpt-5.6-luna" | "gpt-5.6-terra";
+    model: WatchlistModel;
     reasoningEffort: NonNullable<OpenAITradersLinkAiReadServiceOptions["reasoningEffort"]>;
   }): void;
 };
@@ -243,7 +244,7 @@ export type OpenAITradersLinkAiReadServiceOptions = {
   apiKey: string;
   model?: string;
   fallbackModel?: string;
-  reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+  reasoningEffort?: WatchlistReasoningEffort;
   webSearchEnabled?: boolean;
   timeoutMs?: number;
   maxOutputTokens?: number;
@@ -2165,7 +2166,14 @@ function buildUsage(
   const outputTokens = finiteNonNegative(payload.usage?.output_tokens);
   const totalTokens = finiteNonNegative(payload.usage?.total_tokens) || inputTokens + outputTokens;
   const searchCallCount = webSearchCallCount(payload);
-  const builtIn = findBuiltInPricing(model);
+  const basePricing = findBuiltInPricing(model);
+  const longContext = inputTokens > 272_000 && Object.keys(WATCHLIST_MODEL_PRICING)
+    .some((name) => model === name || model.startsWith(name + "-"));
+  const builtIn = basePricing && longContext ? {
+    inputPer1M: basePricing.inputPer1M * 2,
+    cachedInputPer1M: basePricing.cachedInputPer1M * 2,
+    outputPer1M: basePricing.outputPer1M * 1.5,
+  } : basePricing;
   const hasOverride = Boolean(
     override &&
     [
@@ -2467,7 +2475,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
   }
 
   setRuntimeConfiguration(input: {
-    model: "gpt-5.6-luna" | "gpt-5.6-terra";
+    model: WatchlistModel;
     reasoningEffort: NonNullable<OpenAITradersLinkAiReadServiceOptions["reasoningEffort"]>;
   }): void {
     this.model = input.model;
@@ -3191,7 +3199,7 @@ export function createTradersLinkAiReadServiceFromEnv(
   }
   const effort = env.TRADERSLINK_AI_READ_REASONING_EFFORT?.trim().toLowerCase();
   const reasoningEffort =
-    effort === "low" || effort === "medium" || effort === "high" || effort === "xhigh"
+    isWatchlistReasoningEffort(effort)
       ? effort
       : "medium";
   return new OpenAITradersLinkAiReadService({

@@ -1,3 +1,4 @@
+import type { WatchlistReasoningEffort } from "../ai/watchlist-model-options.js";
 import { overnightResumeAfter, isFreshDaySessionQuote } from "../live-watchlist/overnight-level-reference.js";
 import { loadPlatformOvernightQuote } from "../market-data/platform-overnight-quote-loader.js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -3769,7 +3770,7 @@ export class ManualWatchlistRuntimeManager {
     occurredAt?: number;
     generationId?: string;
     model?: string;
-    reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+    reasoningEffort?: WatchlistReasoningEffort;
     dataAsOf?: number;
   }): void {
     this.recordTradersLinkAiReadRunEvent({

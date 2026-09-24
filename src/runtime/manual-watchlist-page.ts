@@ -394,14 +394,18 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         <label for="ai-read-model-select">AI Read Model and Reasoning Effort</label>
         <div class="inline-control">
           <select id="ai-read-model-select">
-            <option value="gpt-5.6-luna">Luna</option>
-            <option value="gpt-5.6-terra">Terra</option>
+            <option value="gpt-5.6-luna">GPT-5.6 Luna</option>
+            <option value="gpt-5.6-terra">GPT-5.6 Terra</option>
+            <option value="gpt-6-luna">GPT-6 Luna</option>
+            <option value="gpt-6-sol">GPT-6 Sol</option>
           </select>
           <select id="ai-read-reasoning-effort-select">
+            <option value="none">None</option>
             <option value="low">Low</option>
             <option value="medium">Medium</option>
             <option value="high">High</option>
-            <option value="xhigh">Extra High</option>
+            <option value="xhigh">Extra high</option>
+            <option value="max">Max</option>
           </select>
           <button id="ai-read-model-apply" type="button">Apply Model</button>
         </div>
@@ -1445,7 +1449,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       aiReadModelApplyEl.disabled = !aiReadConfigured;
       aiReadModelStatusEl.textContent = aiReadConfigured
         ? "Current: " +
-          (status.aiReadModel === "gpt-5.6-luna" ? "Luna" : "Terra") +
+          ({"gpt-5.6-luna":"GPT-5.6 Luna","gpt-5.6-terra":"GPT-5.6 Terra","gpt-6-luna":"GPT-6 Luna","gpt-6-sol":"GPT-6 Sol"}[status.aiReadModel] || status.aiReadModel) +
           " at " + String(status.aiReadReasoningEffort || "medium") +
           " effort. The other model is used as the fallback."
         : "Configure the TradersLink AI Read service before selecting a model.";
@@ -3316,7 +3320,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         }
         setStatus(
           "AI Reads now use " +
-            (payload.model === "gpt-5.6-luna" ? "Luna" : "Terra") +
+            ({"gpt-5.6-luna":"GPT-5.6 Luna","gpt-5.6-terra":"GPT-5.6 Terra","gpt-6-luna":"GPT-6 Luna","gpt-6-sol":"GPT-6 Sol"}[payload.model] || payload.model) +
             " at " + payload.reasoningEffort + " effort.",
         );
         // The successful response is authoritative. Update the visible
@@ -3325,7 +3329,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         aiReadModelSelectEl.value = payload.model;
         aiReadReasoningEffortSelectEl.value = payload.reasoningEffort;
         aiReadModelStatusEl.textContent =
-          "Current: " + (payload.model === "gpt-5.6-luna" ? "Luna" : "Terra") +
+          "Current: " + ({"gpt-5.6-luna":"GPT-5.6 Luna","gpt-5.6-terra":"GPT-5.6 Terra","gpt-6-luna":"GPT-6 Luna","gpt-6-sol":"GPT-6 Sol"}[payload.model] || payload.model) +
           " at " + payload.reasoningEffort +
           " effort. The other model is used as the fallback.";
         void loadRuntimeStatus().catch((error) => setStatus(String(error), true));

@@ -1,3 +1,4 @@
+import { isWatchlistModel, isWatchlistReasoningEffort } from "../lib/ai/watchlist-model-options.js";
 import "dotenv/config";
 import { ANALYSIS_REVIEW_PATHS, dispatchAnalysisReviewRequest } from "./manual-watchlist-analysis-review-api.js";
 import { TradersLinkAiReadAuditStore } from "../lib/ai/traderslink-ai-read-audit.js";
@@ -796,8 +797,8 @@ async function main(): Promise<void> {
   const persistedTradersLinkAiReadSettings = tradersLinkAiReadSettingsPersistence.load();
   let aiReadModelSettings = {
     model: persistedTradersLinkAiReadSettings?.model ??
-      (tradersLinkAiReadService?.getConfiguredModel() === "gpt-5.6-luna"
-        ? "gpt-5.6-luna"
+      (isWatchlistModel(tradersLinkAiReadService?.getConfiguredModel())
+        ? tradersLinkAiReadService!.getConfiguredModel() as import("../lib/ai/watchlist-model-options.js").WatchlistModel
         : "gpt-5.6-terra"),
     reasoningEffort:
       persistedTradersLinkAiReadSettings?.reasoningEffort ??
@@ -1471,19 +1472,16 @@ async function main(): Promise<void> {
       try {
         const body = await readJsonBody(request);
         const model =
-          body.model === "gpt-5.6-luna" || body.model === "gpt-5.6-terra"
+          isWatchlistModel(body.model)
             ? body.model
             : null;
         const reasoningEffort =
-          body.reasoningEffort === "low" ||
-          body.reasoningEffort === "medium" ||
-          body.reasoningEffort === "high" ||
-          body.reasoningEffort === "xhigh"
+          isWatchlistReasoningEffort(body.reasoningEffort)
             ? body.reasoningEffort
             : null;
         if (!model || !reasoningEffort) {
           sendJson(response, 400, {
-            error: "Choose Luna or Terra and a low, medium, high, or xhigh effort.",
+            error: "Choose a supported model and reasoning effort.",
           });
           return;
         }
@@ -2641,14 +2639,11 @@ async function main(): Promise<void> {
       try {
         const body = await readJsonBody(request);
         const symbol = typeof body.symbol === "string" ? body.symbol.trim().toUpperCase() : "";
-        const model = body.model === "gpt-5.6-terra" || body.model === "gpt-5.6-luna"
+        const model = isWatchlistModel(body.model)
           ? body.model
           : null;
         const reasoningEffort =
-          body.reasoningEffort === "low" ||
-          body.reasoningEffort === "medium" ||
-          body.reasoningEffort === "high" ||
-          body.reasoningEffort === "xhigh"
+          isWatchlistReasoningEffort(body.reasoningEffort)
             ? body.reasoningEffort
             : null;
         const dailyCandleLimit = body.dailyCandleLimit === undefined
@@ -2658,7 +2653,7 @@ async function main(): Promise<void> {
             : null;
         if (!symbol || !model || !reasoningEffort || dailyCandleLimit === null) {
           sendJson(response, 400, {
-            error: "Symbol, Terra or Luna model, valid reasoning effort, and optional integer daily candle limit are required.",
+            error: "Symbol, supported model, valid reasoning effort, and optional integer daily candle limit are required.",
           });
           return;
         }

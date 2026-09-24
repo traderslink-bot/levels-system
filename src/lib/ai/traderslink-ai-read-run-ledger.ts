@@ -1,3 +1,4 @@
+import type { WatchlistReasoningEffort } from "./watchlist-model-options.js";
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
@@ -40,7 +41,7 @@ export type TradersLinkAiReadRunEvent = {
   clientRequestId?: string;
   attemptType?: "primary" | "correction" | "fallback" | "publication";
   model?: string;
-  reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+  reasoningEffort?: WatchlistReasoningEffort;
   marketSession?: string;
   dataAsOf?: number;
   startedAt?: number;

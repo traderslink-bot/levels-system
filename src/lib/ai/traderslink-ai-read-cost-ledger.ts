@@ -1,3 +1,4 @@
+import type { WatchlistReasoningEffort } from "./watchlist-model-options.js";
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
@@ -20,7 +21,7 @@ export type TradersLinkAiReadCostLedgerEntry = {
   generatedAt: number;
   dataAsOf: number;
   model: string;
-  reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+  reasoningEffort?: WatchlistReasoningEffort;
   trigger: TradersLinkAiReadCostTrigger;
   marketSession: TradersLinkAiReadPayload["marketSession"];
   usedWebSearch: boolean;

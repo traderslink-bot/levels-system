@@ -1,11 +1,13 @@
+import { isWatchlistModel, isWatchlistReasoningEffort } from "./watchlist-model-options.js";
+import type { WatchlistModel, WatchlistReasoningEffort } from "./watchlist-model-options.js";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 export type TradersLinkAiReadSettings = {
   version: 9;
   lastUpdated: number;
-  model: "gpt-5.6-luna" | "gpt-5.6-terra";
-  reasoningEffort: "low" | "medium" | "high" | "xhigh";
+  model: WatchlistModel;
+  reasoningEffort: WatchlistReasoningEffort;
   externalResearchEnabled: boolean;
   generationEnabled: boolean;
   automaticUpdatesEnabled: boolean;
@@ -85,14 +87,11 @@ function validateSettings(value: unknown): TradersLinkAiReadSettings | null {
     version: SETTINGS_VERSION,
     lastUpdated: value.lastUpdated,
     model:
-      value.model === "gpt-5.6-luna" || value.model === "gpt-5.6-terra"
+      isWatchlistModel(value.model)
         ? value.model
         : DEFAULT_TRADERSLINK_AI_READ_MODEL,
     reasoningEffort:
-      value.reasoningEffort === "low" ||
-      value.reasoningEffort === "medium" ||
-      value.reasoningEffort === "high" ||
-      value.reasoningEffort === "xhigh"
+      isWatchlistReasoningEffort(value.reasoningEffort)
         ? value.reasoningEffort
         : DEFAULT_TRADERSLINK_AI_READ_REASONING_EFFORT,
     externalResearchEnabled: value.externalResearchEnabled,
@@ -188,8 +187,8 @@ export class TradersLinkAiReadSettingsPersistence {
   }
 
   save(input: boolean | {
-    model?: "gpt-5.6-luna" | "gpt-5.6-terra";
-    reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+    model?: WatchlistModel;
+    reasoningEffort?: WatchlistReasoningEffort;
     externalResearchEnabled: boolean;
     generationEnabled?: boolean;
     automaticUpdatesEnabled?: boolean;
