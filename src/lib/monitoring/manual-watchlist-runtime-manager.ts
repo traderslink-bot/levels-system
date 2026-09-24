@@ -68,6 +68,7 @@ import {
   resolveStockContextCurrentPrice,
 } from "../stock-context/finnhub-thread-preview.js";
 import {
+  buildLiveWatchlistAlertPatch,
   buildLiveWatchlistLevelsUnavailablePatch,
   buildLiveWatchlistSnapshotPatch,
   buildLiveWatchlistPullbackReadPatch,
@@ -3077,6 +3078,7 @@ class ActivationCancelledError extends Error {
 }
 
 export class ManualWatchlistRuntimeManager {
+  private readonly companyInfoRefreshInFlight = new Set<string>();
   private readonly levelEngine: LevelEngine;
   private readonly startupCachedLevelEngine: LevelEngine | null;
   private readonly watchlistStore: WatchlistStore;
@@ -4932,6 +4934,7 @@ export class ManualWatchlistRuntimeManager {
     } else if (claim.reason === "uncertain") {
       await publisher.replayPending?.();
     }
+    void this.refreshPublishedCompanyInfo(symbol);
     return this.getTradersLinkAiReadReview(symbol);
   }
 
@@ -4980,6 +4983,7 @@ export class ManualWatchlistRuntimeManager {
       await publisher.publish(approval.body.publication.website as unknown as LiveWatchlistCardPatch);
       store.recordDelivery(input.cycleId,store.read(input.cycleId)!.head,approval.revision,"website","acknowledged",claim.deliveryKey);
     } else if (claim.reason === "uncertain") { await publisher.replayPending?.(); }
+    void this.refreshPublishedCompanyInfo(symbol);
     return this.publishApprovedTradersLinkAiReadToDiscord({ symbol,cycleId:input.cycleId,approvalRevision:approval.revision });
   }
 
@@ -5889,6 +5893,38 @@ export class ManualWatchlistRuntimeManager {
         });
         console.error(`[ManualWatchlistRuntimeManager] Failed to generate AI clean read for ${params.symbol}: ${message}`);
       });
+  }
+
+  private async refreshPublishedCompanyInfo(symbolInput: string): Promise<void> {
+    const symbol = normalizeSymbol(symbolInput);
+    const entry = this.watchlistStore.getEntry(symbol);
+    const provider = this.options.stockContextProvider;
+    const publisher = this.liveWatchlistPublisher;
+    const cycleId = entry?.publicationReview?.cycleId;
+    const epoch = this.activationEpochs.get(symbol);
+    const canPublish = () => {
+      const current = this.watchlistStore.getEntry(symbol);
+      return current?.active === true && current.publicationReview?.cycleId === cycleId &&
+        this.activationEpochs.get(symbol) === epoch &&
+        this.isWatchlistPublicationApproved({ symbol, cards: {} });
+    };
+    if (!provider || !publisher || !canPublish() || this.companyInfoRefreshInFlight.has(symbol)) return;
+    this.companyInfoRefreshInFlight.add(symbol);
+    try {
+      const preview = await provider.getThreadPreview(symbol);
+      if (!canPublish()) return;
+      const timestamp = this.options.now?.() ?? Date.now();
+      const context = buildLiveWatchlistAlertPatch({ ...buildFinnhubThreadPreviewPayload(preview), timestamp });
+      const card = context?.cards.companyInfo;
+      if (!card || context?.symbol !== symbol) return;
+      // Website-only enrichment: never route through Discord, modify the frozen
+      // approval, reset Added time, or republish an analysis/private notes draft.
+      await publisher.publish({ symbol, updatedAt: timestamp, cards: { companyInfo: card } });
+    } catch (error) {
+      console.warn("[ManualWatchlistRuntimeManager] Company Info unavailable for " + symbol + ": " + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      this.companyInfoRefreshInFlight.delete(symbol);
+    }
   }
 
   private async maybePostStockContext(
@@ -11523,6 +11559,13 @@ export class ManualWatchlistRuntimeManager {
     }
 
     this.isStarted = true;
+    // Restore company cards for already-published review-mode entries. One
+    // serial, nonblocking pass; no AI request, approval, or notification replay.
+    void (async () => {
+      for (const entry of this.watchlistStore.getActiveEntries()) {
+        if (entry.publicationReview?.required) await this.refreshPublishedCompanyInfo(entry.symbol);
+      }
+    })();
     this.startActivationWatchdog();
     this.approvedDiscordRetryTimer = setInterval(() => void this.retryApprovedDiscordDeliveries(), 30_000);
     this.approvedDiscordRetryTimer.unref();
