@@ -4424,6 +4424,12 @@ export class ManualWatchlistRuntimeManager {
           dataAsOf,
         });
         read = await service.generate({
+          canStartFallback: () => {
+            const current = this.watchlistStore.getEntry(symbol);
+            return this.tradersLinkAiReadGenerationSettings.enabled && Boolean(current?.active) &&
+              current?.publicationReview?.cycleId === entry?.publicationReview?.cycleId &&
+              this.getTradersLinkAiReadDailyCostBudgetStatus().canStartRequest;
+          },
           analysisFormat,
           ownerReviewRequired: Boolean(reviewCycleId),
           onValidationDecision: (decision) => { validationDecisions.push(decision); },

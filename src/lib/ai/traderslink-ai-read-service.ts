@@ -1,4 +1,4 @@
-import { WATCHLIST_MODEL_PRICING, isWatchlistReasoningEffort } from "./watchlist-model-options.js";
+import { WATCHLIST_MODEL_PRICING, isWatchlistModel, isWatchlistReasoningEffort } from "./watchlist-model-options.js";
 import type { WatchlistModel, WatchlistReasoningEffort } from "./watchlist-model-options.js";
 import { createHash } from "node:crypto";
 import { buildSimpleAnalysisTestRequest, SIMPLE_ANALYSIS_PROMPT, SIMPLE_ANALYSIS_SCHEMA } from "./watchlist-simple-analysis.js";
@@ -45,7 +45,7 @@ import type {
 } from "../live-watchlist/live-watchlist-types.js";
 import { classifyUsEquityMarketSession } from "../market-data/us-equity-exchange-calendar.js";
 
-// Preserve both selectable models. A generation never sends a paid fallback.
+// Primary and optional fallback are selected explicitly by the owner.
 const DEFAULT_MODEL = "gpt-5.6-terra";
 // One bounded read per service-module load, not per ticker or request. This
 // identifies on-disk analysis modules; it is not a whole-runtime build claim.
@@ -136,6 +136,7 @@ type ModelRead = {
 };
 
 export type TradersLinkAiReadGenerationInput = {
+  canStartFallback?: () => boolean;
   analysisFormat?: "current" | "simple";
   snapshot: LevelSnapshotPayload;
   research: RecentWebsiteArticleLookupResult;
@@ -236,6 +237,8 @@ export type TradersLinkAiReadService = {
   getReasoningEffort(): NonNullable<OpenAITradersLinkAiReadServiceOptions["reasoningEffort"]>;
   setRuntimeConfiguration(input: {
     model: WatchlistModel;
+    fallbackModel?: WatchlistModel | null;
+    fallbackReasoningEffort?: WatchlistReasoningEffort;
     reasoningEffort: NonNullable<OpenAITradersLinkAiReadServiceOptions["reasoningEffort"]>;
   }): void;
 };
@@ -244,6 +247,7 @@ export type OpenAITradersLinkAiReadServiceOptions = {
   apiKey: string;
   model?: string;
   fallbackModel?: string;
+  fallbackReasoningEffort?: WatchlistReasoningEffort;
   reasoningEffort?: WatchlistReasoningEffort;
   webSearchEnabled?: boolean;
   timeoutMs?: number;
@@ -2441,7 +2445,8 @@ function resolveBoolean(value: string | undefined, fallback: boolean): boolean {
 
 export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService {
   private model: string;
-  private fallbackModel: string;
+  private fallbackModel: WatchlistModel | null;
+  private fallbackReasoningEffort: WatchlistReasoningEffort;
   private readonly fetchImpl: FetchLike;
   private readonly timeoutMs: number;
   private readonly maxOutputTokens: number;
@@ -2450,7 +2455,8 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
 
   constructor(private readonly options: OpenAITradersLinkAiReadServiceOptions) {
     this.model = options.model?.trim() || DEFAULT_MODEL;
-    this.fallbackModel = options.fallbackModel?.trim() || DEFAULT_FALLBACK_MODEL;
+    this.fallbackModel = isWatchlistModel(options.fallbackModel) ? options.fallbackModel : null;
+    this.fallbackReasoningEffort = options.fallbackReasoningEffort ?? "medium";
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxOutputTokens = options.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
@@ -2476,11 +2482,13 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
 
   setRuntimeConfiguration(input: {
     model: WatchlistModel;
+    fallbackModel?: WatchlistModel | null;
+    fallbackReasoningEffort?: WatchlistReasoningEffort;
     reasoningEffort: NonNullable<OpenAITradersLinkAiReadServiceOptions["reasoningEffort"]>;
   }): void {
     this.model = input.model;
-    this.fallbackModel =
-      input.model === "gpt-5.6-luna" ? "gpt-5.6-terra" : "gpt-5.6-luna";
+    if (input.fallbackModel !== undefined) this.fallbackModel = input.fallbackModel;
+    if (input.fallbackReasoningEffort !== undefined) this.fallbackReasoningEffort = input.fallbackReasoningEffort;
     this.reasoningEffort = input.reasoningEffort;
   }
 
@@ -2571,6 +2579,33 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
   }
 
   async generate(input: TradersLinkAiReadGenerationInput): Promise<TradersLinkAiReadPayload> {
+    const generationId = input.generationId?.trim() ||
+      `${normalizeSymbol(input.snapshot.symbol)}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    // Each request uses a frozen configuration, never a mutation of this shared service.
+    const fallbackModel = this.fallbackModel;
+    const fallbackEffort = this.fallbackReasoningEffort;
+    const primary = new OpenAITradersLinkAiReadService({ ...this.options,
+      model: this.model, reasoningEffort: this.reasoningEffort,
+      webSearchEnabled: this.webSearchEnabled, fallbackModel: undefined });
+    const fallback = fallbackModel ? new OpenAITradersLinkAiReadService({ ...this.options,
+      model: fallbackModel, reasoningEffort: fallbackEffort,
+      webSearchEnabled: this.webSearchEnabled, fallbackModel: undefined }) : null;
+    let failedAttempt = false;
+    try {
+      return await primary.generateSingle({ ...input, generationId, onAttempt: attempt => {
+        input.onAttempt?.(attempt);
+        failedAttempt = attempt.status !== "success";
+      } }, "primary", 1);
+    } catch (error) {
+      // Never retry preflight, saved-draft or diagnostic/ledger failures.
+      if (!fallback || !failedAttempt || input.canStartFallback?.() === false) throw error;
+      return fallback.generateSingle({ ...input, generationId }, "fallback", 2);
+    }
+  }
+
+  private async generateSingle(input: TradersLinkAiReadGenerationInput,
+    attemptType: "primary" | "fallback", requestSequence: number): Promise<TradersLinkAiReadPayload> {
+
     if (input.analysisFormat === "simple" && !input.ownerReviewRequired) throw new Error("Simple analysis requires owner review.");
     const fallbackDataAsOf = input.dataAsOf ?? input.snapshot.timestamp;
     const referenceQuote = resolveTradersLinkAiReadReferenceQuote(
@@ -2582,7 +2617,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     const symbol = normalizeSymbol(input.snapshot.symbol);
     const generationId = input.generationId?.trim() ||
       `${symbol}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    const clientRequestId = `${generationId}-request-1`;
+    const clientRequestId = `${generationId}-request-${requestSequence}`;
     const capture = (phase: AiReadAuditEvent["phase"], payload: unknown): void => {
       if (input.ownerReviewRequired && phase === "validation" && payload && typeof payload === "object" &&
         "stage" in payload && payload.stage !== "api_attempt") {
@@ -2608,7 +2643,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       try { input.onAuditCapture?.(result); } catch { /* diagnostic observer cannot retry generation */ }
       if (!result.saved) console.warn(`[TradersLinkAiRead] Audit capture unavailable: ${result.reason}`);
     };
-    let attemptSequence = 0;
+    let attemptSequence = requestSequence - 1;
     const recordAttempt = (
       attemptType: TradersLinkAiReadAttempt["attemptType"],
       status: TradersLinkAiReadAttempt["status"],
@@ -2674,10 +2709,9 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       response = await this.request(model, input, dataAsOf, clientRequestId, capture);
     } catch (error) {
       capture("transport_error", { message: error instanceof Error ? error.message : String(error) });
-      // One generation is one provider request. Preserve the configured model
-      // choices, but never start an unrequested paid fallback for this draft.
+      // This attempt sends one request; the outer coordinator owns optional fallback.
       recordAttempt(
-        "primary",
+        attemptType,
         "transport_error",
         model,
         (error as Error & { responsePayload?: ResponsesApiResponse }).responsePayload ?? null,
@@ -2687,7 +2721,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       throw error;
     }
 
-    const initialAttemptType: TradersLinkAiReadAttempt["attemptType"] = "primary";
+    const initialAttemptType = attemptType;
 
     if (input.analysisFormat === "simple") {
       try {
@@ -3206,7 +3240,7 @@ export function createTradersLinkAiReadServiceFromEnv(
     apiKey,
     auditStore: new TradersLinkAiReadAuditStore({ directory: join(resolveManualWatchlistDurableDirectory(env), "ai-read-diagnostics") }),
     model: env.TRADERSLINK_AI_READ_MODEL?.trim() || DEFAULT_MODEL,
-    fallbackModel: env.TRADERSLINK_AI_READ_FALLBACK_MODEL?.trim() || DEFAULT_FALLBACK_MODEL,
+    // Automatic fallback is Off until explicitly selected in AI Controls.
     reasoningEffort,
     webSearchEnabled: resolveBoolean(env.TRADERSLINK_AI_READ_WEB_SEARCH_ENABLED, false),
     timeoutMs: resolvePositiveInteger(env.TRADERSLINK_AI_READ_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),

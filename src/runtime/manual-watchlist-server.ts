@@ -804,6 +804,8 @@ async function main(): Promise<void> {
       persistedTradersLinkAiReadSettings?.reasoningEffort ??
       tradersLinkAiReadService?.getReasoningEffort() ??
       "medium",
+    fallbackModel: persistedTradersLinkAiReadSettings?.fallbackModel ?? null,
+    fallbackReasoningEffort: persistedTradersLinkAiReadSettings?.fallbackReasoningEffort ?? "medium",
   } as const;
   let liveTraderReadCardVisible =
     persistedTradersLinkAiReadSettings?.liveTraderReadCardVisible ?? true;
@@ -1282,6 +1284,8 @@ async function main(): Promise<void> {
         aiCommentaryEnabled: aiCommentaryService !== null,
         aiReadConfigured: manager.isTradersLinkAiReadConfigured(),
         aiReadExternalResearchEnabled,
+        aiReadFallbackModel: aiReadModelSettings.fallbackModel,
+        aiReadFallbackReasoningEffort: aiReadModelSettings.fallbackReasoningEffort,
         aiReadModel: tradersLinkAiReadService?.getConfiguredModel() ?? null,
         aiReadReasoningEffort: tradersLinkAiReadService?.getReasoningEffort() ?? null,
         aiReadDailyCostBudget: manager.getTradersLinkAiReadDailyCostBudget(),
@@ -1485,12 +1489,16 @@ async function main(): Promise<void> {
           });
           return;
         }
-        aiReadModelSettings = { model, reasoningEffort };
-        tradersLinkAiReadService?.setRuntimeConfiguration(aiReadModelSettings);
+        const fallbackModel = body.fallbackModel === undefined ? aiReadModelSettings.fallbackModel : body.fallbackModel;
+        const fallbackReasoningEffort = body.fallbackReasoningEffort === undefined ? aiReadModelSettings.fallbackReasoningEffort : body.fallbackReasoningEffort;
+        if ((fallbackModel !== null && !isWatchlistModel(fallbackModel)) || !isWatchlistReasoningEffort(fallbackReasoningEffort)) {
+          sendJson(response, 400, { error: "Choose Off or a supported fallback model and effort." });
+          return;
+        }
+        const nextModelSettings = { model, reasoningEffort, fallbackModel, fallbackReasoningEffort };
         const visibility = manager.getRuntimeHealth();
         tradersLinkAiReadSettingsPersistence.save({
-          model,
-          reasoningEffort,
+          ...nextModelSettings,
           externalResearchEnabled: aiReadExternalResearchEnabled,
           generationEnabled: aiReadGenerationSettings.enabled,
           premarketGenerationEnabled: aiReadGenerationSettings.premarketEnabled,
@@ -1506,6 +1514,8 @@ async function main(): Promise<void> {
           dailyCostBudgetEnabled: aiReadDailyCostBudget.enabled,
           dailyCostBudgetUsd: aiReadDailyCostBudget.dailyLimitUsd,
         });
+        aiReadModelSettings = nextModelSettings;
+        tradersLinkAiReadService?.setRuntimeConfiguration(aiReadModelSettings);
         sendJson(response, 200, { ok: true, ...aiReadModelSettings });
       } catch (error) {
         if (error instanceof RequestBodyParseError) {

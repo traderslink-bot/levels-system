@@ -407,9 +407,22 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             <option value="xhigh">Extra high</option>
             <option value="max">Max</option>
           </select>
+          <label for="ai-read-fallback-model-select">Fallback model</label>
+          <select id="ai-read-fallback-model-select"><option value="">Off</option><option value="gpt-5.6-luna">GPT-5.6 Luna</option>
+<option value="gpt-5.6-terra">GPT-5.6 Terra</option>
+<option value="gpt-6-luna">GPT-6 Luna</option>
+<option value="gpt-6-sol">GPT-6 Sol</option></select>
+          <label for="ai-read-fallback-effort-select">Fallback effort</label>
+          <select id="ai-read-fallback-effort-select"><option value="none">None</option>
+<option value="low">Low</option>
+<option value="medium">Medium</option>
+<option value="high">High</option>
+<option value="xhigh">Extra high</option>
+<option value="max">Max</option></select>
           <button id="ai-read-model-apply" type="button">Apply Model</button>
         </div>
         <div class="inline-status" id="ai-read-model-status"></div>
+        <div class="inline-status">Fallback makes one extra paid request only if the first attempt fails to produce a draft. Both attempts appear in usage. Your approval is still required before publishing.</div>
       </div>
       <div class="provider-control">
         <label for="ai-read-generation-toggle">AI Read Generation</label>
@@ -667,6 +680,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const topRegularWatchlistVisibleLabelEl = document.getElementById("top-regular-watchlist-visible-label");
     const topRegularWatchlistVisibleStatusEl = document.getElementById("top-regular-watchlist-visible-status");
     const aiReadGenerationToggleEl = document.getElementById("ai-read-generation-toggle");
+    const aiReadFallbackModelEl = document.getElementById("ai-read-fallback-model-select");
+    const aiReadFallbackEffortEl = document.getElementById("ai-read-fallback-effort-select");
+    let aiReadModelEditing = false;
     const aiReadModelSelectEl = document.getElementById("ai-read-model-select");
     const aiReadReasoningEffortSelectEl = document.getElementById("ai-read-reasoning-effort-select");
     const aiReadModelApplyEl = document.getElementById("ai-read-model-apply");
@@ -1438,12 +1454,28 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       return "$" + amount.toFixed(amount >= 1 ? 2 : 4);
     }
 
+    function fallbackStatus(model, effort) {
+      const names = {"gpt-5.6-luna":"GPT-5.6 Luna","gpt-5.6-terra":"GPT-5.6 Terra","gpt-6-luna":"GPT-6 Luna","gpt-6-sol":"GPT-6 Sol"};
+      return model ? " Fallback: " + (names[model] || model) + " at " + (effort || "medium") + " effort." : " Fallback: Off.";
+    }
+    for (const control of [aiReadModelSelectEl, aiReadReasoningEffortSelectEl, aiReadFallbackModelEl, aiReadFallbackEffortEl]) {
+      control.addEventListener("change", () => {
+        aiReadModelEditing = true;
+        aiReadFallbackEffortEl.disabled = !aiReadConfigured || !aiReadFallbackModelEl.value;
+      });
+    }
     function renderAiReadControls(status) {
       aiReadConfigured = status.aiReadConfigured === true;
-      if (status.aiReadModel) aiReadModelSelectEl.value = status.aiReadModel;
-      if (status.aiReadReasoningEffort) {
+      if (!aiReadModelEditing && status.aiReadModel) aiReadModelSelectEl.value = status.aiReadModel;
+      if (!aiReadModelEditing && status.aiReadReasoningEffort) {
         aiReadReasoningEffortSelectEl.value = status.aiReadReasoningEffort;
       }
+      if (!aiReadModelEditing && Object.prototype.hasOwnProperty.call(status, "aiReadFallbackModel")) {
+        aiReadFallbackModelEl.value = status.aiReadFallbackModel || "";
+        aiReadFallbackEffortEl.value = status.aiReadFallbackReasoningEffort || "medium";
+      }
+      aiReadFallbackModelEl.disabled = !aiReadConfigured;
+      aiReadFallbackEffortEl.disabled = !aiReadConfigured || !aiReadFallbackModelEl.value;
       aiReadModelSelectEl.disabled = !aiReadConfigured;
       aiReadReasoningEffortSelectEl.disabled = !aiReadConfigured;
       aiReadModelApplyEl.disabled = !aiReadConfigured;
@@ -1451,7 +1483,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ? "Current: " +
           ({"gpt-5.6-luna":"GPT-5.6 Luna","gpt-5.6-terra":"GPT-5.6 Terra","gpt-6-luna":"GPT-6 Luna","gpt-6-sol":"GPT-6 Sol"}[status.aiReadModel] || status.aiReadModel) +
           " at " + String(status.aiReadReasoningEffort || "medium") +
-          " effort. The other model is used as the fallback."
+          " effort." + fallbackStatus(status.aiReadFallbackModel, status.aiReadFallbackReasoningEffort)
         : "Configure the TradersLink AI Read service before selecting a model.";
       const generationSettings =
         status.runtimeHealth?.tradersLinkAiReadGenerationSettings || aiReadGenerationSettings;
@@ -3311,6 +3343,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           body: JSON.stringify({
             model: aiReadModelSelectEl.value,
             reasoningEffort: aiReadReasoningEffortSelectEl.value,
+            fallbackModel: aiReadFallbackModelEl.value || null,
+            fallbackReasoningEffort: aiReadFallbackEffortEl.value || "medium",
           }),
         });
         const payload = await response.json();
@@ -3326,12 +3360,15 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         // The successful response is authoritative. Update the visible
         // current-model sentence immediately instead of waiting for the next
         // status refresh.
+        aiReadModelEditing = false;
+        aiReadFallbackModelEl.value = payload.fallbackModel || "";
+        aiReadFallbackEffortEl.value = payload.fallbackReasoningEffort || "medium";
         aiReadModelSelectEl.value = payload.model;
         aiReadReasoningEffortSelectEl.value = payload.reasoningEffort;
         aiReadModelStatusEl.textContent =
           "Current: " + ({"gpt-5.6-luna":"GPT-5.6 Luna","gpt-5.6-terra":"GPT-5.6 Terra","gpt-6-luna":"GPT-6 Luna","gpt-6-sol":"GPT-6 Sol"}[payload.model] || payload.model) +
           " at " + payload.reasoningEffort +
-          " effort. The other model is used as the fallback.";
+          " effort." + fallbackStatus(payload.fallbackModel, payload.fallbackReasoningEffort);
         void loadRuntimeStatus().catch((error) => setStatus(String(error), true));
       } catch (error) {
         setStatus(String(error), true);

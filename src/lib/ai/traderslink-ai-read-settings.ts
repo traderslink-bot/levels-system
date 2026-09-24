@@ -8,6 +8,8 @@ export type TradersLinkAiReadSettings = {
   lastUpdated: number;
   model: WatchlistModel;
   reasoningEffort: WatchlistReasoningEffort;
+  fallbackModel?: WatchlistModel | null;
+  fallbackReasoningEffort?: WatchlistReasoningEffort;
   externalResearchEnabled: boolean;
   generationEnabled: boolean;
   automaticUpdatesEnabled: boolean;
@@ -94,6 +96,8 @@ function validateSettings(value: unknown): TradersLinkAiReadSettings | null {
       isWatchlistReasoningEffort(value.reasoningEffort)
         ? value.reasoningEffort
         : DEFAULT_TRADERSLINK_AI_READ_REASONING_EFFORT,
+    fallbackModel: isWatchlistModel(value.fallbackModel) ? value.fallbackModel : null,
+    fallbackReasoningEffort: isWatchlistReasoningEffort(value.fallbackReasoningEffort) ? value.fallbackReasoningEffort : "medium",
     externalResearchEnabled: value.externalResearchEnabled,
     automaticUpdatesEnabled: value.automaticUpdatesEnabled === true,
     reviewBeforePublishingEnabled: value.reviewBeforePublishingEnabled !== false,
@@ -189,6 +193,8 @@ export class TradersLinkAiReadSettingsPersistence {
   save(input: boolean | {
     model?: WatchlistModel;
     reasoningEffort?: WatchlistReasoningEffort;
+    fallbackModel?: WatchlistModel | null;
+    fallbackReasoningEffort?: WatchlistReasoningEffort;
     externalResearchEnabled: boolean;
     generationEnabled?: boolean;
     automaticUpdatesEnabled?: boolean;
@@ -234,6 +240,8 @@ export class TradersLinkAiReadSettingsPersistence {
       : input;
     const values = {
       ...rawValues,
+      fallbackModel: (typeof input === "object" && input.fallbackModel !== undefined) ? input.fallbackModel : existing?.fallbackModel ?? null,
+      fallbackReasoningEffort: (typeof input === "object" ? input.fallbackReasoningEffort : undefined) ?? existing?.fallbackReasoningEffort ?? "medium",
       model: rawValues.model ?? existing?.model ?? DEFAULT_TRADERSLINK_AI_READ_MODEL,
       reasoningEffort:
         rawValues.reasoningEffort ??

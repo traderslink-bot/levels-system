@@ -2433,3 +2433,61 @@ describe("OpenAITradersLinkAiReadService", () => {
     }), null);
   });
 });
+
+describe("optional fallback", () => {
+  const input = () => ({ snapshot: snapshot(), priceAction: priceAction(), ownerReviewRequired: true,
+    generationId: "fallback-fixture", research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
+  const good = () => ({ id: "response-success", status: "completed", usage: { input_tokens: 100, output_tokens: 50, total_tokens: 150 },
+    output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(modelRead()) }] }] });
+  for (const mode of ["off", "success", "both-fail", "primary-success", "budget", "no-data", "observer", "simple-fail", "simple-success"] as const) {
+    it(`optional fallback: ${mode}`, async () => {
+      const requests: Array<{model:string; reasoning:{effort:string}; id:string}> = [];
+      const attempts: import("../lib/ai/traderslink-ai-read-service.js").TradersLinkAiReadAttempt[] = [];
+      const audit: Array<{ requestId:string; phase:string }> = [];
+      const service = new OpenAITradersLinkAiReadService({apiKey:"fixture-key", model:"gpt-6-luna", reasoningEffort:"high",
+        ...(mode === "off" ? {} : {fallbackModel:"gpt-6-sol",fallbackReasoningEffort:"low" as const}),
+        auditStore: {save: (event: import("../lib/ai/traderslink-ai-read-audit.js").AiReadAuditEvent) => {audit.push(event);return {saved:true};}} as unknown as import("../lib/ai/traderslink-ai-read-audit.js").TradersLinkAiReadAuditStore,
+        fetchImpl: async (_url, init) => {
+          const body=JSON.parse(String(init?.body));
+          requests.push({...body,id:(init?.headers as Record<string,string>)["X-Client-Request-Id"]});
+          const valid=mode === "primary-success" || (requests.length === 2 && mode !== "both-fail" && mode !== "simple-fail");
+          const result = good();
+          if (mode === "simple-success") result.output[0]!.content[0]!.text = JSON.stringify({setup:"Fixture",pullbacks:[],upside:[],invalidation:null});
+          return new Response(JSON.stringify(valid ? result : {id:"failed-"+requests.length,status:"incomplete",
+            usage:{input_tokens:100,output_tokens:20,total_tokens:120},output:[]}),{status:200});
+        }});
+      const args = {...input(), ...(mode === "no-data" ? {priceAction:undefined} : {}),
+        ...(mode.startsWith("simple-") ? {analysisFormat:"simple" as const} : {}),
+        canStartFallback: () => mode !== "budget",
+        onAttempt: (attempt: import("../lib/ai/traderslink-ai-read-service.js").TradersLinkAiReadAttempt) => {
+          if(mode === "observer") throw new Error("ledger failure");
+          attempts.push(attempt);
+        }};
+      if(mode === "success" || mode === "primary-success" || mode === "simple-success") {
+        const result=await service.generate(args);
+        assert.equal(result.model,mode === "primary-success" ? "gpt-6-luna" : "gpt-6-sol");
+      } else await assert.rejects(service.generate(args));
+      const count=mode === "no-data" ? 0 : ["success","both-fail","simple-fail","simple-success"].includes(mode) ? 2 : 1;
+      assert.equal(requests.length,count);
+      if(count === 2) {
+        assert.deepEqual(requests.map(r=>r.model),["gpt-6-luna","gpt-6-sol"]);
+        assert.deepEqual(requests.map(r=>r.reasoning.effort),["high","low"]);
+        assert.deepEqual(requests.map(r=>r.id),["fallback-fixture-request-1","fallback-fixture-request-2"]);
+        assert.deepEqual(attempts.map(a=>a.attemptType),["primary","fallback"]);
+        assert.equal(attempts[0]!.generationId,attempts[1]!.generationId);
+        assert.ok(attempts.every(a=>a.usage.estimatedTotalCostUsd! > 0));
+        assert.deepEqual(audit.filter(a=>a.phase === "request").map(a=>a.requestId),requests.map(r=>r.id));
+      }
+    });
+  }
+  it("optional fallback: transport failure uses frozen settings and does not change configured primary", async () => {
+    let calls=0; const models:string[]=[];
+    const service=new OpenAITradersLinkAiReadService({apiKey:"fixture",model:"gpt-6-luna",fallbackModel:"gpt-6-sol",fallbackReasoningEffort:"low",
+      fetchImpl:async(_url,init)=>{calls++;models.push(JSON.parse(String(init?.body)).model);
+        if(calls===1){service.setRuntimeConfiguration({model:"gpt-5.6-terra",reasoningEffort:"max",fallbackModel:null});throw new Error("network failure");}
+        return new Response(JSON.stringify(good()),{status:200});}});
+    const read=await service.generate(input());
+    assert.equal(read.model,"gpt-6-sol");assert.deepEqual(models,["gpt-6-luna","gpt-6-sol"]);
+    assert.equal(service.getConfiguredModel(),"gpt-5.6-terra");assert.equal(calls,2);
+  });
+});
