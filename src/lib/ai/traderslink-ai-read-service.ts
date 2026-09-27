@@ -2356,12 +2356,18 @@ function buildRequestBody(args: {
     rejectedDraft: string | null;
   };
 }): Record<string, unknown> {
+  // Reasoning and visible JSON share this allowance. Extra High exhausted the
+  // former 16k cap before producing any analysis in both saved GYGY attempts.
+  const maxOutputTokens = args.reasoningEffort === "xhigh"
+    ? Math.max(args.maxOutputTokens, 32_000)
+    : args.maxOutputTokens;
   if (args.input.analysisFormat === "simple") {
     if (!args.input.ownerReviewRequired) throw new Error("Simple analysis requires owner review.");
     return { ...buildSimpleAnalysisTestRequest({
       marketPacket: simpleMarketPacket(args.input, args.dataAsOf),
       primaryCatalystResearch: compactResearch(args.input.research),
-    }), model: args.model, reasoning: { effort: args.reasoningEffort ?? "high" } };
+    }), model: args.model, reasoning: { effort: args.reasoningEffort ?? "high" },
+      max_output_tokens: maxOutputTokens };
   }
   const correctionInput = args.correction
     ? [{
@@ -2387,7 +2393,7 @@ function buildRequestBody(args: {
   return {
     model: args.model,
     reasoning: { effort: args.reasoningEffort ?? "medium" },
-    max_output_tokens: args.maxOutputTokens,
+    max_output_tokens: maxOutputTokens,
     ...(args.webSearchEnabled ? { tools: [{ type: "web_search",
       ...(!stockTitanSearchAllowed(args.input.research) ? { filters: { blocked_domains: ["stocktitan.net"] } } : {}),
     }] } : {}),
