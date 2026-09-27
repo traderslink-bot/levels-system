@@ -879,6 +879,9 @@ async function main(): Promise<void> {
   const manager = new ManualWatchlistRuntimeManager({
     tradersLinkAiReadReviewStore: new TradersLinkAiReadReviewStore(join(durableDataDirectory, "ai-read-owner-reviews")),
     initialReviewBeforePublishingEnabled: persistedTradersLinkAiReadSettings?.reviewBeforePublishingEnabled ?? true,
+    initialAutoPublishBoundaryRefreshes: persistedTradersLinkAiReadSettings?.autoPublishBoundaryRefreshes ?? false,
+    initialOwnerReviewNotificationsEnabled: persistedTradersLinkAiReadSettings?.ownerReviewNotificationsEnabled ?? true,
+    initialOwnerReviewDiscordEnabled: persistedTradersLinkAiReadSettings?.ownerReviewDiscordEnabled ?? true,
     initialAnalysisFormat: persistedTradersLinkAiReadSettings?.analysisFormat ?? "current",
     candleFetchService: candleService,
     startupCachedCandleFetchService,
@@ -1161,6 +1164,7 @@ async function main(): Promise<void> {
             tradersLinkAiReadSettingsPersistence.save({ ...saved, ...settings });
             aiReadGenerationSettings = manager.setTradersLinkAiReadGenerationSettings({ ...aiReadGenerationSettings, automaticUpdatesEnabled: settings.automaticUpdatesEnabled });
             manager.setTradersLinkAiReadReviewBeforePublishing(settings.reviewBeforePublishingEnabled);
+            manager.setAutomaticAnalysisPublicationControls(settings);
             if (settings.analysisFormat) manager.setTradersLinkAiReadAnalysisFormat(settings.analysisFormat);
             return manager.getTradersLinkAiReadReviewControls();
           },

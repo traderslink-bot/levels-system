@@ -6,11 +6,13 @@ import { loadDiscordMentions, saveDiscordMentions } from "../lib/alerts/watchlis
 type ReviewManager = Pick<ManualWatchlistRuntimeManager,
   "getTradersLinkAiReadReview" | "getTradersLinkAiReadPublicationPreview" | "listTradersLinkAiReadReviews" |
   "listTradersLinkAiReadHistory" | "getHistoricalTradersLinkAiReadReview" |
+  "getAutomaticAnalysisEvents" |
   "saveTraderNotes" | "saveTradersLinkAiReadOwnerEdit" | "approveTradersLinkAiRead" | "publishTickerWithoutAnalysis" |
   "verifyTradersLinkAiReadDiscordReceipt" |
   "publishApprovedTradersLinkAiReadToDiscord">;
 
 export const ANALYSIS_REVIEW_PATHS = new Set([
+  "/api/watchlist/automatic-analysis-events",
   "/api/watchlist/published-analysis-history",
   "/api/watchlist/analysis-review/discord-mentions",
   "/api/watchlist/analysis-review/publish-without-analysis",
@@ -33,11 +35,15 @@ export async function dispatchAnalysisReviewRequest(input: {
   body?: unknown; actor: string | undefined;
 }, manager: ReviewManager, controls?: {
   get(): { automaticUpdatesEnabled: boolean; reviewBeforePublishingEnabled: boolean; analysisFormat?: "current" | "simple" };
-  save(input: { automaticUpdatesEnabled: boolean; reviewBeforePublishingEnabled: boolean; analysisFormat?: "current" | "simple" }): unknown;
+  save(input: { automaticUpdatesEnabled: boolean; reviewBeforePublishingEnabled: boolean; analysisFormat?: "current" | "simple"; autoPublishBoundaryRefreshes?: boolean; ownerReviewNotificationsEnabled?: boolean; ownerReviewDiscordEnabled?: boolean }): unknown;
   exportAudit?(symbol: string, generationId: string, cycleId?: string): unknown;
 }): Promise<{ status: number; body: unknown }> {
   // Runtime bearer authentication has already succeeded. Unlike the private
   // review API, this projection returns only acknowledged public time/price rows.
+  if (input.pathname === "/api/watchlist/automatic-analysis-events") {
+    if (input.method !== "GET") return { status: 405, body: { error: "Method not allowed." } };
+    return { status: 200, body: manager.getAutomaticAnalysisEvents() };
+  }
   if (input.pathname === "/api/watchlist/published-analysis-history") {
     if (input.method !== "GET") return { status: 405, body: { error: "Method not allowed." } };
     const symbol = input.searchParams.get("symbol") ?? "";
@@ -101,8 +107,14 @@ export async function dispatchAnalysisReviewRequest(input: {
       const settings = input.body as Record<string, unknown> | undefined;
       if (!settings || Array.isArray(settings) || typeof settings.automaticUpdatesEnabled !== "boolean" || typeof settings.reviewBeforePublishingEnabled !== "boolean" ||
         (settings.analysisFormat !== undefined && settings.analysisFormat !== "current" && settings.analysisFormat !== "simple") ||
-        Object.keys(settings).some((key) => key !== "automaticUpdatesEnabled" && key !== "reviewBeforePublishingEnabled" && key !== "analysisFormat")) throw new Error("Invalid review request.");
-      return { status: 200, body: { settings: controls.save({ automaticUpdatesEnabled: settings.automaticUpdatesEnabled, reviewBeforePublishingEnabled: settings.reviewBeforePublishingEnabled, ...(settings.analysisFormat ? {analysisFormat:settings.analysisFormat as "current" | "simple"} : {}) }) } };
+        ["autoPublishBoundaryRefreshes", "ownerReviewNotificationsEnabled", "ownerReviewDiscordEnabled"].some(key => settings[key] !== undefined && typeof settings[key] !== "boolean") ||
+        Object.keys(settings).some((key) => !["automaticUpdatesEnabled", "reviewBeforePublishingEnabled", "analysisFormat", "autoPublishBoundaryRefreshes", "ownerReviewNotificationsEnabled", "ownerReviewDiscordEnabled"].includes(key))) throw new Error("Invalid review request.");
+      return { status: 200, body: { settings: controls.save({ automaticUpdatesEnabled: settings.automaticUpdatesEnabled, reviewBeforePublishingEnabled: settings.reviewBeforePublishingEnabled,
+        ...(settings.analysisFormat ? {analysisFormat:settings.analysisFormat as "current" | "simple"} : {}),
+        ...(typeof settings.autoPublishBoundaryRefreshes === "boolean" ? { autoPublishBoundaryRefreshes: settings.autoPublishBoundaryRefreshes } : {}),
+        ...(typeof settings.ownerReviewNotificationsEnabled === "boolean" ? { ownerReviewNotificationsEnabled: settings.ownerReviewNotificationsEnabled } : {}),
+        ...(typeof settings.ownerReviewDiscordEnabled === "boolean" ? { ownerReviewDiscordEnabled: settings.ownerReviewDiscordEnabled } : {}),
+      }) } };
     }
     const body = readOnly ? { symbol: input.searchParams.get("symbol") } : input.body;
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("Invalid review request.");

@@ -5,11 +5,19 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   <div class="provider-control">
     <label for="analysis-review-format">Analysis format</label>
     <select id="analysis-review-format" disabled><option value="current">Current analysis</option><option value="simple">Simple analysis</option></select>
-    <p>Applies to new requests only. Simple analysis always waits for your review before publishing.</p>
+    <p>Applies to new requests only. Initial analyses and manual refreshes keep their review workflow.</p>
     <label><input type="checkbox" id="analysis-review-automatic" style="width:auto" disabled /> Automatic AI updates</label>
     <p>When off, automatic follow-up AI requests stop. Manual refresh and live price/data updates remain available.</p>
     <label><input type="checkbox" id="analysis-review-required" style="width:auto" disabled /> Review before publishing</label>
     <p>When on, new tickers wait for your approval when AI generation and the current session are enabled. Existing drafts stay held until approved.</p>
+    <p id="analysis-review-effective" role="status"></p>
+    <label><input type="checkbox" id="analysis-review-auto-publish" style="width:auto" disabled /> Automatically publish refreshed analyses</label>
+    <p>Applies to new automatic boundary refreshes only. When off, review and approve the replacement first. When on, publish it and send the normal Analysis updated notifications. Initial analyses and manual refreshes are unchanged.</p>
+    <label><input type="checkbox" id="analysis-review-owner-notify" style="width:auto" disabled /> Notify me when an analysis needs review</label>
+    <p>Notify your owner account when an automatic refreshed analysis is ready. Push uses your account's notification preferences and subscribed devices.</p>
+    <label><input type="checkbox" id="analysis-review-owner-discord" style="width:auto" disabled /> Send review notifications to Discord</label>
+    <p>Uses the separately configured private owner channel, not the member Watchlist channel.</p>
+    <p id="analysis-review-owner-delivery" role="status"></p>
     <button type="button" id="analysis-review-settings-save" disabled>Save review controls</button>
     <button type="button" id="analysis-review-settings-load" class="secondary">Reload review controls</button>
   </div>
@@ -101,7 +109,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     const controls = Array.from(document.querySelectorAll("#analysis-review-panel button, #analysis-review-panel input, #analysis-review-panel textarea, #analysis-review-panel select"));
     controls.forEach((control) => { control.disabled = true; });
     try { await operation(); } catch (error) { message(error.message || "Review could not complete."); }
-    finally { busy = false; controls.forEach((control) => { control.disabled = false; }); byId("approve").disabled = !preview || dirty; ["automatic", "required", "format", "settings-save"].forEach((id) => { byId(id).disabled = !controlsLoaded; }); }
+    finally { busy = false; controls.forEach((control) => { control.disabled = false; }); byId("approve").disabled = !preview || dirty; ["automatic", "required", "format", "auto-publish", "owner-notify", "owner-discord", "settings-save"].forEach((id) => { byId(id).disabled = !controlsLoaded; }); }
   }
   function input(parent, label, object, key, numeric) {
     const wrapper = node("label", label, parent);
@@ -454,6 +462,15 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   const showSettings = (settings) => {
     byId("automatic").checked = settings.automaticUpdatesEnabled;
     byId("required").checked = settings.reviewBeforePublishingEnabled;
+    byId("auto-publish").checked = settings.autoPublishBoundaryRefreshes === true;
+    byId("owner-notify").checked = settings.ownerReviewNotificationsEnabled !== false;
+    byId("owner-discord").checked = settings.ownerReviewDiscordEnabled !== false;
+    byId("owner-delivery").textContent = settings.ownerReviewDeliveryStatus || "Owner delivery status is available in the dashboard Watchlist Admin.";
+    ["auto-publish", "owner-notify", "owner-discord"].forEach(id => { byId(id).disabled = false; });
+    byId("effective").textContent = !settings.automaticUpdatesEnabled
+      ? "Automatic boundary refresh is paused: Automatic AI updates is off."
+      : !settings.boundaryRefreshEnabled ? "Automatic boundary refresh is off."
+      : "Automatic boundary refresh is on, subject to session settings and request limits.";
     byId("format").value = settings.analysisFormat || "current";
     controlsLoaded = true;
   };
@@ -473,7 +490,8 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   byId("settings-load").onclick = loadSettings;
   byId("settings-save").onclick = () => run(async () => {
     if (!controlsLoaded) throw new Error("Load the saved controls first.");
-    const result = await request("/settings", { automaticUpdatesEnabled: byId("automatic").checked, reviewBeforePublishingEnabled: byId("required").checked, analysisFormat:byId("format").value });
+    const result = await request("/settings", { automaticUpdatesEnabled: byId("automatic").checked, reviewBeforePublishingEnabled: byId("required").checked, analysisFormat:byId("format").value,
+      autoPublishBoundaryRefreshes: byId("auto-publish").checked, ownerReviewNotificationsEnabled: byId("owner-notify").checked, ownerReviewDiscordEnabled: byId("owner-discord").checked });
     showSettings(result.settings); message("Review controls saved. Session settings and existing pending drafts are unchanged.");
   });
   void loadSettings();

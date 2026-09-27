@@ -281,6 +281,9 @@ export type ManualWatchlistRuntimeManagerOptions = {
   tradersLinkAiReadService?: TradersLinkAiReadService | null;
   tradersLinkAiReadReviewStore?: TradersLinkAiReadReviewStore;
   initialReviewBeforePublishingEnabled?: boolean;
+  initialAutoPublishBoundaryRefreshes?: boolean;
+  initialOwnerReviewNotificationsEnabled?: boolean;
+  initialOwnerReviewDiscordEnabled?: boolean;
   initialAnalysisFormat?: "current" | "simple";
   tradersLinkAiReadCostLedger?: TradersLinkAiReadCostLedger | null;
   tradersLinkAiReadRunLedger?: TradersLinkAiReadRunLedger | null;
@@ -3133,6 +3136,9 @@ export class ManualWatchlistRuntimeManager {
     topRegularActivationEnabled: true,
   };
   private reviewBeforePublishingEnabled = true;
+  private autoPublishBoundaryRefreshes = false;
+  private ownerReviewNotificationsEnabled = true;
+  private ownerReviewDiscordEnabled = true;
   private analysisFormat: "current" | "simple" = "current";
   private tradersLinkAiReadBoundaryRefreshSettings: TradersLinkAiReadBoundaryRefreshSettings = {
     enabled: true,
@@ -3243,6 +3249,9 @@ export class ManualWatchlistRuntimeManager {
 
   constructor(private readonly options: ManualWatchlistRuntimeManagerOptions) {
     this.reviewBeforePublishingEnabled = options.initialReviewBeforePublishingEnabled ?? Boolean(options.tradersLinkAiReadReviewStore);
+    this.autoPublishBoundaryRefreshes = options.initialAutoPublishBoundaryRefreshes === true;
+    this.ownerReviewNotificationsEnabled = options.initialOwnerReviewNotificationsEnabled !== false;
+    this.ownerReviewDiscordEnabled = options.initialOwnerReviewDiscordEnabled !== false;
     this.analysisFormat = options.initialAnalysisFormat ?? "current";
     const haltService = new NasdaqTradingHaltService();
     this.tradingHaltLookup = options.tradingHaltLookup ?? haltService.lookup.bind(haltService);
@@ -3520,7 +3529,50 @@ export class ManualWatchlistRuntimeManager {
   getTradersLinkAiReadReviewControls() {
     return { automaticUpdatesEnabled: this.tradersLinkAiReadGenerationSettings.automaticUpdatesEnabled,
       reviewBeforePublishingEnabled: this.reviewBeforePublishingEnabled,
+      autoPublishBoundaryRefreshes: this.autoPublishBoundaryRefreshes,
+      ownerReviewNotificationsEnabled: this.ownerReviewNotificationsEnabled,
+      ownerReviewDiscordEnabled: this.ownerReviewDiscordEnabled,
+      boundaryRefreshEnabled: this.tradersLinkAiReadBoundaryRefreshSettings.enabled,
       analysisFormat: this.analysisFormat };
+  }
+
+  setAutomaticAnalysisPublicationControls(input: { autoPublishBoundaryRefreshes?: boolean; ownerReviewNotificationsEnabled?: boolean; ownerReviewDiscordEnabled?: boolean }): void {
+    if (input.autoPublishBoundaryRefreshes !== undefined) this.autoPublishBoundaryRefreshes = input.autoPublishBoundaryRefreshes;
+    if (input.ownerReviewNotificationsEnabled !== undefined) this.ownerReviewNotificationsEnabled = input.ownerReviewNotificationsEnabled;
+    if (input.ownerReviewDiscordEnabled !== undefined) this.ownerReviewDiscordEnabled = input.ownerReviewDiscordEnabled;
+  }
+
+  getAutomaticAnalysisEvents() {
+    const since = (this.options.now?.() ?? Date.now()) - 60 * 60 * 1000;
+    const events: Array<Record<string, unknown>> = [];
+    for (const entry of this.watchlistStore.getActiveEntries()) {
+      if (!entry.publicationReview?.required) continue;
+      const review = this.options.tradersLinkAiReadReviewStore?.read(entry.publicationReview.cycleId);
+      if (!review || review.cancelled) continue;
+      const draft = review.draft;
+      if (draft && draft.at >= since && (draft.body.kind === "original" || draft.body.kind === "edit") &&
+          (!review.approved || review.approved.body.kind !== "approve" || review.approved.body.draftRevision !== draft.revision)) {
+        const generationId = (draft.body.payload as { generationId?: string }).generationId;
+        const automatic = review.events.some(e => e.body.kind === "generation" && e.body.generationId === generationId && e.body.trigger === "boundary_cross");
+        if (automatic) events.push({ kind: "review", symbol: entry.symbol, cycleId: review.cycleId,
+          draftRevision: draft.revision, generationId, at: draft.at });
+      }
+      for (const event of review.events) {
+        if (event.at < since || event.actor !== "runtime:automatic-boundary" || event.body.kind !== "approve") continue;
+        events.push({ kind: "publication", symbol: entry.symbol, cycleId: review.cycleId,
+          draftRevision: event.body.draftRevision, expectedHead: event.revision - 1,
+          actor: event.actor, at: event.at,
+          review: { symbol: entry.symbol, cycleId: review.cycleId, cancelled: false, events: [
+            { revision: event.revision, actor: event.actor, at: event.at, body: { kind: "approve",
+              draftRevision: event.body.draftRevision, publication: { notificationKind: event.body.publication?.notificationKind,
+                notifyUsers: event.body.publication?.notifyUsers } } },
+            ...review.events.filter(e => e.body.kind === "delivery" && e.body.channel === "website" &&
+              e.body.status === "acknowledged" && e.body.approvalRevision === event.revision),
+          ] },
+        });
+      }
+    }
+    return { settings: this.getTradersLinkAiReadReviewControls(), events };
   }
 
   setTradersLinkAiReadAnalysisFormat(format: "current" | "simple"): void {
@@ -4399,7 +4451,7 @@ export class ManualWatchlistRuntimeManager {
       }
       // Legacy public tickers also require review of replacements. Persist
       // the gate before dispatch, without inventing a past approved draft.
-      if ((this.reviewBeforePublishingEnabled || analysisFormat === "simple" || generationAvailability.session === "closed") && !entry.publicationReview?.required) {
+      if ((this.reviewBeforePublishingEnabled || refreshDecision.trigger === "boundary_cross" || analysisFormat === "simple" || generationAvailability.session === "closed") && !entry.publicationReview?.required) {
         const reviewStore = this.options.tradersLinkAiReadReviewStore;
         if (!reviewStore) throw new Error("Owner review storage is unavailable.");
         const cycleId = randomUUID();
@@ -4409,8 +4461,12 @@ export class ManualWatchlistRuntimeManager {
         entry = this.watchlistStore.getEntry(symbol)!;
       }
       const generationId = `${symbol}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const autoPublishThisRequest = refreshDecision.trigger === "boundary_cross" &&
+        requestedTrigger === "automatic" && this.autoPublishBoundaryRefreshes;
       const reviewCycleId = entry.publicationReview?.required ? entry.publicationReview.cycleId : undefined;
-      const generationAudit = { generationId, runId, trigger: requestedTrigger, model: service.getConfiguredModel(), dataAsOf };
+      const generationAudit = { generationId, runId,
+        trigger: refreshDecision.trigger === "boundary_cross" && requestedTrigger === "automatic" ? "boundary_cross" : requestedTrigger,
+        model: service.getConfiguredModel(), dataAsOf };
       if (reviewCycleId) {
         if (!this.options.tradersLinkAiReadReviewStore) throw new Error("Owner review storage is unavailable.");
         this.options.tradersLinkAiReadReviewStore.recordGeneration(reviewCycleId, { ...generationAudit, status: "started" });
@@ -4522,6 +4578,21 @@ export class ManualWatchlistRuntimeManager {
           symbol, trigger: requestedTrigger, stage: "validation", outcome: "success", runId,
           generationId: read.generationId, dataAsOf, reason: "Analysis saved privately for owner review.",
         });
+        const saved = reviewStore.read(cycle.cycleId);
+        const alreadyListed = saved?.preserveExistingPublication === true || saved?.events.some(event =>
+          event.body.kind === "delivery" && event.body.channel === "website" && event.body.status === "acknowledged");
+        if (autoPublishThisRequest && this.autoPublishBoundaryRefreshes && alreadyListed &&
+            saved?.draft && (saved.draft.body.kind === "original" || saved.draft.body.kind === "edit") &&
+            (saved.draft.body.payload as { generationId?: string }).generationId === read.generationId) {
+          try {
+            await this.approveTradersLinkAiRead({ symbol, cycleId: cycle.cycleId, expectedHead: saved.head,
+              draftRevision: saved.draft.revision, actor: "runtime:automatic-boundary", previewHash: "",
+              notifyUsers: true });
+          } catch {
+            // Successful generation is retained; existing publication recovery owns retries.
+            console.warn("[Watchlist] Automatic analysis publication needs delivery attention.");
+          }
+        }
         return read;
       }
       if (!latestEntry?.active || latestEntry.tradersLinkAiReadCardVisible === false) {
@@ -4950,7 +5021,11 @@ export class ManualWatchlistRuntimeManager {
     if (claim.shouldSend) {
       this.watchlistStore.patchEntry(symbol, { pendingTradersLinkAiReadGeneration: {
         generationId: read.generationId, createdAt: this.options.now?.() ?? Date.now(),
-        trigger: "manual", boundaryState: buildTradersLinkAiReadRefreshState(read),
+        trigger: input.actor === "runtime:automatic-boundary" ? "boundary_cross" : "manual",
+        boundaryState: { ...buildTradersLinkAiReadRefreshState(read),
+          automaticRefreshDateKey: entry.tradersLinkAiReadBoundaryState?.automaticRefreshDateKey,
+          automaticRefreshCount: entry.tradersLinkAiReadBoundaryState?.automaticRefreshCount,
+        },
       } });
       this.persistWatchlist();
       // A transport error may have reached the provider. Leave the claim
