@@ -45,3 +45,12 @@ export function renderApprovedAnalysisDiscord(read: TradersLinkAiReadPayload, an
   const linked = buildWatchlistDiscordLinkMessage(read.symbol);
   return [appendDiscordMentions(analysisUpdate ? `${read.symbol} Analysis updated` + linked.slice(linked.indexOf("\n\n")) : linked, audience ?? { everyone: false, roles: [] })];
 }
+
+/** Apply only when freezing a new, authenticated owner approval. */
+export function attributeOwnerApprovedDiscord(chunks: string[], actor: string): string[] {
+  if (!/^platform-owner:[0-9a-f-]{36}$/i.test(actor)) return chunks;
+  return chunks.map((chunk, index) => index === 0
+    ? chunk.replace(/^([^\n]+?)(\.?)(\r?\n|$)/, (_match, title, period, ending) =>
+      `${title} by "This Guy"${period}${ending}`)
+    : chunk);
+}

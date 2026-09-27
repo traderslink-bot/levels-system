@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import { DiscordConfirmedRejection } from "../alerts/discord-confirmed-rejection.js";
 import { approvedDiscordRetryAt } from "../ai/approved-discord-retry.js";
 import { applyOwnerAnalysisEdit } from "../ai/traderslink-ai-read-owner-edit.js";
-import { publicationPreviewHash, renderApprovedAnalysisDiscord, type ReviewPublication } from "../ai/traderslink-ai-read-publication-preview.js";
+import { publicationPreviewHash, renderApprovedAnalysisDiscord, attributeOwnerApprovedDiscord, type ReviewPublication } from "../ai/traderslink-ai-read-publication-preview.js";
 import { appendDiscordMentions, currentDiscordAudience } from "../alerts/watchlist-discord-mentions.js";
 import type { TradersLinkAiReadReviewStore } from "../ai/traderslink-ai-read-review-store.js";
 import { remainingGeneratedSectionOmissions } from "../ai/traderslink-ai-read-review-omissions.js";
@@ -5009,6 +5009,7 @@ export class ManualWatchlistRuntimeManager {
     const approval = store.approve(input.cycleId, currentReview.head, input.draftRevision, input.actor,
       frozen?.kind === "approve" && frozen.draftRevision === input.draftRevision && frozen.publication ? frozen.publication : {
       ...preview.publication,
+      discordChunks: attributeOwnerApprovedDiscord(preview.publication.discordChunks, input.actor),
       website: { ...preview.publication.website,
         ...(!alreadyListed ? { firstPostedAt: this.options.now?.() ?? Date.now() } : {}),
       },
@@ -5083,7 +5084,7 @@ export class ManualWatchlistRuntimeManager {
     if (!alreadyListed) snapshot.firstPostedAt = this.options.now?.() ?? Date.now();
     const audience = currentDiscordAudience();
     const approval = store.approveListingOnly(input.cycleId,store.read(input.cycleId)!.head,input.actor, {
-      website: snapshot as unknown as Record<string,unknown>, discordChunks: [appendDiscordMentions(buildWatchlistDiscordLinkMessage(symbol), audience)], discordAudience: audience,
+      website: snapshot as unknown as Record<string,unknown>, discordChunks: attributeOwnerApprovedDiscord([appendDiscordMentions(buildWatchlistDiscordLinkMessage(symbol), audience)], input.actor), discordAudience: audience,
       notificationKind: "listing", notifyUsers: input.notifyUsers !== false,
     });
     if (approval.body.kind !== "approve" || !approval.body.publication) throw new Error("Listing publication unavailable.");
