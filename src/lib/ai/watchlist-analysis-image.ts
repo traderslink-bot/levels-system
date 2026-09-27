@@ -49,7 +49,7 @@ export function analysisImageSections(read: TradersLinkAiReadPayload, dipVisible
   // Future contracts need their own projection; do not silently misrepresent them.
   if (read.version !== 3) throw new Error("Unsupported image analysis version");
   add("currentRead", "Trade preparation", [body(`${read.marketSession ?? ""}${read.bias ? ` · ${read.bias} bias` : ""}`), body(read.currentRead)]);
-  for (const [key, title] of [["needsToHold", "Needs to hold"], ["cautionBelow", "Caution below"],
+  for (const [key, title] of [["needsToHold", "Support to watch"], ["cautionBelow", "Caution below"],
     ["momentumFailure", "Momentum failure"], ["mustClear", "Must clear"], ["breakoutContinuation", "Breakout continuation"]] as const) {
     const level = read[key];
     if (level) add(key, title, [value(price(level.price)), body(level.rationale)]);
