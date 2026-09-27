@@ -25,6 +25,12 @@ export const WATCHLIST_ROW_REVIEW = String.raw`
     return loading;
   }
   function attach(entry, actions) {
+    const gainPost = document.createElement('button'); gainPost.type = 'button'; gainPost.className = 'secondary'; gainPost.textContent = 'Post potential gain';
+    gainPost.onclick = () => {
+      if (window.parent === window) { window.alert('Open Watchlist Admin in the dashboard to preview and post the card.'); return; }
+      window.parent.postMessage({ source: 'traderslink-watchlist-admin', type: 'post-potential-gain', symbol: entry.symbol }, window.location.origin);
+    };
+    actions.append(gainPost);
     if (!entry.publicationReview?.required) return;
     const state = queue.get(entry.symbol);
     const status = document.createElement('p'); status.setAttribute('role', 'status');
