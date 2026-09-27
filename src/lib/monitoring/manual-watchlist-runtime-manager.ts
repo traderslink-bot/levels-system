@@ -4937,7 +4937,11 @@ export class ManualWatchlistRuntimeManager {
     // still verifies the exact selected draft and keeps approved payloads frozen.
     const approval = store.approve(input.cycleId, currentReview.head, input.draftRevision, input.actor,
       frozen?.kind === "approve" && frozen.draftRevision === input.draftRevision && frozen.publication ? frozen.publication : {
-      ...preview.publication, notifyUsers: alreadyListed ? input.notifyUsers === true : true,
+      ...preview.publication,
+      website: { ...preview.publication.website,
+        ...(!alreadyListed ? { firstPostedAt: this.options.now?.() ?? Date.now() } : {}),
+      },
+      notifyUsers: alreadyListed ? input.notifyUsers === true : true,
       notificationKind: alreadyListed ? "analysis" : "listing",
     });
     if (approval.body.kind !== "approve" || !approval.body.publication) throw new Error("Approved publication payload is unavailable.");
@@ -4998,6 +5002,10 @@ export class ManualWatchlistRuntimeManager {
     delete snapshot.cards.tradersLinkAiRead;
     snapshot.tradersLinkAiReadCardVisible = false;
     snapshot.cards.traderNotes = this.buildTraderNotesCard(entry.traderNotesDraft ?? "");
+    const currentReview = store.read(input.cycleId)!;
+    const alreadyListed = currentReview.preserveExistingPublication === true || currentReview.events.some(event =>
+      event.body.kind === "delivery" && event.body.channel === "website" && event.body.status === "acknowledged");
+    if (!alreadyListed) snapshot.firstPostedAt = this.options.now?.() ?? Date.now();
     const audience = currentDiscordAudience();
     const approval = store.approveListingOnly(input.cycleId,store.read(input.cycleId)!.head,input.actor, {
       website: snapshot as unknown as Record<string,unknown>, discordChunks: [appendDiscordMentions(buildWatchlistDiscordLinkMessage(symbol), audience)], discordAudience: audience,

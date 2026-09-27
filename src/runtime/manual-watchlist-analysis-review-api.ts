@@ -48,7 +48,7 @@ export async function dispatchAnalysisReviewRequest(input: {
       const events = review?.events ?? [];
       const acknowledged = new Set(events.filter(e => e.body.kind === "delivery" && e.body.channel === "website" && e.body.status === "acknowledged").map(e => e.body.kind === "delivery" ? e.body.approvalRevision : -1));
       const approvals = events.filter(e => e.body.kind === "approve" && acknowledged.has(e.revision)).sort((a, b) => a.revision - b.revision);
-      const rows: { generatedAt: number; price: number }[] = [];
+      const rows: { generatedAt: number; publishedAt?: number; price: number }[] = [];
       const seen = new Set<string>();
       let matched = false;
       for (const event of approvals) {
@@ -60,7 +60,15 @@ export async function dispatchAnalysisReviewRequest(input: {
         const time = read.generatedAt, price = read.currentPrice;
         if (typeof time !== "number" || !Number.isFinite(time) || time <= 0 || typeof price !== "number" || !Number.isFinite(price) || price <= 0) continue;
         const key = `${read.generationId ?? time}:${price}`;
-        if (!seen.has(key)) { rows.push({ generatedAt: time, price }); seen.add(key); }
+        const publication = events.find(e => e.body.kind === "delivery" && e.body.channel === "website" &&
+          e.body.status === "acknowledged" && e.body.approvalRevision === event.revision);
+        const publishedAt = publication?.at;
+        if (!seen.has(key)) {
+          rows.push({ generatedAt: time, price,
+            ...(typeof publishedAt === "number" && Number.isFinite(publishedAt) && publishedAt > 0 ? { publishedAt } : {}),
+          });
+          seen.add(key);
+        }
         if (createHash("sha256").update(body).digest("hex") === digest) { matched = true; break; }
       }
       return { status: 200, body: { rows: matched ? rows : [] } };
