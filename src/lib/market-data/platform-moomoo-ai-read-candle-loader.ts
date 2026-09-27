@@ -1,4 +1,5 @@
 import type { Candle } from "./candle-types.js";
+import { closedMarketAnalysisWindow } from "../ai/traderslink-ai-read-market-context.js";
 
 export type MoomooAiReadCandleWindow = Readonly<{
   oneMinuteCandles: readonly Candle[];
@@ -143,8 +144,10 @@ export function createPlatformMoomooAiReadCandleLoader(
   if (!endpoint || !token) return null;
 
   return async ({ symbol, asOfTimeMs }): Promise<MoomooAiReadCandleWindow> => {
-    const endTimeMs = Math.min(asOfTimeMs, Date.now());
-    const startTimeMs = newYorkDayStart(endTimeMs);
+    const requestedAt = Math.min(asOfTimeMs, Date.now());
+    const completed = closedMarketAnalysisWindow(requestedAt);
+    const endTimeMs = completed?.toTimeMs ?? requestedAt;
+    const startTimeMs = completed?.fromTimeMs ?? newYorkDayStart(endTimeMs);
     const requestUrl = new URL(endpoint);
     requestUrl.search = new URLSearchParams({
       symbol: symbol.trim().toUpperCase(),
@@ -179,7 +182,7 @@ export function createPlatformMoomooAiReadCandleLoader(
     ) {
       throw new MoomooAiReadCandleLoadError(
         "coverage_unavailable",
-        "No current-session Moomoo candle coverage.",
+        "No Moomoo candle coverage for the requested trading session.",
       );
     }
     if (!response.ok || payload.status !== "ready" || payload.provider !== "moomoo_open_api") {
@@ -190,7 +193,7 @@ export function createPlatformMoomooAiReadCandleLoader(
     }
     const oneMinuteCandles = parseCandles(payload.candles, endTimeMs);
     if (oneMinuteCandles.length === 0) {
-      throw new Error("Moomoo Open API returned no same-day candles.");
+      throw new Error("Moomoo Open API returned no candles for the requested trading session.");
     }
     return Object.freeze({
       oneMinuteCandles: Object.freeze(oneMinuteCandles),

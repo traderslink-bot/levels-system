@@ -53,7 +53,13 @@ test("admission decision survives store and disk reload; malformed data cannot e
   for (const invalid of [null, {}, { ...admission, timestamp: NaN }, { ...admission, initialGenerationEnabled: "true" }]) {
     assert.equal(normalizeAiReadAdmission(invalid)?.initialGenerationEnabled, false);
   }
-  assert.equal(normalizeAiReadAdmission({ ...admission, session: "closed", initialGenerationEnabled: true })?.initialGenerationEnabled, false);
+  assert.equal(normalizeAiReadAdmission({ ...admission, session: "closed", initialGenerationEnabled: true })?.initialGenerationEnabled, true);
+  assert.equal(normalizeAiReadAdmission({ ...admission, session: "closed", initialGenerationEnabled: false })?.initialGenerationEnabled, false);
+  const closedAdmission = { ...admission, session: "closed" as const, initialGenerationEnabled: true };
+  store.patchEntry("PDSB", { aiReadAdmission: closedAdmission });
+  persistence.save(store.getEntries());
+  restarted.setEntries(persistence.load()!);
+  assert.deepEqual(restarted.getEntry("PDSB")?.aiReadAdmission, closedAdmission);
 });
 test("legacy replacement preserves only non-analysis updates without inventing approval, including after restart", () => {
   const directory = mkdtempSync(join(tmpdir(), "replacement-policy-"));
@@ -83,7 +89,9 @@ test("initial review requires both master and selected session generation, witho
   const settings = { reviewEnabled: true, generationEnabled: true, premarketEnabled: true, regularEnabled: true, postmarketEnabled: false };
   assert.equal(requiresInitialWatchlistReview({ ...settings, session: "regular" }), true);
   assert.equal(requiresInitialWatchlistReview({ ...settings, session: "postmarket" }), false);
-  assert.equal(requiresInitialWatchlistReview({ ...settings, session: "closed" }), false);
+  assert.equal(requiresInitialWatchlistReview({ ...settings, session: "closed" }), true);
+  assert.equal(requiresInitialWatchlistReview({ ...settings, session: "closed", generationEnabled: false }), false);
+  assert.equal(requiresInitialWatchlistReview({ ...settings, session: "closed", reviewEnabled: false }), true);
   assert.equal(requiresInitialWatchlistReview({ ...settings, session: "regular", generationEnabled: false }), false);
   assert.equal(requiresInitialWatchlistReview({ ...settings, session: "regular", reviewEnabled: false }), false);
 });

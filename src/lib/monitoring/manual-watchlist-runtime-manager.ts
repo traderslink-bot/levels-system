@@ -28,6 +28,7 @@ import type {
   TradeCandleContext,
 } from "../market-data/trade-candle-context.js";
 import { classifyUsEquityMarketSession } from "../market-data/us-equity-exchange-calendar.js";
+import { closedMarketAnalysisWindow } from "../ai/traderslink-ai-read-market-context.js";
 import { LevelEngine } from "../levels/level-engine.js";
 import { resolveLevelRuntimeSettings } from "../levels/level-runtime-mode.js";
 import type { FinalLevelZone, LevelEngineOutput } from "../levels/level-types.js";
@@ -3672,10 +3673,12 @@ export class ManualWatchlistRuntimeManager {
     // Preserve the legacy Top Regular setting, but it must not bypass the
     // owner's master/session controls in the review-before-publication flow.
     if (session === "closed") {
+      const ownerRequested = context.requestedTrigger === undefined || context.requestedTrigger === "manual" ||
+        (context.requestedTrigger === "activation" && entry?.tags.includes("manual") === true);
       return {
-        allowed: false,
+        allowed: ownerRequested,
         session,
-        reason: "AI Read generation is disabled outside premarket, regular hours, and post-market.",
+        reason: ownerRequested ? null : "Market is closed. Add a ticker or use manual refresh for an analysis; automatic updates are paused.",
         topRegularActivationOverrideApplied: false,
       };
     }
@@ -3976,9 +3979,12 @@ export class ManualWatchlistRuntimeManager {
     }
 
     if (historicalLoader) {
+      const closedWindow = closedMarketAnalysisWindow(fetchAsOf);
       const completedWindow = buildTradersLinkAiCompletedSessionWindow(
         intradayCandles,
-        fetchAsOf,
+        // The primary request now covers the last completed date when closed;
+        // request its preceding trading day for the usual two-session context.
+        closedWindow ? closedWindow.toTimeMs - 1 : fetchAsOf,
       );
       const completedIntradayPromise = completedWindow
         ? historicalLoader({
@@ -4393,7 +4399,7 @@ export class ManualWatchlistRuntimeManager {
       }
       // Legacy public tickers also require review of replacements. Persist
       // the gate before dispatch, without inventing a past approved draft.
-      if ((this.reviewBeforePublishingEnabled || analysisFormat === "simple") && !entry.publicationReview?.required) {
+      if ((this.reviewBeforePublishingEnabled || analysisFormat === "simple" || generationAvailability.session === "closed") && !entry.publicationReview?.required) {
         const reviewStore = this.options.tradersLinkAiReadReviewStore;
         if (!reviewStore) throw new Error("Owner review storage is unavailable.");
         const cycleId = randomUUID();
@@ -13521,14 +13527,14 @@ export class ManualWatchlistRuntimeManager {
 
   async activateSymbol(input: ManualWatchlistActivationInput): Promise<WatchlistEntry> {
     if (this.shouldPreparePrivateActivation(input)) return this.preparePrivateActivation(input);
-    return this.performActivation({ ...input, aiReadAdmission: this.captureAiReadAdmission() }, this.watchlistStore.getEntries());
+    return this.performActivation({ ...input, aiReadAdmission: this.captureAiReadAdmission(input) }, this.watchlistStore.getEntries());
   }
 
-  private captureAiReadAdmission(): NonNullable<WatchlistEntry["aiReadAdmission"]> {
+  private captureAiReadAdmission(input?: Pick<ManualWatchlistActivationInput, "source">): NonNullable<WatchlistEntry["aiReadAdmission"]> {
     const timestamp = this.options.now?.() ?? Date.now();
     const session = classifyUsEquityMarketSession(timestamp).session;
     const settings = this.tradersLinkAiReadGenerationSettings;
-    return { timestamp, session, initialGenerationEnabled: requiresInitialWatchlistReview({
+    return { timestamp, session, initialGenerationEnabled: !(session === "closed" && input?.source === "auto") && requiresInitialWatchlistReview({
       reviewEnabled: true, generationEnabled: settings.enabled, session,
       premarketEnabled: settings.premarketEnabled, regularEnabled: settings.regularEnabled,
       postmarketEnabled: settings.postmarketEnabled,
@@ -13538,6 +13544,7 @@ export class ManualWatchlistRuntimeManager {
   private shouldPreparePrivateActivation(input: ManualWatchlistActivationInput): boolean {
     if (this.watchlistStore.getEntry(normalizeSymbol(input.symbol))?.active) return false;
     if (input.generateAnalysis === false) return true;
+    if (input.source === "auto" && classifyUsEquityMarketSession(this.options.now?.() ?? Date.now()).session === "closed") return false;
     const settings = this.tradersLinkAiReadGenerationSettings;
     return requiresInitialWatchlistReview({
       reviewEnabled: this.reviewBeforePublishingEnabled || this.analysisFormat === "simple", generationEnabled: settings.enabled,
@@ -13564,7 +13571,7 @@ export class ManualWatchlistRuntimeManager {
       note: input.note, active: true, lifecycle: "active", activatedAt: now, discordThreadId: null,
       lastError: null,
       publicationReview: { cycleId, required: true }, refreshPending: false,
-      aiReadAdmission: { ...this.captureAiReadAdmission(), ...(input.generateAnalysis === false ? { initialGenerationEnabled: false } : {}) },
+      aiReadAdmission: { ...this.captureAiReadAdmission(input), ...(input.generateAnalysis === false ? { initialGenerationEnabled: false } : {}) },
       automaticAnalysisEnabled: input.generateAnalysis !== false, traderNotesDraft: input.traderNotes ?? "",
       tradersLinkAiReadCardVisible: input.generateAnalysis !== false,
       pendingTradersLinkAiReadGeneration: null, operationStatus: "preparing private analysis",
@@ -13645,7 +13652,7 @@ export class ManualWatchlistRuntimeManager {
     const activationInput: ManualWatchlistActivationInput = {
       ...input,
       symbol,
-      aiReadAdmission: this.captureAiReadAdmission(),
+      aiReadAdmission: this.captureAiReadAdmission(input),
       reuseExistingSameDayContext,
       ...(reuseExistingSameDayContext && existing?.activatedAt !== undefined
         ? { preservedActivatedAt: existing.activatedAt }

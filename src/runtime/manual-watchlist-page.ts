@@ -1517,9 +1517,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       const availability = status.runtimeHealth?.tradersLinkAiReadGenerationAvailability;
       aiReadGenerationAllowed = availability?.allowed === true;
       aiReadGenerationStatusEl.textContent = aiReadGenerationSettings.enabled
-        ? "Master generation is on. Session switches decide whether any OpenAI request can start."
+        ? "Master generation is on. Session switches control open-market requests. When the market is closed, additions and manual refresh use the latest completed session and wait for your approval."
         : "Master generation is off. No AI Read request preparation or OpenAI API call can start.";
-      aiReadSessionStatusEl.textContent = availability?.allowed
+      aiReadSessionStatusEl.textContent = availability?.allowed && availability.session === "closed"
+        ? "Market closed: additions and manual refresh use the latest completed session. Automatic updates remain paused."
+        : availability?.allowed
         ? "Current session: " + availability.session + " Ã¢â‚¬â€ AI Reads allowed."
         : "Current session: " + String(availability?.session || "unknown") +
           " Ã¢â‚¬â€ " + String(availability?.reason || "AI Reads blocked.");

@@ -2,7 +2,7 @@ import type { Candle } from "../market-data/candle-types.js";
 import { unambiguousPriceCandles } from "./traderslink-ai-read-observations.js";
 import { classifyIntradayCandleTimestamp } from "../market-data/candle-session-classifier.js";
 import type { LevelEngineOutput } from "../levels/level-types.js";
-import { previousTradingSessionWindow, selectAnalysisSessions, datedPreviousRegularSession, sessionReferencePrices, analysisLevelContext, historicalAnalysisBases, observedSessionExpansion } from "./traderslink-ai-read-market-context.js";
+import { closedMarketAnalysisWindow, previousTradingSessionWindow, selectAnalysisSessions, datedPreviousRegularSession, sessionReferencePrices, analysisLevelContext, historicalAnalysisBases, observedSessionExpansion } from "./traderslink-ai-read-market-context.js";
 
 const RECENT_INTRADAY_BAR_LIMIT = 120;
 const RECENT_ONE_MINUTE_BAR_LIMIT = 120;
@@ -924,6 +924,22 @@ export function resolveTradersLinkAiReadReferenceQuote(
   );
   const latestOneMinute = oneMinute.at(-1);
   const latestFiveMinute = intraday.at(-1);
+  const completed = closedMarketAnalysisWindow(referenceTime);
+  if (completed) {
+    const candidates = [
+      ...oneMinute.map(candle => ({ candle, interval: "1-minute" })),
+      ...intraday.map(candle => ({ candle, interval: "5-minute" })),
+    ].filter(({ candle }) => candle.timestamp >= completed.fromTimeMs && candle.timestamp < completed.toTimeMs)
+      .sort((left, right) => right.candle.timestamp - left.candle.timestamp);
+    const latest = candidates[0];
+    if (latest) return {
+      price: latest.candle.close,
+      dataAsOf: latest.candle.timestamp,
+      source: `${context.source} latest completed-session ${latest.interval} close`,
+    };
+    // Missing last-session tape must not become a made-up current quote.
+    return { price: 0, dataAsOf: referenceTime, source: "completed-session price unavailable" };
+  }
   if (latestOneMinute && referenceTime - latestOneMinute.timestamp <= 10 * 60 * 1_000) {
     return {
       price: latestOneMinute.close,
@@ -1061,6 +1077,13 @@ export function buildTradersLinkAiPriceActionPacket(
     source: context.source,
     fetchedAt: context.fetchedAt,
     fetchedAtIso: new Date(context.fetchedAt).toISOString(),
+    ...(closedMarketAnalysisWindow(context.fetchedAt) ? { marketTiming: {
+      marketClosedAtRequest: true,
+      requestTime: context.fetchedAt,
+      dataAsOf,
+      tradingDate: classifyIntradayCandleTimestamp(dataAsOf).sessionDate,
+      instruction: "Market is closed. These are the latest available completed-session observations, not live trading. Describe the dated session and conditional setups for trading to resume; do not describe Saturday/holiday price action as occurring now. Preserve the actual data time; do not print individual candle clock times.",
+    } } : {}),
     timeframes: ["1m", "5m", "1d", ...((context.fourHourCandles?.length ?? 0) ? ["4h"] : [])],
     sessionCoverage: [...new Set(sessionPhaseSummaries.map((summary) => summary.session))],
     includesRegularHours: sessionPhaseSummaries.some((summary) => summary.session === "regular" || summary.session === "opening_range"),

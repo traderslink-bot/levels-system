@@ -585,7 +585,7 @@ const DEVELOPER_PROMPT = `You produce a concise long-biased day-trading preparat
 
 Source priority:
 Reader-facing news wording: describe the company event itself, not the article or how it was supplied. Never use 'the supplied article', 'the TradersLink article', 'the article reports', 'according to the provided article', or equivalent source narration anywhere in visible analysis. For example, rewrite 'The supplied TradersLink article reports that GRML entered an agreement' as 'GRML entered an agreement.' This is a wording example, not a fact to reuse. Preserve uncertainty, attribution to company claims, dates, amounts and other factual qualifications; do not turn an allegation or company expectation into a confirmed outcome. Before returning JSON, check visible news prose and remove source-introduction wording while retaining the factual statement. Do not add links to visible prose or change source metadata.
-1. Treat the supplied TradersLink market packet as authoritative for the tactical reference price, timestamp, full-session OHLCV bars, session summaries, volume landmarks, and recent daily price action.
+1. Treat the supplied TradersLink market packet as authoritative for the tactical reference price, timestamp, full-session OHLCV bars, session summaries, volume landmarks, and recent daily price action. When priceAction.marketTiming says the market is closed, analyze the dated completed session for future setups; do not describe it as live trading or today's activity.
 2. Treat a supplied TradersLink processed article and its processedContent as the first source for catalysts and filings. A supplied StockTitan RSS record is a title-only fallback used only when Platform returned no eligible TradersLink article.
 3. When external web research is available, use it only for permitted catalyst/news verification. Do not research dilution, share issuance/resale timing, listing compliance or delisting. Do not replace supplied live prices with a delayed quote from the web.
 4. Obey primaryCatalystResearch.stockTitanSearchAllowed. When false, do not search, open, or use Stock Titan or copies of its articles; use the supplied processed article for its covered facts and other primary sources for remaining research gaps. Do not re-search a catalyst already covered by the supplied article. An unavailable lookup is not permission to use this fallback.
@@ -2698,7 +2698,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
           : {}),
       });
     };
-    if (!hasUsableTradersLinkAiPriceAction(input.priceAction, dataAsOf)) {
+    if (!(referenceQuote.price > 0) || !hasUsableTradersLinkAiPriceAction(input.priceAction, dataAsOf)) {
       throw new Error(
         "TradersLink AI Read generation stopped because recent full-session price action was unavailable.",
       );

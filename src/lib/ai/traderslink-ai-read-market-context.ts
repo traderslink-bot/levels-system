@@ -1,7 +1,7 @@
 import type { Candle } from "../market-data/candle-types.js";
 import type { LevelEngineOutput } from "../levels/level-types.js";
 import { classifyIntradayCandleTimestamp } from "../market-data/candle-session-classifier.js";
-import { getUsEquityTradingDay, newYorkDateTimeParts } from "../market-data/us-equity-exchange-calendar.js";
+import { classifyUsEquityMarketSession, getUsEquityTradingDay, newYorkDateTimeParts } from "../market-data/us-equity-exchange-calendar.js";
 
 const DAY = 86_400_000;
 
@@ -87,6 +87,17 @@ function easternHour(date: string, hour: number): number {
 
 export function previousTradingSessionWindow(asOf: number) {
   const date = previousTradingDate(asOf);
+  return { date, fromTimeMs: easternHour(date, 4), toTimeMs: easternHour(date, 20) };
+}
+
+/** Closed exchange hours use the latest completed extended-hours trading date.
+ * Keep observation timestamps intact; Saturday is not a new trading session. */
+export function closedMarketAnalysisWindow(asOf: number) {
+  const market = classifyUsEquityMarketSession(asOf);
+  const local = newYorkDateTimeParts(asOf);
+  if (market.session !== "closed" || !local) return null;
+  const date = market.tradingDay?.isTradingDay && local.hour >= 20
+    ? local.date : previousTradingDate(asOf);
   return { date, fromTimeMs: easternHour(date, 4), toTimeMs: easternHour(date, 20) };
 }
 

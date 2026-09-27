@@ -30,7 +30,7 @@ export function normalizeAiReadAdmission(value: unknown): WatchlistAiReadAdmissi
       ["premarket", "regular", "postmarket", "closed"].includes(candidate.session as string) &&
       typeof candidate.initialGenerationEnabled === "boolean") {
       return { timestamp: candidate.timestamp, session: candidate.session as WatchlistAiReadAdmission["session"],
-        initialGenerationEnabled: candidate.initialGenerationEnabled && candidate.session !== "closed" };
+        initialGenerationEnabled: candidate.initialGenerationEnabled };
     }
   }
   return { timestamp: 0, session: "closed", initialGenerationEnabled: false };
@@ -53,7 +53,10 @@ export function requiresInitialWatchlistReview(input: {
   session: "premarket" | "regular" | "postmarket" | "closed";
   premarketEnabled: boolean; regularEnabled: boolean; postmarketEnabled: boolean;
 }): boolean {
-  if (!input.reviewEnabled || !input.generationEnabled || input.session === "closed") return false;
+  if (!input.generationEnabled) return false;
+  // Closed-market requests are explicitly owner initiated and always reviewed.
+  if (input.session === "closed") return true;
+  if (!input.reviewEnabled) return false;
   return input.session === "premarket" ? input.premarketEnabled :
     input.session === "regular" ? input.regularEnabled : input.postmarketEnabled;
 }
