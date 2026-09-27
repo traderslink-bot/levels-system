@@ -23,19 +23,21 @@ const context = {
 };
 vm.runInNewContext(compiled.outputText, context);
 let checks = 0;
+for (const model of ['gpt-6-luna', 'gpt-5.6-luna', 'gpt-6-sol']) {
 for (const analysisFormat of ['full', 'simple']) {
   for (const effort of ['none', 'low', 'medium', 'high', 'xhigh', 'max']) {
     for (const configured of [16000, 48000]) {
-      const body = context.build({ model: 'gpt-6-luna', reasoningEffort: effort,
+      const body = context.build({ model, reasoningEffort: effort,
         maxOutputTokens: configured, webSearchEnabled: false, dataAsOf: 0,
         input: { analysisFormat, ownerReviewRequired: true, research: {} } });
-      assert.equal(body.max_output_tokens, effort === 'xhigh' ? Math.max(configured, 32000) : configured);
-      assert.equal(body.model, 'gpt-6-luna');
+      assert.equal(body.max_output_tokens, effort === 'xhigh' || (model === 'gpt-6-luna' && effort === 'high') ? Math.max(configured, 32000) : configured);
+      assert.equal(body.model, model);
       assert.equal(body.reasoning.effort, effort);
       assert.equal(body.tools, undefined);
       checks++;
     }
   }
+}
 }
 assert.throws(() => context.build({ maxOutputTokens: 16000, reasoningEffort: 'xhigh',
   input: { analysisFormat: 'simple', ownerReviewRequired: false } }), /requires owner review/);

@@ -2356,9 +2356,10 @@ function buildRequestBody(args: {
     rejectedDraft: string | null;
   };
 }): Record<string, unknown> {
-  // Reasoning and visible JSON share this allowance. Extra High exhausted the
-  // former 16k cap before producing any analysis in both saved GYGY attempts.
-  const maxOutputTokens = args.reasoningEffort === "xhigh"
+  // Reasoning and visible JSON share this allowance. GYGY's Luna High read
+  // nearly reached 16k; Extra High previously exhausted that cap entirely.
+  const maxOutputTokens = args.reasoningEffort === "xhigh" ||
+    (args.model === "gpt-6-luna" && args.reasoningEffort === "high")
     ? Math.max(args.maxOutputTokens, 32_000)
     : args.maxOutputTokens;
   if (args.input.analysisFormat === "simple") {
