@@ -4898,9 +4898,20 @@ export class ManualWatchlistRuntimeManager {
     const alreadyListed = review.preserveExistingPublication === true || review.events.some(event =>
       event.body.kind === "delivery" && event.body.channel === "website" && event.body.status === "acknowledged");
     const audience = currentDiscordAudience();
-    const publication: ReviewPublication = existing?.kind === "approve" && existing.draftRevision === draft.revision && existing.publication
-      ? existing.publication
-      : { website: this.buildReviewedWebsitePatch(read) as unknown as Record<string, unknown>, discordChunks: renderApprovedAnalysisDiscord(read, alreadyListed, audience), discordAudience: audience, analysisImageVersion: 1 };
+    // Initial analysis approval also publishes the owner's saved notes. Once
+    // listed, notes have their own explicit publication action: an analysis
+    // refresh must not expose later private notes edits or erase public notes.
+    const frozenPublication = existing?.kind === "approve" && existing.draftRevision === draft.revision
+      ? existing.publication : undefined;
+    const website = frozenPublication ? null : this.buildReviewedWebsitePatch(read);
+    if (website && !alreadyListed) {
+      website.cards.traderNotes = this.buildTraderNotesCard(
+        this.watchlistStore.getEntry(read.symbol)?.traderNotesDraft ?? "",
+      );
+    }
+    const publication: ReviewPublication = frozenPublication
+      ? frozenPublication
+      : { website: website as unknown as Record<string, unknown>, discordChunks: renderApprovedAnalysisDiscord(read, alreadyListed, audience), discordAudience: audience, analysisImageVersion: 1 };
     return { cycleId: review.cycleId, expectedHead: review.head, draftRevision: draft.revision,
       publication, previewHash: publicationPreviewHash(publication) };
   }
