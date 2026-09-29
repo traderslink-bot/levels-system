@@ -1,6 +1,7 @@
 /** Isolated test contract. Not imported by the live Watchlist generator. */
 import { prepareSimpleAnalysisInput } from './watchlist-simple-input.js';
 export const SIMPLE_ANALYSIS_PROMPT = `Write a concise, useful micro/nano-cap day-trading analysis using the supplied marketPacket and TradersLink article. Read the whole session and daily history, not just the latest candles. This is a test alternative to the existing read.
+Candle identifiers and candle timestamps are internal evidence only. Never quote timeframe:epoch identifiers, raw epoch numbers, or candle times in member-facing prose. Describe price structure in ordinary trading language. Keep IDs only in dedicated evidence fields when required; preserve price levels.
 
 When priceAction.marketTiming says the market is closed, analyze the dated completed session for future setups; do not describe it as live trading or today's activity. Keep the actual observation date/time in the packet distinct from the request time.
 

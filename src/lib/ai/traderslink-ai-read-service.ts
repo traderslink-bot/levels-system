@@ -646,7 +646,8 @@ Interpretation contract:
 - Return only the requested structured JSON.`;
 
 export function buildTradersLinkAiReadDeveloperPrompt(ownerReview = false): string {
-  return ownerReview ? OWNER_REVIEW_DEVELOPER_PROMPT : DEVELOPER_PROMPT;
+  return (ownerReview ? OWNER_REVIEW_DEVELOPER_PROMPT : DEVELOPER_PROMPT) +
+    "\nCandle identifiers and candle timestamps are internal evidence only. Never quote timeframe:epoch identifiers (for example 5m:1790637300000), raw epoch numbers, or candle times in member-facing prose. Describe the observed base, retest, support or resistance in ordinary trading language. Keep exact candidate/candle IDs only in dedicated evidence fields when the schema requires them; do not remove price levels.";
 }
 
 export function buildTradersLinkAiReadResponseSchema(ownerReview = false) {
@@ -2455,7 +2456,9 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
   private fallbackModel: WatchlistModel | null;
   private fallbackReasoningEffort: WatchlistReasoningEffort;
   private readonly fetchImpl: FetchLike;
-  private readonly timeoutMs: number;
+  private get timeoutMs(): number {
+    return this.options.timeoutMs ?? (this.reasoningEffort === "xhigh" ? 600_000 : DEFAULT_TIMEOUT_MS);
+  }
   private readonly maxOutputTokens: number;
   private webSearchEnabled: boolean;
   private reasoningEffort: NonNullable<OpenAITradersLinkAiReadServiceOptions["reasoningEffort"]>;
@@ -2465,7 +2468,6 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     this.fallbackModel = isWatchlistModel(options.fallbackModel) ? options.fallbackModel : null;
     this.fallbackReasoningEffort = options.fallbackReasoningEffort ?? "medium";
     this.fetchImpl = options.fetchImpl ?? fetch;
-    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxOutputTokens = options.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
     this.webSearchEnabled = options.webSearchEnabled === true;
     this.reasoningEffort = options.reasoningEffort ?? "medium";
@@ -2512,7 +2514,10 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
   ): Promise<ResponsesApiResponse> {
     const controller = new AbortController();
     const startedAt = Date.now();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    // Snapshot the deadline for this request; later admin settings changes must
+    // not alter its timer or the timing reported in its audit.
+    const timeoutMs = this.timeoutMs;
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const requestBody = buildRequestBody({
         model,
@@ -2551,16 +2556,16 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         startedAt,
         completedAt: Date.now(),
         durationMs: Date.now() - startedAt,
-        timeoutMs: this.timeoutMs,
-        timeoutOverrunMs: Math.max(0, Date.now() - startedAt - this.timeoutMs),
+        timeoutMs,
+        timeoutOverrunMs: Math.max(0, Date.now() - startedAt - timeoutMs),
       };
       return payload;
     } catch (error) {
       const completedAt = Date.now();
       const durationMs = completedAt - startedAt;
-      const timeoutOverrunMs = Math.max(0, durationMs - this.timeoutMs);
+      const timeoutOverrunMs = Math.max(0, durationMs - timeoutMs);
       const timeoutMessage = timeoutOverrunMs > 1_000
-        ? `OpenAI request timed out after ${durationMs}ms; local runtime delay postponed the ${this.timeoutMs}ms timeout by ${timeoutOverrunMs}ms.`
+        ? `OpenAI request timed out after ${durationMs}ms; local runtime delay postponed the ${timeoutMs}ms timeout by ${timeoutOverrunMs}ms.`
         : `OpenAI request timed out after ${durationMs}ms.`;
       // Abort errors from fetch implementations can expose a read-only
       // `message` (for example DOMException). Normalize those errors instead
@@ -2576,7 +2581,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         startedAt,
         completedAt,
         durationMs,
-        timeoutMs: this.timeoutMs,
+        timeoutMs,
         timeoutOverrunMs,
       };
       throw timedError;
@@ -3250,7 +3255,9 @@ export function createTradersLinkAiReadServiceFromEnv(
     // Automatic fallback is Off until explicitly selected in AI Controls.
     reasoningEffort,
     webSearchEnabled: resolveBoolean(env.TRADERSLINK_AI_READ_WEB_SEARCH_ENABLED, false),
-    timeoutMs: resolvePositiveInteger(env.TRADERSLINK_AI_READ_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
+    timeoutMs: env.TRADERSLINK_AI_READ_TIMEOUT_MS?.trim()
+      ? resolvePositiveInteger(env.TRADERSLINK_AI_READ_TIMEOUT_MS, DEFAULT_TIMEOUT_MS)
+      : undefined,
     maxOutputTokens: resolvePositiveInteger(
       env.TRADERSLINK_AI_READ_MAX_OUTPUT_TOKENS,
       DEFAULT_MAX_OUTPUT_TOKENS,
