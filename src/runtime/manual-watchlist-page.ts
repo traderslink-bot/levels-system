@@ -2370,7 +2370,15 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       return "main";
     }
 
+    const pendingMoveGroups = new Map();
+    const movingSymbols = new Set();
+    let moveSelectionEntries = [];
     function renderEntries(entries) {
+      moveSelectionEntries = entries;
+      const activeSymbols = new Set(entries.map(entry => entry.symbol));
+      for (const symbol of pendingMoveGroups.keys()) {
+        if (!activeSymbols.has(symbol) && !movingSymbols.has(symbol)) pendingMoveGroups.delete(symbol);
+      }
       for (const key of Object.keys(listEls)) if (isTopWatchesGroup(key)) delete listEls[key];
       const datedContainer = document.getElementById("dated-top-watches-lists");
       datedContainer.replaceChildren();
@@ -2607,25 +2615,32 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ) {
           const moveSelect = document.createElement("select");
           moveSelect.setAttribute("aria-label", "Move " + entry.symbol + " to watchlist");
-          const currentGroup = entryWatchlistGroup(entry);
+            const currentGroup = entryWatchlistGroup(entry);
+            const selectedMoveGroup = pendingMoveGroups.get(entry.symbol) || currentGroup;
+            moveSelect.disabled = movingSymbols.has(entry.symbol);
+            moveSelect.addEventListener("change", () => pendingMoveGroups.set(entry.symbol, moveSelect.value));
           for (const [value, label] of [
             ["top_regular", "Top Regular Hour Watches"],
             ["main", "Main Session"],
             ["postmarket", "Post-Market"],
             ["general", "General Watchlist"],
             ["swings", "Swings"],
-            ...availableTopWatchesGroups.map(group => [group, topWatchesLabel(group)]),
+            ...Array.from(new Set(availableTopWatchesGroups.concat(isTopWatchesGroup(selectedMoveGroup) ? [selectedMoveGroup] : []))).map(group => [group, topWatchesLabel(group)]),
           ]) {
             const option = document.createElement("option");
             option.value = value;
             option.textContent = label;
-            option.selected = value === currentGroup;
+            option.selected = value === selectedMoveGroup;
             moveSelect.appendChild(option);
           }
           const moveButton = document.createElement("button");
-          moveButton.textContent = "Move to List";
+            moveButton.textContent = "Move to List";
+            moveButton.disabled = movingSymbols.has(entry.symbol);
           moveButton.className = "secondary";
-          moveButton.addEventListener("click", async () => {
+            moveButton.addEventListener("click", async () => {
+              if (movingSymbols.has(entry.symbol)) return;
+              movingSymbols.add(entry.symbol);
+              pendingMoveGroups.set(entry.symbol, moveSelect.value);
             moveButton.disabled = true;
             moveSelect.disabled = true;
             try {
@@ -2647,12 +2662,16 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
                 moveSelect.options[moveSelect.selectedIndex].text +
                 " without deactivating it.",
               );
-              await loadEntries();
-              await loadRuntimeStatus();
-            } catch (error) {
-              setStatus("Move request failed for " + entry.symbol + ": " + String(error), true);
+                pendingMoveGroups.delete(entry.symbol);
+                movingSymbols.delete(entry.symbol);
+                await loadEntries();
+                await loadRuntimeStatus();
+              } catch (error) {
+                setStatus("Move request failed for " + entry.symbol + ": " + String(error), true);
             } finally {
-              moveButton.disabled = false;
+                movingSymbols.delete(entry.symbol);
+                renderEntries(moveSelectionEntries);
+                moveButton.disabled = false;
               moveSelect.disabled = false;
             }
           });
