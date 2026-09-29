@@ -19,7 +19,7 @@ export type LiveWatchlistCardKind =
   | "extendedQuote";
 
 export type LiveWatchlistStatus = "live" | "stale" | "deactivated";
-export type LiveWatchlistGroup = "top_regular" | "main" | "postmarket" | "general";
+export type LiveWatchlistGroup = "top_regular" | "main" | "postmarket" | "general" | "swings";
 export type LiveWatchlistSlotState = "active" | "followup";
 export type LiveWatchlistMarketDataStatus = "live" | "stale" | "offline" | "starting" | "closed";
 export type LiveWatchlistTickerMarketDataStatus = "live" | "stale" | "halted";

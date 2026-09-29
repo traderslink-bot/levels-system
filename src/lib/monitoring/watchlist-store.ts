@@ -41,7 +41,7 @@ function normalizeAiReadFailure(value: unknown): WatchlistTradersLinkAiReadFailu
 }
 
 function normalizeWatchlistGroup(value: unknown): WatchlistGroup | undefined {
-  return value === "top_regular" || value === "main" || value === "postmarket" || value === "general"
+  return value === "top_regular" || value === "main" || value === "postmarket" || value === "general" || value === "swings"
     ? value
     : undefined;
 }

@@ -2448,7 +2448,7 @@ async function main(): Promise<void> {
         const watchlistGroup =
           body.watchlistGroup === "top_regular" ||
           body.watchlistGroup === "main" ||
-          body.watchlistGroup === "postmarket" || body.watchlistGroup === "general"
+          body.watchlistGroup === "postmarket" || body.watchlistGroup === "general" || body.watchlistGroup === "swings"
             ? body.watchlistGroup
             : null;
 
@@ -2540,7 +2540,7 @@ async function main(): Promise<void> {
         const watchlistGroup =
           body.watchlistGroup === "top_regular" ||
           body.watchlistGroup === "main" ||
-          body.watchlistGroup === "postmarket" || body.watchlistGroup === "general"
+          body.watchlistGroup === "postmarket" || body.watchlistGroup === "general" || body.watchlistGroup === "swings"
             ? body.watchlistGroup
             : null;
         if (symbol.trim().length === 0 || watchlistGroup === null) {
@@ -2778,11 +2778,11 @@ async function main(): Promise<void> {
           scope !== "all" &&
           scope !== "top_regular" &&
           scope !== "main" &&
-          scope !== "postmarket" && scope !== "general" &&
+          scope !== "postmarket" && scope !== "general" && scope !== "swings" &&
           scope !== "reversal"
         ) {
           sendJson(response, 400, {
-            error: "scope must be all, top_regular, main, postmarket, general, or reversal.",
+            error: "scope must be all, top_regular, main, postmarket, general, swings, or reversal.",
           });
           return;
         }

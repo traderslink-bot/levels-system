@@ -153,6 +153,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         <option value="main" selected>Main Session (Premarket + Regular Hours)</option>
         <option value="postmarket">Post-Market</option>
         <option value="general">General Watchlist</option>
+        <option value="swings">Swings</option>
       </select>
       <div class="field-hint">
         Use this watchlist for small, micro, and nano-cap momentum tickers. Large liquid names should only be used for deliberate technical tests.
@@ -209,6 +210,13 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         </div>
         <details style="position:relative;width:fit-content"><summary aria-label="About General Watchlist" style="cursor:pointer;list-style:none">ⓘ</summary><p style="position:absolute;z-index:20;width:min(280px,70vw);background:#fff;color:#1f2937;border:1px solid #d7dee8;border-radius:8px;padding:12px;box-shadow:0 4px 12px #0002">Stocks being watched for potential opportunities, without a specific trading session or day-trade/swing-trade focus. Open a ticker to view available notes, analysis and price levels.</p></details>
         <ul id="general-list"></ul>
+      </div>
+      <div class="watchlist-admin-group">
+        <div class="watchlist-group-heading">
+          <h3>Swings</h3>
+          <button class="danger" id="remove-swings-tickers-button" type="button">Clear Swings</button>
+        </div>
+        <ul id="swings-list"></ul>
       </div>
     </section>
 
@@ -632,6 +640,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       main: document.getElementById("main-session-list"),
       postmarket: document.getElementById("postmarket-list"),
       general: document.getElementById("general-list"),
+      swings: document.getElementById("swings-list"),
     };
     const watchlistHealthEl = document.getElementById("watchlist-health");
     const dayTradeAdapterToggleEl = document.getElementById("day-trade-adapter-toggle");
@@ -2326,7 +2335,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       if (
         entry.watchlistGroup === "top_regular" ||
         entry.watchlistGroup === "main" ||
-        entry.watchlistGroup === "postmarket" || entry.watchlistGroup === "general"
+        entry.watchlistGroup === "postmarket" || entry.watchlistGroup === "general" || entry.watchlistGroup === "swings"
       ) {
         return entry.watchlistGroup;
       }
@@ -2542,6 +2551,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             ["main", "Main Session"],
             ["postmarket", "Post-Market"],
             ["general", "General Watchlist"],
+            ["swings", "Swings"],
           ]) {
             const option = document.createElement("option");
             option.value = value;
@@ -2641,6 +2651,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         main: "No Main Session tickers are active.",
         postmarket: "No Post-Market tickers are active.",
         general: "No General Watchlist tickers are active.",
+        swings: "No Swings tickers are active.",
       };
       for (const [group, list] of Object.entries(listEls)) {
         if (list.childElementCount === 0) {
@@ -3660,6 +3671,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     removeMainTickersButtonEl.addEventListener("click", () => deactivateTickerGroup("main", "Main Session"));
     removePostmarketTickersButtonEl.addEventListener("click", () => deactivateTickerGroup("postmarket", "Post-Market"));
     document.getElementById("remove-general-tickers-button").addEventListener("click", () => deactivateTickerGroup("general", "General Watchlist"));
+    document.getElementById("remove-swings-tickers-button").addEventListener("click", () => deactivateTickerGroup("swings", "Swings"));
     removeReversalTickersButtonEl.addEventListener("click", () => deactivateTickerGroup("reversal", "Potential Reversal Watchlist"));
     aiCleanReadButtonEl.addEventListener("click", () => {
       window.open("/ai-clean-read", "ai-clean-read");

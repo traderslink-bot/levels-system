@@ -800,7 +800,7 @@ function watchlistGroupForActivation(input: ManualWatchlistActivationInput): Wat
   if (
     input.watchlistGroup === "top_regular" ||
     input.watchlistGroup === "main" ||
-    input.watchlistGroup === "postmarket" || input.watchlistGroup === "general"
+    input.watchlistGroup === "postmarket" || input.watchlistGroup === "general" || input.watchlistGroup === "swings"
   ) {
     return input.watchlistGroup;
   }

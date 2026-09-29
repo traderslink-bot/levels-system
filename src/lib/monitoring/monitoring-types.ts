@@ -332,7 +332,7 @@ export type WatchlistTradersLinkAiReadFailure = {
   trigger: string;
   failedAt: number;
 };
-export type WatchlistGroup = "top_regular" | "main" | "postmarket" | "general";
+export type WatchlistGroup = "top_regular" | "main" | "postmarket" | "general" | "swings";
 
 export type WatchlistEntry = {
   overnightLevelReference?: import("../live-watchlist/overnight-level-reference.js").OvernightLevelReference;

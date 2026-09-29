@@ -40,7 +40,7 @@ export type LiveWatchlistAuditArchiveSymbol = {
   lastSeenAt: number;
   archivedAt: number;
   firstPostedAt?: number | null;
-  watchlistGroup?: "top_regular" | "main" | "postmarket" | "general";
+  watchlistGroup?: "top_regular" | "main" | "postmarket" | "general" | "swings";
   watchlistSlotState?: LiveWatchlistSlotState;
   reversalWatchEligible?: boolean;
   reversalWatchAttemptReady?: boolean;
@@ -147,7 +147,7 @@ function normalizeArchiveSymbol(value: unknown, now: number): LiveWatchlistAudit
       : {}),
     ...(value.watchlistGroup === "top_regular" ||
     value.watchlistGroup === "main" ||
-    value.watchlistGroup === "postmarket" || value.watchlistGroup === "general"
+    value.watchlistGroup === "postmarket" || value.watchlistGroup === "general" || value.watchlistGroup === "swings"
       ? { watchlistGroup: value.watchlistGroup }
       : {}),
     ...(value.watchlistSlotState === "active" || value.watchlistSlotState === "followup"
