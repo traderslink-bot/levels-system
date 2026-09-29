@@ -23,22 +23,20 @@ test("simple visibility matches selected sections and promotes deep-only Pullbac
   assert.equal(sections.length, 1); assert.equal(sections[0]!.title, "Pullback");
   assert.match(JSON.stringify(sections), /3.66/); assert.doesNotMatch(JSON.stringify(sections), /3.86|4.73|Base fails/);
 });
-test("pagination splits at Pullback, not the height-balanced middle", () => {
-  assert.deepEqual(splitImageSections([300,400,500],['currentRead','shallow','targets']),[[0,1,2]]);
-  assert.deepEqual(splitImageSections([1200,1200,300,300],['currentRead','targets','shallow','deep']),[[0,1],[2,3]]);
-  assert.deepEqual(splitImageSections([2500],['currentRead']),[[0]]);
-  assert.throws(()=>splitImageSections([4300,4300],['currentRead','shallow']));
+test("four images follow the owner-selected semantic order", () => {
+  const keys=['currentRead','needsToHold','cautionBelow','momentumFailure','mustClear','breakoutContinuation','targets','shallow','deep'];
+  assert.deepEqual(splitImageSections(keys.map(()=>100),keys),[[0],[6],[1,2,3,4,5],[7,8]]);
+  assert.deepEqual(splitImageSections([300,400,500],['currentRead','shallow','targets']),[[0],[2],[1]]);
+  assert.throws(()=>splitImageSections([4300],['currentRead']));
   assert.throws(()=>splitImageSections([],[]));
 });
-test("news and risk stay below pullbacks unless a third image is needed", () => {
+test("website-only sections do not enter the four image export", () => {
   const keys=['currentRead','targets','shallow','deep','failureRecovery','catalystRealityCheck','riskSummary'];
-  assert.deepEqual(splitImageSections([800,800,600,600,500,400,300],keys),[[0,1],[2,3,4,5,6]]);
-  assert.deepEqual(splitImageSections([800,800,1200,1200,1000,900,600],keys),[[0,1],[2,3,4],[5,6]]);
+  assert.deepEqual(splitImageSections(keys.map(()=>100),keys),[[0],[1],[2,3]]);
 });
-test("hidden sections do not create blank images or separate the remaining pullback", () => {
-  assert.deepEqual(splitImageSections([1800,900,900],['currentRead','deep','riskSummary']),[[0],[1,2]]);
-  assert.deepEqual(splitImageSections([1200,900],['deep','riskSummary']),[[0,1]]);
-  assert.deepEqual(splitImageSections([1500,900],['currentRead','riskSummary']),[[0],[1]]);
+test("hidden sections never create blank images", () => {
+  assert.deepEqual(splitImageSections([100,100],['deep','targets']),[[1],[0]]);
+  assert.deepEqual(splitImageSections([100],['deep']),[[0]]);
 });
 test("exports retain the website's source-name concealment without mutating saved text", () => {
   const read=simple(); read.simpleAnalysis!.setup='News from https://www.stocktitan.net/example and Stock%2554itan';
@@ -59,22 +57,22 @@ test("current format preserves owner edits and omits unsupported risk panels", (
 test("renderer returns a readable PNG for compact simple content with markup safely escaped", async () => {
   const read=simple(); read.simpleAnalysis!.setup='Owner <b>literal</b> & text';
   const images=await renderAnalysisImages(read);
-  assert.equal(images.length,1); assert.equal(images[0]!.filename,'VEEA-analysis-1.png');
+  assert.equal(images.length,4); assert.equal(images[0]!.filename,'VEEA-analysis-1.png');
   assert.deepEqual(Array.from(images[0]!.bytes.slice(0,8)),[137,80,78,71,13,10,26,10]);
   const sharp=createRequire(import.meta.url)('sharp') as typeof import('sharp');
   const meta=await sharp(images[0]!.bytes).metadata();
-  assert.equal(meta.width,1000); assert.ok(meta.height! > 500); assert.ok(meta.height! <= 4490);
-  assert.match(images[0]!.description,/9:00:50 AM/);
+  assert.equal(meta.width,1000); assert.ok(meta.height! > 300); assert.ok(meta.height! <= 4490);
+  assert.match(images[0]!.description,/9:00 AM/);
   if (process.env.WATCHLIST_IMAGE_QA_DIRECTORY) writeFileSync(join(process.env.WATCHLIST_IMAGE_QA_DIRECTORY,'simple-image-qa.png'),images[0]!.bytes);
 });
-test("longer selected sections split into two real PNGs without changing source", async () => {
+test("longer selected sections split into four real PNGs without changing source", async () => {
   const read=simple(); const sentence='Wait for buyers to defend the observed base and reclaim the upper boundary. ';
   read.simpleAnalysis!.setup=sentence.repeat(4);
   for(const p of read.simpleAnalysis!.pullbacks) p.explanation=sentence.repeat(5);
   read.simpleAnalysis!.upside[0]!.explanation=sentence.repeat(4);
   const original=JSON.stringify(read); const images=await renderAnalysisImages(read);
-  assert.equal(images.length,2); assert.equal(JSON.stringify(read),original);
-  assert.match(images[1]!.description,/image 2 of 2/);
+  assert.equal(images.length,4); assert.equal(JSON.stringify(read),original);
+  assert.match(images[1]!.description,/image 2 of 4/);
   if (process.env.WATCHLIST_IMAGE_QA_DIRECTORY) for(let i=0;i<images.length;i++) writeFileSync(join(process.env.WATCHLIST_IMAGE_QA_DIRECTORY,`split-image-qa-${i+1}.png`),images[i]!.bytes);
 });
 test("approved image cache freezes bytes and text-only failure, old approvals untouched", async () => {

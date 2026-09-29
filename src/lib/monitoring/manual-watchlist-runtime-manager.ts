@@ -5136,7 +5136,7 @@ export class ManualWatchlistRuntimeManager {
     if (!state.events.some(event => event.body.kind === "delivery" && event.body.approvalRevision === approval.revision && event.body.channel === "website" && event.body.status === "acknowledged")) throw new Error("Analysis has not been published.");
     const cards = approval.body.publication.website.cards as { tradersLinkAiRead?: { body?: string } };
     if (!cards.tradersLinkAiRead?.body) throw new Error("No published analysis available.");
-    const images = await approvedAnalysisImages(store.imageDirectory(input.cycleId), approval.revision, approval.body.publication, symbol);
+    const images = await approvedAnalysisImages(store.imageDirectory(input.cycleId), approval.revision, approval.body.publication, symbol, undefined, "light-four");
     const earlier = state.events.some(event => event.revision < approval.revision && event.body.kind === "approve"
       && state.events.some(receipt => receipt.body.kind === "delivery" && receipt.body.approvalRevision === event.revision && receipt.body.channel === "website" && receipt.body.status === "acknowledged"));
     return { symbol, cycleId: input.cycleId, approvalRevision: approval.revision, updated: earlier,
