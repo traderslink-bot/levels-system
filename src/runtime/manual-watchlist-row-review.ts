@@ -25,6 +25,58 @@ export const WATCHLIST_ROW_REVIEW = String.raw`
     })();
     return loading;
   }
+// Embedded in the existing Runtime owner-console IIFE by the exact-parent packager.
+const xChoices = new Map();
+function attachX(entry, actions, state) {
+  const cycleId = state?.cycleId || entry.publicationReview?.cycleId;
+  if (!cycleId) return;
+  const choiceKey = cycleId + ':' + state?.draftRevision;
+  async function openX(forApproval) {
+    const dialog=document.createElement('dialog'); dialog.style.cssText='width:min(580px,90vw);max-height:85vh;overflow:auto';
+    const title=document.createElement('h2');title.textContent=entry.symbol+' — Post to X';
+    const label=document.createElement('label');label.textContent='X caption';
+    const text=document.createElement('textarea');text.rows=5;text.style.width='100%';text.setAttribute('aria-label','X caption');label.append(text);
+    const counter=document.createElement('p');counter.setAttribute('aria-live','polite');counter.textContent='Checking characters…';
+    const status=document.createElement('p');status.setAttribute('role','status');status.textContent='Loading…';
+    const submit=document.createElement('button');submit.type='button';submit.textContent=forApproval?'Use caption when approving':'Post to X';submit.disabled=true;
+    const check=document.createElement('button');check.type='button';check.textContent='Refresh delivery status';
+    const retry=document.createElement('button');retry.type='button';retry.textContent='Retry X post';retry.hidden=true;
+    const close=document.createElement('button');close.type='button';close.textContent='Close';close.onclick=()=>dialog.close();
+    dialog.append(title,label,counter,status,submit,retry,check,close);document.body.append(dialog);dialog.showModal();
+    const position=()=>{if(window.parent===window||!window.frameElement)return;const f=window.frameElement.getBoundingClientRect(),top=Math.max(0,-f.top),bottom=Math.min(window.innerHeight,window.parent.innerHeight-f.top);dialog.style.position='fixed';dialog.style.margin='0 auto';dialog.style.left='0';dialog.style.right='0';dialog.style.maxHeight=Math.max(120,bottom-top-24)+'px';dialog.style.top=Math.max(top+12,top+(bottom-top-dialog.offsetHeight)/2)+'px';};
+    position();window.parent.addEventListener('scroll',position,true);window.parent.addEventListener('resize',position);
+    let current=null,valid=false,version=0,timer=null,busy=false,selectionChanged=false;
+    dialog.addEventListener('close',()=>{clearTimeout(timer);version++;window.parent.removeEventListener('scroll',position,true);window.parent.removeEventListener('resize',position);dialog.remove();});
+    const enable=()=>{submit.disabled=busy||selectionChanged||!valid||!current?.configured||(!forApproval&&!current?.approvalRevision)||(!forApproval&&current.posts.some(p=>p.approvalRevision===current.approvalRevision));};
+    const count=async()=>{const v=++version;valid=false;enable();try{const r=await request('/x-post',{action:'count',caption:text.value});if(v!==version||!dialog.isConnected)return;valid=r.valid;counter.textContent=r.count+' / '+r.limit+' characters';counter.style.color=r.count>r.limit||!r.valid?'#ef5350':'';enable();}catch{if(v===version){counter.textContent='Character count unavailable. Try again.';valid=false;enable();}}};
+    text.oninput=()=>{version++;valid=false;enable();counter.textContent='Checking characters…';clearTimeout(timer);timer=setTimeout(count,200);};
+    const show=()=>{status.textContent=current.posts[0]?.message || (forApproval?'Only posts to X after you approve this analysis.':'Posts the latest published analysis images.');retry.hidden=!current.posts[0]?.canRetry;enable();position();};
+    try {
+      current=await request('/x-post?symbol='+encodeURIComponent(entry.symbol));
+      text.value=forApproval?(xChoices.get(choiceKey)?.caption || current.nextCaption):current.caption;
+      if(!current.configured)status.textContent='Buffer X connection is not configured yet.';
+      else show();await count();position();
+      submit.onclick=async()=>{
+        if(!valid||busy||selectionChanged)return;
+        if(forApproval){xChoices.set(choiceKey,{caption:text.value,enabled:true});window.dispatchEvent(new Event('watchlist-review-updated'));dialog.close();return;}
+        busy=true;enable();
+        try {current=await request('/x-post',{action:'send',symbol:entry.symbol,cycleId:current.cycleId,approvalRevision:current.approvalRevision,caption:text.value});show();}
+        catch(error){status.textContent=String(error.message||error);}
+        finally {busy=false;enable();}
+      };
+      check.onclick=async()=>{try{const refreshed=await request('/x-post?symbol='+encodeURIComponent(entry.symbol));if(refreshed.cycleId!==current.cycleId||(!forApproval&&refreshed.approvalRevision!==current.approvalRevision)){selectionChanged=true;status.textContent='The published analysis changed. Close and reopen Post to X to select it.';enable();return;}current=refreshed;show();}catch(error){status.textContent=String(error.message||error);}};
+      retry.onclick=async()=>{retry.disabled=true;try{current=await request('/x-post',{action:'retry',symbol:entry.symbol,cycleId:current.cycleId,postKey:current.posts[0].postKey});show();}catch(error){status.textContent=String(error.message||error);}finally{retry.disabled=false;}};
+    }catch(error){status.textContent=String(error.message||error);}
+  }
+  const open=document.createElement('button');open.type='button';open.className='secondary';open.textContent='Post to X';open.onclick=()=>openX(false);actions.append(open);
+  if(state?.canReview){
+    const label=document.createElement('label'),choice=document.createElement('input');choice.type='checkbox';choice.style.width='auto';choice.checked=xChoices.get(choiceKey)?.enabled===true;
+    choice.onchange=()=>{if(choice.checked){choice.checked=false;openX(true);}else{xChoices.delete(choiceKey);}};
+    label.append(choice,document.createTextNode(' Also post to X'));actions.append(label);
+    const caption=document.createElement('button');caption.type='button';caption.className='secondary';caption.textContent='Edit X caption';caption.onclick=()=>openX(true);actions.append(caption);
+  }
+}
+
   function attach(entry, actions) {
     if (entry.analysisGeneration) {
       const run = entry.analysisGeneration;
@@ -77,6 +129,7 @@ export const WATCHLIST_ROW_REVIEW = String.raw`
       } catch(error) { message.textContent = String(error.message || error); }
     };
     actions.append(free);
+    attachX(entry,actions,queue.get(entry.symbol));
     if (!entry.publicationReview?.required) return;
     const state = queue.get(entry.symbol);
     const status = document.createElement('p'); status.setAttribute('role', 'status');
@@ -158,11 +211,15 @@ export const WATCHLIST_ROW_REVIEW = String.raw`
       status.textContent = 'Approving saved analysis…';
       try {
         const preview = await request('/preview?symbol=' + encodeURIComponent(entry.symbol));
-        await request('/approve', { symbol: entry.symbol, cycleId: preview.cycleId, expectedHead: preview.expectedHead,
+        const approvalResult = await request('/approve', { symbol: entry.symbol, cycleId: preview.cycleId, expectedHead: preview.expectedHead,
+          xPost: xChoices.get(choiceKey)?.enabled === true && preview.draftRevision === state.draftRevision,
+          xCaption: xChoices.get(choiceKey)?.caption,
           draftRevision: preview.draftRevision, previewHash: preview.previewHash, notifyUsers: notificationChoices.get(choiceKey) === true, freeChat: freeChatChoices.get(choiceKey) === true && preview.draftRevision === state.draftRevision });
         notificationChoices.delete(choiceKey);
         freeChatChoices.delete(choiceKey);
-        status.textContent = 'Approval recorded. Checking publication status…';
+        xChoices.delete(choiceKey);
+        if (approvalResult.xPostingWarning) errors.set(entry.symbol,approvalResult.xPostingWarning);
+        status.textContent = approvalResult.xPostingWarning || 'Approval recorded. Checking publication status…';
       } catch (error) { errors.set(entry.symbol, String(error.message || error) + ' Check delivery status before retrying.'); status.textContent = errors.get(entry.symbol); }
       finally { pending.delete(entry.symbol); await refresh(); window.dispatchEvent(new Event('watchlist-review-updated')); }
     };
