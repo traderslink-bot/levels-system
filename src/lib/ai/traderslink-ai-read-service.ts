@@ -2457,7 +2457,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
   private fallbackReasoningEffort: WatchlistReasoningEffort;
   private readonly fetchImpl: FetchLike;
   private get timeoutMs(): number {
-    return this.options.timeoutMs ?? (this.reasoningEffort === "xhigh" ? 600_000 : DEFAULT_TIMEOUT_MS);
+    return this.options.timeoutMs ?? (["high", "xhigh"].includes(this.reasoningEffort) ? 600_000 : DEFAULT_TIMEOUT_MS);
   }
   private readonly maxOutputTokens: number;
   private webSearchEnabled: boolean;
