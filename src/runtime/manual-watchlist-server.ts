@@ -1,3 +1,6 @@
+import { upcomingTopWatchesGroup } from "../lib/monitoring/top-watches-calendar.js";
+import { getUsEquityTradingDay as topWatchesTradingDay } from "../lib/market-data/us-equity-exchange-calendar.js";
+import { isTopWatchesGroup } from "../lib/live-watchlist/top-watches-group.js";
 import { isWatchlistModel, isWatchlistReasoningEffort } from "../lib/ai/watchlist-model-options.js";
 import "dotenv/config";
 import { ANALYSIS_REVIEW_PATHS, dispatchAnalysisReviewRequest } from "./manual-watchlist-analysis-review-api.js";
@@ -1260,6 +1263,7 @@ async function main(): Promise<void> {
         selectorStatus.managedEntries.map((entry) => [entry.symbol, entry]),
       );
       sendJson(response, 200, {
+        upcomingTopWatchesGroup: upcomingTopWatchesGroup(),
         activeEntries: manager.getActiveEntries().map((entry) => ({
           ...entry,
           selectorSessionActivity: activityBySymbol.get(entry.symbol) ?? null,
@@ -2448,7 +2452,7 @@ async function main(): Promise<void> {
         const watchlistGroup =
           body.watchlistGroup === "top_regular" ||
           body.watchlistGroup === "main" ||
-          body.watchlistGroup === "postmarket" || body.watchlistGroup === "general" || body.watchlistGroup === "swings"
+          body.watchlistGroup === "postmarket" || body.watchlistGroup === "general" || body.watchlistGroup === "swings" || (isTopWatchesGroup(body.watchlistGroup) && topWatchesTradingDay(body.watchlistGroup.slice(12)).isTradingDay)
             ? body.watchlistGroup
             : null;
 
@@ -2540,7 +2544,7 @@ async function main(): Promise<void> {
         const watchlistGroup =
           body.watchlistGroup === "top_regular" ||
           body.watchlistGroup === "main" ||
-          body.watchlistGroup === "postmarket" || body.watchlistGroup === "general" || body.watchlistGroup === "swings"
+          body.watchlistGroup === "postmarket" || body.watchlistGroup === "general" || body.watchlistGroup === "swings" || (isTopWatchesGroup(body.watchlistGroup) && topWatchesTradingDay(body.watchlistGroup.slice(12)).isTradingDay)
             ? body.watchlistGroup
             : null;
         if (symbol.trim().length === 0 || watchlistGroup === null) {
@@ -2805,7 +2809,7 @@ async function main(): Promise<void> {
           scope !== "all" &&
           scope !== "top_regular" &&
           scope !== "main" &&
-          scope !== "postmarket" && scope !== "general" && scope !== "swings" &&
+          scope !== "postmarket" && scope !== "general" && scope !== "swings" && !isTopWatchesGroup(scope) &&
           scope !== "reversal"
         ) {
           sendJson(response, 400, {

@@ -154,6 +154,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         <option value="postmarket">Post-Market</option>
         <option value="general">General Watchlist</option>
         <option value="swings">Swings</option>
+        <option id="top-watches-add-option" value="" disabled>Top Watches (loading date)</option>
       </select>
       <div class="field-hint">
         Use this watchlist for small, micro, and nano-cap momentum tickers. Large liquid names should only be used for deliberate technical tests.
@@ -217,6 +218,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           <button class="danger" id="remove-swings-tickers-button" type="button">Clear Swings</button>
         </div>
         <ul id="swings-list"></ul>
+      </div>
+      <div id="dated-top-watches-lists">
       </div>
     </section>
 
@@ -2331,11 +2334,22 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    function isTopWatchesGroup(value) {
+      if (typeof value !== "string" || !/^top_watches:\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+      const date = value.slice(12), time = Date.parse(date + "T12:00:00Z");
+      return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === date;
+    }
+    function topWatchesLabel(group) {
+      return "Top Watches · " + new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(group.slice(12) + "T12:00:00Z"));
+    }
+    let upcomingTopWatchesGroup = null;
+    let availableTopWatchesGroups = [];
+
     function entryWatchlistGroup(entry) {
       if (
         entry.watchlistGroup === "top_regular" ||
         entry.watchlistGroup === "main" ||
-        entry.watchlistGroup === "postmarket" || entry.watchlistGroup === "general" || entry.watchlistGroup === "swings"
+        entry.watchlistGroup === "postmarket" || entry.watchlistGroup === "general" || entry.watchlistGroup === "swings" || isTopWatchesGroup(entry.watchlistGroup)
       ) {
         return entry.watchlistGroup;
       }
@@ -2357,6 +2371,20 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     }
 
     function renderEntries(entries) {
+      for (const key of Object.keys(listEls)) if (isTopWatchesGroup(key)) delete listEls[key];
+      const datedContainer = document.getElementById("dated-top-watches-lists");
+      datedContainer.replaceChildren();
+      availableTopWatchesGroups = [...new Set(entries.map(entryWatchlistGroup).filter(isTopWatchesGroup).concat(upcomingTopWatchesGroup ? [upcomingTopWatchesGroup] : []))].sort();
+      for (const group of availableTopWatchesGroups) {
+        if (!entries.some(entry => entryWatchlistGroup(entry) === group)) continue;
+        const section = document.createElement("div"); section.className = "watchlist-admin-group";
+        const heading = document.createElement("div"); heading.className = "watchlist-group-heading";
+        const title = document.createElement("h3"); title.textContent = topWatchesLabel(group); title.title = group.slice(12);
+        const clear = document.createElement("button"); clear.type = "button"; clear.className = "danger"; clear.textContent = "Clear " + topWatchesLabel(group);
+        clear.addEventListener("click", () => deactivateTickerGroup(group, topWatchesLabel(group)));
+        heading.append(title, clear); const list = document.createElement("ul"); listEls[group] = list;
+        section.append(heading, list); datedContainer.appendChild(section);
+      }
       for (const list of Object.values(listEls)) {
         list.innerHTML = "";
       }
@@ -2586,6 +2614,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             ["postmarket", "Post-Market"],
             ["general", "General Watchlist"],
             ["swings", "Swings"],
+            ...availableTopWatchesGroups.map(group => [group, topWatchesLabel(group)]),
           ]) {
             const option = document.createElement("option");
             option.value = value;
@@ -2707,7 +2736,19 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 
     async function loadEntries() {
       const [payload] = await Promise.all([fetchJson("/api/watchlist"), window.watchlistRowReview.refresh()]);
-      renderEntries(payload.activeEntries || []);
+      upcomingTopWatchesGroup = isTopWatchesGroup(payload.upcomingTopWatchesGroup) ? payload.upcomingTopWatchesGroup : null;
+        const selectedGroup = watchlistGroupEl.value;
+        const topOption = document.getElementById("top-watches-add-option");
+        if (topOption) topOption.remove();
+        for (const option of [...watchlistGroupEl.options]) if (isTopWatchesGroup(option.value)) option.remove();
+        renderEntries(payload.activeEntries || []);
+        const addDates = [...new Set(availableTopWatchesGroups.concat(isTopWatchesGroup(selectedGroup) ? [selectedGroup] : []))].sort();
+        for (const group of addDates) {
+          const option = document.createElement("option"); option.value = group; option.textContent = topWatchesLabel(group); option.title = group.slice(12);
+          watchlistGroupEl.appendChild(option);
+        }
+        // Keep the owner's selected date while making the upcoming date available too.
+        if ([...watchlistGroupEl.options].some(option => option.value === selectedGroup)) watchlistGroupEl.value = selectedGroup;
       const activated = (payload.activeEntries || []).find((entry) => entry.symbol === activationStatusSymbol);
       if (activated && activated.lifecycle !== "activating" && activated.lifecycle !== "restoring") {
         activationStatusSymbol = null;

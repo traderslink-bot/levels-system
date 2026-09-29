@@ -1,3 +1,4 @@
+import { isTopWatchesGroup } from "../live-watchlist/top-watches-group.js";
 import type { WatchlistEntry, WatchlistGroup } from "./monitoring-types.js";
 import { classifyUsEquityMarketSession } from "../market-data/us-equity-exchange-calendar.js";
 
@@ -9,7 +10,7 @@ export function getWatchlistEntrySessionGroup(
   if (
     entry.watchlistGroup === "top_regular" ||
     entry.watchlistGroup === "main" ||
-    entry.watchlistGroup === "postmarket" || entry.watchlistGroup === "general" || entry.watchlistGroup === "swings"
+    entry.watchlistGroup === "postmarket" || entry.watchlistGroup === "general" || entry.watchlistGroup === "swings" || isTopWatchesGroup(entry.watchlistGroup)
   ) {
     return entry.watchlistGroup;
   }

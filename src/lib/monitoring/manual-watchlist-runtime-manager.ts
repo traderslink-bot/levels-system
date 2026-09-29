@@ -1,3 +1,4 @@
+import { isTopWatchesGroup } from "../live-watchlist/top-watches-group.js";
 import type { WatchlistReasoningEffort } from "../ai/watchlist-model-options.js";
 import { overnightResumeAfter, isFreshDaySessionQuote } from "../live-watchlist/overnight-level-reference.js";
 import { loadPlatformOvernightQuote } from "../market-data/platform-overnight-quote-loader.js";
@@ -800,7 +801,7 @@ function watchlistGroupForActivation(input: ManualWatchlistActivationInput): Wat
   if (
     input.watchlistGroup === "top_regular" ||
     input.watchlistGroup === "main" ||
-    input.watchlistGroup === "postmarket" || input.watchlistGroup === "general" || input.watchlistGroup === "swings"
+    input.watchlistGroup === "postmarket" || input.watchlistGroup === "general" || input.watchlistGroup === "swings" || isTopWatchesGroup(input.watchlistGroup)
   ) {
     return input.watchlistGroup;
   }

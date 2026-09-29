@@ -1,3 +1,4 @@
+import { isTopWatchesGroup } from "../live-watchlist/top-watches-group.js";
 import { normalizeOvernightLevelReference } from "../live-watchlist/overnight-level-reference.js";
 // 2026-04-14 09:28 PM America/Toronto
 // In-memory watchlist store with manual activate/deactivate operations.
@@ -41,7 +42,7 @@ function normalizeAiReadFailure(value: unknown): WatchlistTradersLinkAiReadFailu
 }
 
 function normalizeWatchlistGroup(value: unknown): WatchlistGroup | undefined {
-  return value === "top_regular" || value === "main" || value === "postmarket" || value === "general" || value === "swings"
+  return value === "top_regular" || value === "main" || value === "postmarket" || value === "general" || value === "swings" || isTopWatchesGroup(value)
     ? value
     : undefined;
 }

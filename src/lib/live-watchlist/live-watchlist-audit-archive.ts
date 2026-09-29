@@ -1,3 +1,4 @@
+import { isTopWatchesGroup } from "./top-watches-group.js";
 import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -40,7 +41,7 @@ export type LiveWatchlistAuditArchiveSymbol = {
   lastSeenAt: number;
   archivedAt: number;
   firstPostedAt?: number | null;
-  watchlistGroup?: "top_regular" | "main" | "postmarket" | "general" | "swings";
+  watchlistGroup?: "top_regular" | "main" | "postmarket" | "general" | "swings" | `top_watches:${string}`;
   watchlistSlotState?: LiveWatchlistSlotState;
   reversalWatchEligible?: boolean;
   reversalWatchAttemptReady?: boolean;
@@ -148,7 +149,7 @@ function normalizeArchiveSymbol(value: unknown, now: number): LiveWatchlistAudit
       : {}),
     ...(value.watchlistGroup === "top_regular" ||
     value.watchlistGroup === "main" ||
-    value.watchlistGroup === "postmarket" || value.watchlistGroup === "general" || value.watchlistGroup === "swings"
+    value.watchlistGroup === "postmarket" || value.watchlistGroup === "general" || value.watchlistGroup === "swings" || isTopWatchesGroup(value.watchlistGroup)
       ? { watchlistGroup: value.watchlistGroup }
       : {}),
     ...(value.watchlistSlotState === "active" || value.watchlistSlotState === "followup"

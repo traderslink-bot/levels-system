@@ -1,3 +1,4 @@
+import { isTopWatchesGroup } from "../live-watchlist/top-watches-group.js";
 import { normalizeOvernightLevelReference } from "../live-watchlist/overnight-level-reference.js";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -227,7 +228,7 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     value.watchlistGroup !== null &&
     value.watchlistGroup !== "top_regular" &&
     value.watchlistGroup !== "main" &&
-    value.watchlistGroup !== "postmarket" && value.watchlistGroup !== "general" && value.watchlistGroup !== "swings"
+    value.watchlistGroup !== "postmarket" && value.watchlistGroup !== "general" && value.watchlistGroup !== "swings" && !isTopWatchesGroup(value.watchlistGroup)
   ) {
     return null;
   }
@@ -350,7 +351,7 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     tags: [...value.tags],
     ...(value.watchlistGroup === "top_regular" ||
     value.watchlistGroup === "main" ||
-    value.watchlistGroup === "postmarket" || value.watchlistGroup === "general" || value.watchlistGroup === "swings"
+    value.watchlistGroup === "postmarket" || value.watchlistGroup === "general" || value.watchlistGroup === "swings" || isTopWatchesGroup(value.watchlistGroup)
       ? { watchlistGroup: value.watchlistGroup }
       : {}),
     note:
