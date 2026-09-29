@@ -44,7 +44,7 @@ test("row edit opens the card, approval pins the saved preview, and neither gene
   h.children.find(n => n.textContent === "View / edit analysis").onclick();
   assert.deepEqual(JSON.parse(JSON.stringify(h.messages[0])), { source: "traderslink-watchlist-admin", type: "edit-analysis", symbol: "TRUG" });
   await h.children.find(n => n.textContent === "Approve and publish").onclick();
-  assert.deepEqual(h.calls.find(c => c.url.endsWith("/approve"))?.body, { symbol: "TRUG", cycleId: "cycle", expectedHead: 7, draftRevision: 5, previewHash: "exact-hash", notifyUsers: false });
+  assert.deepEqual(h.calls.find(c => c.url.endsWith("/approve"))?.body, { symbol: "TRUG", cycleId: "cycle", expectedHead: 7, draftRevision: 5, previewHash: "exact-hash", notifyUsers: false, freeChat: false });
   assert.ok(h.calls.every(c => c.url.startsWith("/api/watchlist/analysis-review")));
 });
 test("ordinary posts get no review actions; preparing, failed and approved rows cannot publish again", async () => {
