@@ -5,6 +5,7 @@ export const WATCHLIST_ROW_REVIEW = String.raw`
   let queue = new Map(), loading = null;
   const pending = new Set(), errors = new Map(), notificationChoices = new Map();
   const notesDrafts = new Map();
+  const freeChatChoices = new Map();
   async function request(path, body) {
     const response = await fetch("/api/watchlist/analysis-review" + path, {
       method: body ? 'POST' : 'GET', cache: 'no-store', signal: AbortSignal.timeout(30000),
@@ -31,6 +32,33 @@ export const WATCHLIST_ROW_REVIEW = String.raw`
       window.parent.postMessage({ source: 'traderslink-watchlist-admin', type: 'post-potential-gain', symbol: entry.symbol }, window.location.origin);
     };
     actions.append(gainPost);
+    const free = document.createElement('button'); free.type = 'button'; free.className = 'secondary'; free.textContent = 'Post to Free Chat';
+    free.disabled = !entry.publicationReview?.cycleId;
+    free.onclick = async () => {
+      const dialog = document.createElement('dialog'); dialog.style.cssText = 'width:min(480px,90vw);max-height:85vh;overflow:auto';
+      const heading = document.createElement('h2'); heading.textContent = entry.symbol + ' — Free Chat';
+      const message = document.createElement('p'); message.setAttribute('role','status'); message.textContent = 'Loading…';
+      const close = document.createElement('button'); close.type = 'button'; close.textContent = 'Close'; close.onclick = () => dialog.close();
+      dialog.append(heading,message,close); dialog.addEventListener('close',()=>dialog.remove()); document.body.append(dialog); dialog.showModal();
+      try {
+        let current = await request('/free-chat?symbol=' + encodeURIComponent(entry.symbol));
+        const show = () => { const receipt = current.posts[0]; message.textContent = receipt ? (receipt.status_message || 'Free Chat: ' + receipt.state) + (receipt.sent_at_ms ? ' ' + new Date(receipt.sent_at_ms).toLocaleString() : '') : 'No Free Chat post sent for this ticker.'; };
+        const label = document.createElement('label'), automatic = document.createElement('input'); automatic.type = 'checkbox'; automatic.style.width = 'auto'; automatic.checked = current.automaticEnabled;
+        label.append(automatic,document.createTextNode(' Automatically post analysis updates to Free Chat'));
+        const send = document.createElement('button'); send.type = 'button'; send.textContent = 'Post to Free Chat'; send.disabled = !current.hasPublishedAnalysis;
+        const update = async body => {
+          automatic.disabled = send.disabled = true;
+          try { current = await request('/free-chat',Object.assign({symbol:entry.symbol,cycleId:current.cycleId},body)); automatic.checked = current.automaticEnabled; show(); }
+          catch(error) { automatic.checked = current.automaticEnabled; message.textContent = String(error.message || error); }
+          finally { automatic.disabled = false; send.disabled = !current.hasPublishedAnalysis; }
+        };
+        automatic.onchange = () => update({action:'automatic',enabled:automatic.checked});
+        send.onclick = () => update({action:'send'});
+        const check = document.createElement('button'); check.type = 'button'; check.textContent = 'Refresh delivery status'; check.onclick = async () => { try { current = await request('/free-chat?symbol=' + encodeURIComponent(entry.symbol)); show(); } catch(error) { message.textContent = String(error.message || error); } };
+        dialog.insertBefore(label,close); dialog.insertBefore(send,close); dialog.insertBefore(check,close); show();
+      } catch(error) { message.textContent = String(error.message || error); }
+    };
+    actions.append(free);
     if (!entry.publicationReview?.required) return;
     const state = queue.get(entry.symbol);
     const status = document.createElement('p'); status.setAttribute('role', 'status');
@@ -89,6 +117,12 @@ export const WATCHLIST_ROW_REVIEW = String.raw`
       actions.append(list);
     }
     const choiceKey = state?.cycleId + ':' + state?.draftRevision;
+    if (state?.canReview) {
+      const label = document.createElement('label'), choice = document.createElement('input'); choice.type = 'checkbox'; choice.style.width = 'auto';
+      choice.checked = freeChatChoices.get(choiceKey) === true; choice.disabled = pending.has(entry.symbol);
+      choice.onchange = () => freeChatChoices.set(choiceKey,choice.checked);
+      label.append(choice,document.createTextNode(' Also post to Free Chat')); actions.append(label);
+    }
     if (state?.listed) {
       const label = document.createElement('label');
       const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.style.width = 'auto';
@@ -107,8 +141,9 @@ export const WATCHLIST_ROW_REVIEW = String.raw`
       try {
         const preview = await request('/preview?symbol=' + encodeURIComponent(entry.symbol));
         await request('/approve', { symbol: entry.symbol, cycleId: preview.cycleId, expectedHead: preview.expectedHead,
-          draftRevision: preview.draftRevision, previewHash: preview.previewHash, notifyUsers: notificationChoices.get(choiceKey) === true });
+          draftRevision: preview.draftRevision, previewHash: preview.previewHash, notifyUsers: notificationChoices.get(choiceKey) === true, freeChat: freeChatChoices.get(choiceKey) === true && preview.draftRevision === state.draftRevision });
         notificationChoices.delete(choiceKey);
+        freeChatChoices.delete(choiceKey);
         status.textContent = 'Approval recorded. Checking publication status…';
       } catch (error) { errors.set(entry.symbol, String(error.message || error) + ' Check delivery status before retrying.'); status.textContent = errors.get(entry.symbol); }
       finally { pending.delete(entry.symbol); await refresh(); window.dispatchEvent(new Event('watchlist-review-updated')); }

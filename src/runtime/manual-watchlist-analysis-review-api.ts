@@ -6,12 +6,13 @@ import { loadDiscordMentions, saveDiscordMentions } from "../lib/alerts/watchlis
 type ReviewManager = Pick<ManualWatchlistRuntimeManager,
   "getTradersLinkAiReadReview" | "getTradersLinkAiReadPublicationPreview" | "listTradersLinkAiReadReviews" |
   "listTradersLinkAiReadHistory" | "getHistoricalTradersLinkAiReadReview" |
-  "getAutomaticAnalysisEvents" |
+  "getAutomaticAnalysisEvents" | "exportFreeChatPublication" |
   "saveTraderNotes" | "saveTradersLinkAiReadOwnerEdit" | "approveTradersLinkAiRead" | "publishTickerWithoutAnalysis" |
   "verifyTradersLinkAiReadDiscordReceipt" |
   "publishApprovedTradersLinkAiReadToDiscord">;
 
 export const ANALYSIS_REVIEW_PATHS = new Set([
+  "/api/watchlist/analysis-review/free-chat-publication",
   "/api/watchlist/automatic-analysis-events",
   "/api/watchlist/published-analysis-history",
   "/api/watchlist/analysis-review/discord-mentions",
@@ -86,6 +87,15 @@ export async function dispatchAnalysisReviewRequest(input: {
     if (input.method !== "GET" && input.method !== "POST") return { status: 405, body: { error: "Method not allowed." } };
     try { return { status: 200, body: { settings: input.method === "GET" ? loadDiscordMentions() : saveDiscordMentions(input.body) } }; }
     catch { return { status: 400, body: { error: "Mention settings could not be read or saved. Check unique role IDs, labels and on/off choices, then try again." } }; }
+  }
+  if (input.pathname.endsWith("/free-chat-publication")) {
+    if (input.method !== "GET") return { status: 405, body: { error: "Method not allowed." } };
+    const symbol = input.searchParams.get("symbol") ?? "";
+    const cycleId = input.searchParams.get("cycleId") ?? "";
+    const approvalRevision = Number(input.searchParams.get("approvalRevision"));
+    if (!/^[A-Z0-9][A-Z0-9.-]{0,19}$/.test(symbol) || !cycleId || cycleId.length > 200 || !Number.isSafeInteger(approvalRevision) || approvalRevision < 1) return { status: 400, body: { error: "Invalid publication request." } };
+    try { return { status: 200, body: { publication: await manager.exportFreeChatPublication({ symbol, cycleId, approvalRevision }) } }; }
+    catch { return { status: 409, body: { error: "Published analysis is unavailable for Free Chat." } }; }
   }
   const settingsRequest = input.pathname.endsWith("/settings");
   const queueRequest = input.pathname.endsWith("/queue");

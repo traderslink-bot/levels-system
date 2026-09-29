@@ -5097,6 +5097,24 @@ export class ManualWatchlistRuntimeManager {
     return this.publishApprovedTradersLinkAiReadToDiscord({ symbol,cycleId:input.cycleId,approvalRevision:approval.revision });
   }
 
+  async exportFreeChatPublication(input: { symbol: string; cycleId: string; approvalRevision: number }) {
+    const symbol = normalizeSymbol(input.symbol);
+    const entry = this.watchlistStore.getEntry(symbol);
+    const store = this.options.tradersLinkAiReadReviewStore;
+    if (!entry?.active || entry.publicationReview?.cycleId !== input.cycleId || !store) throw new Error("Ticker review changed.");
+    const state = store.read(input.cycleId);
+    const approval = state?.events.find(event => event.revision === input.approvalRevision && event.body.kind === "approve");
+    if (!state || state.cancelled || !approval || approval.body.kind !== "approve" || !approval.body.publication) throw new Error("Approved analysis unavailable.");
+    if (!state.events.some(event => event.body.kind === "delivery" && event.body.approvalRevision === approval.revision && event.body.channel === "website" && event.body.status === "acknowledged")) throw new Error("Analysis has not been published.");
+    const cards = approval.body.publication.website.cards as { tradersLinkAiRead?: { body?: string } };
+    if (!cards.tradersLinkAiRead?.body) throw new Error("No published analysis available.");
+    const images = await approvedAnalysisImages(store.imageDirectory(input.cycleId), approval.revision, approval.body.publication, symbol);
+    const earlier = state.events.some(event => event.revision < approval.revision && event.body.kind === "approve"
+      && state.events.some(receipt => receipt.body.kind === "delivery" && receipt.body.approvalRevision === event.revision && receipt.body.channel === "website" && receipt.body.status === "acknowledged"));
+    return { symbol, cycleId: input.cycleId, approvalRevision: approval.revision, updated: earlier,
+      images: images.map(image => ({ filename: image.filename, description: image.description, base64: Buffer.from(image.bytes).toString("base64") })) };
+  }
+
   async publishApprovedTradersLinkAiReadToDiscord(input: { symbol: string; cycleId: string; approvalRevision: number }) {
     const symbol = normalizeSymbol(input.symbol);
     const entry = this.watchlistStore.getEntry(symbol);
