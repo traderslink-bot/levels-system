@@ -26,6 +26,14 @@ export const WATCHLIST_ROW_REVIEW = String.raw`
     return loading;
   }
   function attach(entry, actions) {
+    if (entry.analysisGeneration) {
+      const run = entry.analysisGeneration;
+      const elapsed = Math.max(0, Math.floor((Date.now() - run.startedAt) / 1000));
+      const status = document.createElement('span'); status.textContent = 'Analysis running · ' + Math.floor(elapsed / 60) + 'm ' + (elapsed % 60) + 's';
+      const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'secondary'; cancel.textContent = run.cancelling ? 'Cancelling…' : 'Cancel analysis'; cancel.disabled = run.cancelling;
+      cancel.onclick = async () => { cancel.disabled = true; try { await request('/cancel-generation',{symbol:entry.symbol,runId:run.runId}); status.textContent = 'Analysis cancelled. Previous approved analysis is unchanged.'; } catch(error) { status.textContent = String(error.message || error); cancel.disabled = false; } };
+      actions.append(status,cancel);
+    }
     const gainPost = document.createElement('button'); gainPost.type = 'button'; gainPost.className = 'secondary'; gainPost.textContent = 'Post potential gain';
     gainPost.onclick = () => {
       if (window.parent === window) { window.alert('Open Watchlist Admin in the dashboard to preview and post the card.'); return; }
@@ -40,6 +48,16 @@ export const WATCHLIST_ROW_REVIEW = String.raw`
       const message = document.createElement('p'); message.setAttribute('role','status'); message.textContent = 'Loading…';
       const close = document.createElement('button'); close.type = 'button'; close.textContent = 'Close'; close.onclick = () => dialog.close();
       dialog.append(heading,message,close); dialog.addEventListener('close',()=>dialog.remove()); document.body.append(dialog); dialog.showModal();
+      const position = () => {
+        if (window.parent === window || !window.frameElement) return;
+        const frame = window.frameElement.getBoundingClientRect();
+        const top = Math.max(0, -frame.top), bottom = Math.min(window.innerHeight, window.parent.innerHeight - frame.top);
+        dialog.style.position = 'fixed'; dialog.style.margin = '0 auto'; dialog.style.left = '0'; dialog.style.right = '0';
+        dialog.style.maxHeight = Math.max(120, bottom - top - 24) + 'px';
+        dialog.style.top = Math.max(top + 12, top + (bottom - top - dialog.offsetHeight) / 2) + 'px';
+      };
+      position(); window.parent.addEventListener('scroll',position,true); window.parent.addEventListener('resize',position);
+      dialog.addEventListener('close',()=>{window.parent.removeEventListener('scroll',position,true);window.parent.removeEventListener('resize',position);});
       try {
         let current = await request('/free-chat?symbol=' + encodeURIComponent(entry.symbol));
         const show = () => { const receipt = current.posts[0]; message.textContent = receipt ? (receipt.status_message || 'Free Chat: ' + receipt.state) + (receipt.sent_at_ms ? ' ' + new Date(receipt.sent_at_ms).toLocaleString() : '') : 'No Free Chat post sent for this ticker.'; };
@@ -55,7 +73,7 @@ export const WATCHLIST_ROW_REVIEW = String.raw`
         automatic.onchange = () => update({action:'automatic',enabled:automatic.checked});
         send.onclick = () => update({action:'send'});
         const check = document.createElement('button'); check.type = 'button'; check.textContent = 'Refresh delivery status'; check.onclick = async () => { try { current = await request('/free-chat?symbol=' + encodeURIComponent(entry.symbol)); show(); } catch(error) { message.textContent = String(error.message || error); } };
-        dialog.insertBefore(label,close); dialog.insertBefore(send,close); dialog.insertBefore(check,close); show();
+        dialog.insertBefore(label,close); dialog.insertBefore(send,close); dialog.insertBefore(check,close); show(); position();
       } catch(error) { message.textContent = String(error.message || error); }
     };
     actions.append(free);

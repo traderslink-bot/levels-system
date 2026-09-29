@@ -6,12 +6,13 @@ import { loadDiscordMentions, saveDiscordMentions } from "../lib/alerts/watchlis
 type ReviewManager = Pick<ManualWatchlistRuntimeManager,
   "getTradersLinkAiReadReview" | "getTradersLinkAiReadPublicationPreview" | "listTradersLinkAiReadReviews" |
   "listTradersLinkAiReadHistory" | "getHistoricalTradersLinkAiReadReview" |
-  "getAutomaticAnalysisEvents" | "exportFreeChatPublication" |
+  "getAutomaticAnalysisEvents" | "exportFreeChatPublication" | "cancelAnalysisGeneration" |
   "saveTraderNotes" | "saveTradersLinkAiReadOwnerEdit" | "approveTradersLinkAiRead" | "publishTickerWithoutAnalysis" |
   "verifyTradersLinkAiReadDiscordReceipt" |
   "publishApprovedTradersLinkAiReadToDiscord">;
 
 export const ANALYSIS_REVIEW_PATHS = new Set([
+  "/api/watchlist/analysis-review/cancel-generation",
   "/api/watchlist/analysis-review/free-chat-publication",
   "/api/watchlist/automatic-analysis-events",
   "/api/watchlist/published-analysis-history",
@@ -96,6 +97,13 @@ export async function dispatchAnalysisReviewRequest(input: {
     if (!/^[A-Z0-9][A-Z0-9.-]{0,19}$/.test(symbol) || !cycleId || cycleId.length > 200 || !Number.isSafeInteger(approvalRevision) || approvalRevision < 1) return { status: 400, body: { error: "Invalid publication request." } };
     try { return { status: 200, body: { publication: await manager.exportFreeChatPublication({ symbol, cycleId, approvalRevision }) } }; }
     catch { return { status: 409, body: { error: "Published analysis is unavailable for Free Chat." } }; }
+  }
+  if (input.pathname.endsWith("/cancel-generation")) {
+    if (input.method !== "POST") return { status: 405, body: { error: "Method not allowed." } };
+    const body = input.body as { symbol?: unknown; runId?: unknown } | undefined;
+    if (typeof body?.symbol !== "string" || !/^[A-Z0-9][A-Z0-9.-]{0,19}$/.test(body.symbol) || typeof body.runId !== "string" || body.runId.length > 200) return { status: 400, body: { error: "Invalid cancellation request." } };
+    try { return { status: 200, body: manager.cancelAnalysisGeneration(body.symbol, body.runId) }; }
+    catch { return { status: 409, body: { error: "That analysis is no longer running. Refresh the ticker controls." } }; }
   }
   const settingsRequest = input.pathname.endsWith("/settings");
   const queueRequest = input.pathname.endsWith("/queue");

@@ -1,3 +1,4 @@
+import { DiscordPreparationFailure } from "./discord-preparation-failure.js";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { DiscordCooldown } from "./discord-rate-limit.js";
@@ -198,7 +199,37 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
   private readonly webhookUrl?: string;
   private webhookDestinationVerified = false;
 
+  private readonly categoryGateways = new Map<string, Promise<DiscordRestThreadGateway>>();
+  private readonly categoryOptions: DiscordRestThreadGatewayOptions;
+  private async categoryGateway(group?: string): Promise<DiscordRestThreadGateway | null> {
+    const variable = group === "postmarket" || group?.startsWith("top_watches:") ? "WATCHLIST_POSTMARKET_DISCORD_WEBHOOK_URL"
+      : group === "swings" ? "WATCHLIST_SWINGS_DISCORD_WEBHOOK_URL"
+      : group === "general" ? "WATCHLIST_GENERAL_DISCORD_WEBHOOK_URL" : null;
+    if (!variable) return null;
+    const cached = this.categoryGateways.get(variable); if (cached) return cached;
+    const pending = (async () => {
+      const raw = process.env[variable]?.trim();
+      let url: URL;
+      try { url = new URL(raw || ""); } catch { throw new DiscordPreparationFailure("Watchlist destination webhook is missing or invalid."); }
+      if (url.origin !== "https://discord.com" || url.username || url.password || url.search || url.hash ||
+        !/^\/api\/(?:v10\/)?webhooks\/\d{17,20}\/[A-Za-z0-9_-]+$/.test(url.pathname)) throw new DiscordPreparationFailure("Watchlist destination webhook is missing or invalid.");
+      let channel: unknown;
+      try {
+        const response = await this.fetchImpl(url.toString(), { signal: AbortSignal.timeout(8000), redirect: "error" });
+        if (!response.ok) throw new Error("Webhook unavailable");
+        const metadata = await response.json() as { channel_id?: unknown; guild_id?: unknown };
+        if (this.guildId && metadata.guild_id !== this.guildId) throw new Error("Webhook server mismatch");
+        channel = metadata.channel_id;
+      } catch { throw new DiscordPreparationFailure("Watchlist destination could not be verified. No post was sent; retry when its connection is available."); }
+      if (typeof channel !== "string" || !/^\d{17,20}$/.test(channel)) throw new DiscordPreparationFailure("Watchlist destination channel is invalid. No post was sent.");
+      return new DiscordRestThreadGateway({ ...this.categoryOptions, watchlistChannelId: channel, webhookUrl: url.toString() });
+    })();
+    this.categoryGateways.set(variable,pending);
+    try { return await pending; } catch(error) { this.categoryGateways.delete(variable); throw error; }
+  }
+
   constructor(options: DiscordRestThreadGatewayOptions) {
+    this.categoryOptions = { ...options };
     if (options.webhookUrl) {
       let parsed: URL;
       try { parsed = new URL(options.webhookUrl); } catch { throw new Error("Invalid Watchlist webhook configuration."); }
@@ -560,6 +591,8 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
    * an uncertain response must never trigger a blind transport resend.
    */
   async sendApprovedAnalysisChunk(chunk: ApprovedAnalysisDiscordChunk): Promise<ApprovedAnalysisDiscordReceipt> {
+    const routed = await this.categoryGateway(chunk.watchlistGroup);
+    if (routed) return routed.sendApprovedAnalysisChunk({ ...chunk, watchlistGroup: undefined });
     if (!chunk.deliveryKey.trim() || chunk.deliveryKey.length > 512 || !chunk.symbol.trim()) throw new Error("Approved Discord chunk identity is required.");
     if (!chunk.content.trim() || chunk.content.length > DISCORD_MESSAGE_MAX_LENGTH) throw new Error("Approved Discord chunks must contain 1–2000 characters.");
     await this.verifyWebhookDestination();
@@ -605,6 +638,8 @@ export class DiscordRestThreadGateway implements DiscordThreadGateway {
    * sends a message or decides that a missing message is safe to resend.
    */
   async verifyApprovedAnalysisMessage(chunk: ApprovedAnalysisDiscordChunk, messageId: string, notBefore: number): Promise<ApprovedAnalysisDiscordReceipt> {
+    const routed = await this.categoryGateway(chunk.watchlistGroup);
+    if (routed) return routed.verifyApprovedAnalysisMessage({ ...chunk, watchlistGroup: undefined }, messageId, notBefore);
     if (!/^\d{17,20}$/.test(messageId) || !Number.isFinite(notBefore) || notBefore <= 0 ||
       !chunk.content.trim() || !chunk.deliveryKey.trim()) throw new Error("Invalid Discord verification request.");
     if (this.webhookUrl) {

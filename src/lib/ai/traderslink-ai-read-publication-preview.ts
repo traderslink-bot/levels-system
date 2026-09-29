@@ -4,6 +4,7 @@ import { buildWatchlistDiscordLinkMessage } from "../alerts/watchlist-discord-li
 import type { TradersLinkAiReadPayload } from "../live-watchlist/live-watchlist-types.js";
 
 export type ReviewPublication = {
+  discordWatchlistGroup?: string;
   discordAudience?: WatchlistDiscordAudience;
   /** Missing fields preserve historical approved delivery behavior. */
   notifyUsers?: boolean;

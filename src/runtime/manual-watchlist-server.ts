@@ -1265,6 +1265,7 @@ async function main(): Promise<void> {
       sendJson(response, 200, {
         upcomingTopWatchesGroup: upcomingTopWatchesGroup(),
         activeEntries: manager.getActiveEntries().map((entry) => ({
+          analysisGeneration: manager.getAnalysisGeneration(entry.symbol),
           ...entry,
           selectorSessionActivity: activityBySymbol.get(entry.symbol) ?? null,
           // Manual and carried-over tickers do not have an Auto Selector

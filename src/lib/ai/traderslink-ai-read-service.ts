@@ -137,6 +137,7 @@ type ModelRead = {
 
 export type TradersLinkAiReadGenerationInput = {
   canStartFallback?: () => boolean;
+  signal?: AbortSignal;
   analysisFormat?: "current" | "simple";
   snapshot: LevelSnapshotPayload;
   research: RecentWebsiteArticleLookupResult;
@@ -2512,7 +2513,10 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       rejectedDraft: string | null;
     },
   ): Promise<ResponsesApiResponse> {
+    input.signal?.throwIfAborted();
     const controller = new AbortController();
+    const cancel = () => controller.abort(input.signal?.reason);
+    input.signal?.addEventListener("abort", cancel, { once: true });
     const startedAt = Date.now();
     // Snapshot the deadline for this request; later admin settings changes must
     // not alter its timer or the timing reported in its audit.
@@ -2571,7 +2575,9 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       // `message` (for example DOMException). Normalize those errors instead
       // of mutating them, otherwise the timeout gets masked by a secondary
       // "Cannot set property message ..." exception.
-      const timedError = controller.signal.aborted
+      const timedError = input.signal?.aborted
+        ? new Error("Analysis cancelled by owner.") as TimedRequestError
+        : controller.signal.aborted
         ? new Error(timeoutMessage) as TimedRequestError
         : error instanceof Error
           ? error as TimedRequestError
@@ -2587,6 +2593,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       throw timedError;
     } finally {
       clearTimeout(timeout);
+      input.signal?.removeEventListener("abort", cancel);
     }
   }
 
@@ -2610,7 +2617,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       } }, "primary", 1);
     } catch (error) {
       // Never retry preflight, saved-draft or diagnostic/ledger failures.
-      if (!fallback || !failedAttempt || input.canStartFallback?.() === false) throw error;
+      if (input.signal?.aborted || !fallback || !failedAttempt || input.canStartFallback?.() === false) throw error;
       return fallback.generateSingle({ ...input, generationId }, "fallback", 2);
     }
   }

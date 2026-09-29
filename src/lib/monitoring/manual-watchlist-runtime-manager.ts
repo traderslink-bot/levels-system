@@ -1,3 +1,4 @@
+import { DiscordPreparationFailure } from "../alerts/discord-preparation-failure.js";
 import { isTopWatchesGroup } from "../live-watchlist/top-watches-group.js";
 import type { WatchlistReasoningEffort } from "../ai/watchlist-model-options.js";
 import { overnightResumeAfter, isFreshDaySessionQuote } from "../live-watchlist/overnight-level-reference.js";
@@ -4130,6 +4131,21 @@ export class ManualWatchlistRuntimeManager {
     };
   }
 
+  private readonly cancellableAnalysis = new Map<string, { runId: string; startedAt: number; controller: AbortController }>();
+  private readonly cancelledAutomaticAnalysis = new Map<string, number | undefined>();
+  getAnalysisGeneration(symbolInput: string) {
+    const run = this.cancellableAnalysis.get(normalizeSymbol(symbolInput));
+    return run ? { runId: run.runId, startedAt: run.startedAt, cancelling: run.controller.signal.aborted } : null;
+  }
+  cancelAnalysisGeneration(symbolInput: string, runId: string) {
+    const symbol = normalizeSymbol(symbolInput), run = this.cancellableAnalysis.get(symbol);
+    if (!run || run.runId !== runId) throw new Error("That analysis is no longer running. Refresh the ticker controls.");
+    this.cancelledAutomaticAnalysis.set(symbol, this.watchlistStore.getEntry(symbol)?.tradersLinkAiReadBoundaryState?.generatedAt);
+    run.controller.abort(new Error("Analysis cancelled by owner."));
+    this.recordTradersLinkAiReadRunOutcome({ symbol, trigger: "manual", stage: "request", outcome: "skipped", runId, reason: "Analysis cancelled by owner. No replacement will be published." });
+    return { cancelled: true };
+  }
+
   private async generateTradersLinkAiRead(
     symbolInput: string,
     force: boolean,
@@ -4174,6 +4190,8 @@ export class ManualWatchlistRuntimeManager {
     preparedPriceAction?: TradersLinkAiReadPriceActionContext,
   ): Promise<TradersLinkAiReadPayload | null> {
     const requestActivationEpoch = this.activationEpochs.get(symbol);
+    if (requestedTrigger === "manual" || requestedTrigger === "activation") this.cancelledAutomaticAnalysis.delete(symbol);
+    else if (this.cancelledAutomaticAnalysis.has(symbol) && this.cancelledAutomaticAnalysis.get(symbol) === this.watchlistStore.getEntry(symbol)?.tradersLinkAiReadBoundaryState?.generatedAt) return null;
     const analysisFormat = this.analysisFormat;
     const generationAvailability = this.getTradersLinkAiReadGenerationAvailability(
       this.options.now?.() ?? Date.now(),
@@ -4387,6 +4405,8 @@ export class ManualWatchlistRuntimeManager {
       dataAsOf,
     });
     this.aiReadInFlight.add(symbol);
+    const cancellation = new AbortController();
+    this.cancellableAnalysis.set(symbol, { runId, startedAt: Date.now(), controller: cancellation });
     try {
       const priceActionPromise = preparedPriceAction ? Promise.resolve(preparedPriceAction) : this.buildTradersLinkAiReadPriceActionContext(symbol, dataAsOf);
       const targetSessionDate = newYorkDateKeyForTimestamp(dataAsOf);
@@ -4445,6 +4465,7 @@ export class ManualWatchlistRuntimeManager {
       const activationChanged = !requestEntry?.active ||
         requestEntry.publicationReview?.cycleId !== entry.publicationReview?.cycleId ||
         this.activationEpochs.get(symbol) !== requestActivationEpoch;
+      cancellation.signal.throwIfAborted();
       if (!requestAvailability.allowed || activationChanged) {
         this.recordTradersLinkAiReadRunOutcome({
           symbol, trigger: requestedTrigger, stage: "preflight", outcome: "skipped",
@@ -4489,6 +4510,7 @@ export class ManualWatchlistRuntimeManager {
           dataAsOf,
         });
         read = await service.generate({
+          signal: cancellation.signal,
           canStartFallback: () => {
             const current = this.watchlistStore.getEntry(symbol);
             return this.tradersLinkAiReadGenerationSettings.enabled && Boolean(current?.active) &&
@@ -4557,6 +4579,8 @@ export class ManualWatchlistRuntimeManager {
         });
         throw error;
       }
+      cancellation.signal.throwIfAborted();
+      this.cancellableAnalysis.delete(symbol); // Generation is complete; publication is no longer cancellable.
       if (reviewCycleId) this.options.tradersLinkAiReadReviewStore!.recordGeneration(reviewCycleId, { ...generationAudit, status: "completed" });
       if (recordedAttemptCount === 0) {
         this.options.tradersLinkAiReadCostLedger?.record({
@@ -4676,6 +4700,7 @@ export class ManualWatchlistRuntimeManager {
       return read;
     } finally {
       this.aiReadInFlight.delete(symbol);
+      if (this.cancellableAnalysis.get(symbol)?.runId === runId) this.cancellableAnalysis.delete(symbol);
     }
   }
 
@@ -4985,7 +5010,7 @@ export class ManualWatchlistRuntimeManager {
     }
     const publication: ReviewPublication = frozenPublication
       ? frozenPublication
-      : { website: website as unknown as Record<string, unknown>, discordChunks: renderApprovedAnalysisDiscord(read, alreadyListed, audience), discordAudience: audience, analysisImageVersion: 1 };
+      : { website: website as unknown as Record<string, unknown>, discordChunks: renderApprovedAnalysisDiscord(read, alreadyListed, audience), discordAudience: audience, discordWatchlistGroup: this.watchlistStore.getEntry(read.symbol)?.watchlistGroup, analysisImageVersion: 1 };
     return { cycleId: review.cycleId, expectedHead: review.head, draftRevision: draft.revision,
       publication, previewHash: publicationPreviewHash(publication) };
   }
@@ -5087,7 +5112,7 @@ export class ManualWatchlistRuntimeManager {
     if (!alreadyListed) snapshot.firstPostedAt = this.options.now?.() ?? Date.now();
     const audience = currentDiscordAudience();
     const approval = store.approveListingOnly(input.cycleId,store.read(input.cycleId)!.head,input.actor, {
-      website: snapshot as unknown as Record<string,unknown>, discordChunks: attributeOwnerApprovedDiscord([appendDiscordMentions(buildWatchlistDiscordLinkMessage(symbol), audience)], input.actor), discordAudience: audience,
+      discordWatchlistGroup: entry.watchlistGroup, website: snapshot as unknown as Record<string,unknown>, discordChunks: attributeOwnerApprovedDiscord([appendDiscordMentions(buildWatchlistDiscordLinkMessage(symbol), audience)], input.actor), discordAudience: audience,
       notificationKind: "listing", notifyUsers: input.notifyUsers !== false,
     });
     if (approval.body.kind !== "approve" || !approval.body.publication) throw new Error("Listing publication unavailable.");
@@ -5150,9 +5175,12 @@ export class ManualWatchlistRuntimeManager {
       if (!claim.shouldSend) throw new Error("Discord delivery is awaiting confirmation. It has not been sent again.");
       let receipt;
       try {
-        receipt = await this.options.discordAlertRouter.routeApprovedAnalysisChunk({ symbol, deliveryKey: claim.deliveryKey, content: claim.content, audience: approval.body.publication.discordAudience,
+        receipt = await this.options.discordAlertRouter.routeApprovedAnalysisChunk({ symbol, deliveryKey: claim.deliveryKey, content: claim.content, audience: approval.body.publication.discordAudience, watchlistGroup: approval.body.publication.discordWatchlistGroup,
           ...(index === 0 && images.length ? { attachments: images } : {}) });
       } catch (error) {
+        if (error instanceof DiscordPreparationFailure) {
+          store.rejectDiscordChunk(input.cycleId, store.read(input.cycleId)!.head, approval.revision, index, 400);
+        }
         if (error instanceof DiscordConfirmedRejection) {
           store.rejectDiscordChunk(input.cycleId, store.read(input.cycleId)!.head, approval.revision, index, error.status, error.rateLimit);
         }
@@ -5179,7 +5207,7 @@ export class ManualWatchlistRuntimeManager {
     const claim = state.events.findLast(event => event.body.kind === "discord_chunk" && event.body.approvalRevision === input.approvalRevision && event.body.index === input.index);
     const content = approval.body.kind === "approve" ? approval.body.publication?.discordChunks[input.index] : undefined;
     if (!Number.isSafeInteger(input.index) || input.index < 0 || !content || claim?.body.kind !== "discord_chunk" || claim.body.status !== "started") throw new Error("Discord delivery is not awaiting confirmation.");
-    const receipt = await this.options.discordAlertRouter.verifyApprovedAnalysisMessage({ symbol, content, deliveryKey: claim.body.deliveryKey }, input.messageId, claim.at);
+    const receipt = await this.options.discordAlertRouter.verifyApprovedAnalysisMessage({ symbol, content, deliveryKey: claim.body.deliveryKey, watchlistGroup: approval.body.kind === "approve" ? approval.body.publication?.discordWatchlistGroup : undefined }, input.messageId, claim.at);
     const current = requireCurrent();
     if (current.head !== state.head) throw new Error("Review changed. Reload before saving.");
     store!.acknowledgeDiscordChunk(input.cycleId, current.head, input.approvalRevision, input.index, receipt, input.actor);
