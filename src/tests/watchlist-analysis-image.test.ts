@@ -23,16 +23,16 @@ test("simple visibility matches selected sections and promotes deep-only Pullbac
   assert.equal(sections.length, 1); assert.equal(sections[0]!.title, "Pullback");
   assert.match(JSON.stringify(sections), /3.66/); assert.doesNotMatch(JSON.stringify(sections), /3.86|4.73|Base fails/);
 });
-test("four images follow the owner-selected semantic order", () => {
+test("two images follow the owner-selected semantic order", () => {
   const keys=['currentRead','needsToHold','cautionBelow','momentumFailure','mustClear','breakoutContinuation','targets','shallow','deep'];
-  assert.deepEqual(splitImageSections(keys.map(()=>100),keys),[[0],[6],[1,2,3,4,5],[7,8]]);
-  assert.deepEqual(splitImageSections([300,400,500],['currentRead','shallow','targets']),[[0],[2],[1]]);
+  assert.deepEqual(splitImageSections(keys.map(()=>100),keys),[[6],[7,8]]);
+  assert.deepEqual(splitImageSections([300,400,500],['currentRead','shallow','targets']),[[2],[1]]);
   assert.throws(()=>splitImageSections([4300],['currentRead']));
   assert.throws(()=>splitImageSections([],[]));
 });
-test("website-only sections do not enter the four image export", () => {
+test("website-only sections do not enter the two image export", () => {
   const keys=['currentRead','targets','shallow','deep','failureRecovery','catalystRealityCheck','riskSummary'];
-  assert.deepEqual(splitImageSections(keys.map(()=>100),keys),[[0],[1],[2,3]]);
+  assert.deepEqual(splitImageSections(keys.map(()=>100),keys),[[1],[2,3]]);
 });
 test("hidden sections never create blank images", () => {
   assert.deepEqual(splitImageSections([100,100],['deep','targets']),[[1],[0]]);
@@ -57,7 +57,7 @@ test("current format preserves owner edits and omits unsupported risk panels", (
 test("renderer returns a readable PNG for compact simple content with markup safely escaped", async () => {
   const read=simple(); read.simpleAnalysis!.setup='Owner <b>literal</b> & text';
   const images=await renderAnalysisImages(read);
-  assert.equal(images.length,4); assert.equal(images[0]!.filename,'VEEA-analysis-1.png');
+  assert.equal(images.length,2); assert.equal(images[0]!.filename,'VEEA-analysis-1.png');
   assert.deepEqual(Array.from(images[0]!.bytes.slice(0,8)),[137,80,78,71,13,10,26,10]);
   const sharp=createRequire(import.meta.url)('sharp') as typeof import('sharp');
   const meta=await sharp(images[0]!.bytes).metadata();
@@ -65,14 +65,14 @@ test("renderer returns a readable PNG for compact simple content with markup saf
   assert.match(images[0]!.description,/9:00 AM/);
   if (process.env.WATCHLIST_IMAGE_QA_DIRECTORY) writeFileSync(join(process.env.WATCHLIST_IMAGE_QA_DIRECTORY,'simple-image-qa.png'),images[0]!.bytes);
 });
-test("longer selected sections split into four real PNGs without changing source", async () => {
+test("longer selected sections split into two real PNGs without changing source", async () => {
   const read=simple(); const sentence='Wait for buyers to defend the observed base and reclaim the upper boundary. ';
   read.simpleAnalysis!.setup=sentence.repeat(4);
   for(const p of read.simpleAnalysis!.pullbacks) p.explanation=sentence.repeat(5);
   read.simpleAnalysis!.upside[0]!.explanation=sentence.repeat(4);
   const original=JSON.stringify(read); const images=await renderAnalysisImages(read);
-  assert.equal(images.length,4); assert.equal(JSON.stringify(read),original);
-  assert.match(images[1]!.description,/image 2 of 4/);
+  assert.equal(images.length,2); assert.equal(JSON.stringify(read),original);
+  assert.match(images[1]!.description,/image 2 of 2/);
   if (process.env.WATCHLIST_IMAGE_QA_DIRECTORY) for(let i=0;i<images.length;i++) writeFileSync(join(process.env.WATCHLIST_IMAGE_QA_DIRECTORY,`split-image-qa-${i+1}.png`),images[i]!.bytes);
 });
 test("approved image cache freezes bytes and text-only failure, old approvals untouched", async () => {

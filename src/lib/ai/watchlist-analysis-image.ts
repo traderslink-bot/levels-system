@@ -82,12 +82,12 @@ export function analysisImageSections(read: TradersLinkAiReadPayload, dipVisible
   return sections;
 }
 
-/** Owner-approved order: opening, upside, support/breakout, pullbacks.
+/** Owner-approved social preview: upside, then pullbacks.
  * Other sections remain on the website; never create empty images for hidden sections. */
 export function splitImageSections(heights: readonly number[], keys: readonly string[], _comfortable = 1900, maximum = 4200): number[][] {
   if (!heights.length || heights.some(h => !Number.isFinite(h) || h <= 0)) throw new Error("Empty image content");
   if (heights.length !== keys.length) throw new Error("Image section mismatch");
-  const groups = [["currentRead"], ["targets"], ["needsToHold","cautionBelow","momentumFailure","mustClear","breakoutContinuation"], ["shallow","deep"]];
+  const groups = [["targets"], ["shallow","deep"]];
   const pages = groups.map(group => group.flatMap(key => keys.flatMap((found,i) => found === key ? [i] : []))).filter(page => page.length);
   if (!pages.length || pages.some(page => page.reduce((sum,i) => sum + heights[i]!,0) > maximum)) throw new Error("Analysis exceeds readable section groups");
   return pages;
@@ -99,7 +99,7 @@ export async function renderAnalysisImages(read: TradersLinkAiReadPayload, dipVi
   const fontfile = fileURLToPath(new URL("../../../assets/watchlist-fonts/Lato-Regular.ttf", import.meta.url));
   const boldfile = fileURLToPath(new URL("../../../assets/watchlist-fonts/Lato-Bold.ttf", import.meta.url));
   await sharp({ text: { text: ".", font: "Lato Bold 1", fontfile: boldfile, rgba: true } }).png().toBuffer();
-  const included = new Set(["currentRead","targets","needsToHold","cautionBelow","momentumFailure","mustClear","breakoutContinuation","shallow","deep"]);
+  const included = new Set(["targets","shallow","deep"]);
   const sections = analysisImageSections(read, dipVisible).filter(section => included.has(section.key));
   const plainSize = sections.reduce((sum, section) => sum + section.title.length + section.blocks.reduce((n, b) => n + b.text.length, 0), 0);
   if (plainSize > 40000 || !/^[A-Z][A-Z0-9.-]{0,15}$/.test(read.symbol) || !Number.isFinite(read.generatedAt)
