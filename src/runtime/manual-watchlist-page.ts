@@ -154,7 +154,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         <option value="postmarket">Post-Market</option>
         <option value="general">General Watchlist</option>
         <option value="swings">Swings</option>
-        <option id="top-watches-add-option" value="" disabled>Top Watches (loading date)</option>
+        <option id="top-watches-add-option" value="" disabled>Overnight Watches (loading date)</option>
       </select>
       <div class="field-hint">
         Use this watchlist for small, micro, and nano-cap momentum tickers. Large liquid names should only be used for deliberate technical tests.
@@ -2340,7 +2340,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === date;
     }
     function topWatchesLabel(group) {
-      return "Top Watches · " + new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(group.slice(12) + "T12:00:00Z"));
+      return "Overnight Watches · " + new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(group.slice(12) + "T12:00:00Z"));
     }
     let upcomingTopWatchesGroup = null;
     let availableTopWatchesGroups = [];
