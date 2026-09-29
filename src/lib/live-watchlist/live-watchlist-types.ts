@@ -72,6 +72,7 @@ export type LiveWatchlistCardPatch = {
   watchlistLifecycleLabelsVisible?: boolean;
   watchlistLifecycle?: LiveWatchlistLifecycleRead | null;
   liveVolumeContext?: LiveWatchlistVolumeContext | null;
+  indicatorCardVisible?: boolean;
   tradersLinkAiReadCardVisible?: boolean;
   tradersLinkAiReadDipBuyPlanVisible?: boolean;
   levelMap?: LiveWatchlistLevelMap | null;
@@ -103,6 +104,7 @@ export type LiveWatchlistTickerDataPatch = {
   potentialGainCardVisible?: boolean;
   watchlistLifecycleLabelsVisible?: boolean;
   watchlistLifecycle?: LiveWatchlistLifecycleRead | null;
+  indicatorCardVisible?: boolean;
   tradersLinkAiReadCardVisible?: boolean;
   tradersLinkAiReadDipBuyPlanVisible?: boolean;
   latestPrice: number;

@@ -170,6 +170,9 @@ export class WatchlistStore {
       ...(lastThreadPostKind !== undefined ? { lastThreadPostKind } : {}),
       ...(lastError !== undefined ? { lastError } : {}),
       ...(operationStatus !== undefined ? { operationStatus } : {}),
+      ...(typeof entry.indicatorCardVisible === "boolean"
+        ? { indicatorCardVisible: entry.indicatorCardVisible }
+        : {}),
       ...(typeof entry.tradersLinkAiReadCardVisible === "boolean"
         ? { tradersLinkAiReadCardVisible: entry.tradersLinkAiReadCardVisible }
         : {}),
@@ -236,6 +239,7 @@ export class WatchlistStore {
     refreshPending?: boolean;
     lastError?: string | null;
     operationStatus?: string | null;
+    indicatorCardVisible?: boolean;
     tradersLinkAiReadCardVisible?: boolean;
     tradersLinkAiReadDipBuyPlanVisible?: boolean;
     tradersLinkAiReadConfidence?: WatchlistTradersLinkAiReadConfidence;
@@ -304,6 +308,10 @@ export class WatchlistStore {
         input.operationStatus !== undefined
           ? input.operationStatus?.trim() || undefined
           : existing?.operationStatus,
+      indicatorCardVisible:
+        typeof input.indicatorCardVisible === "boolean"
+          ? input.indicatorCardVisible
+          : existing?.indicatorCardVisible,
       tradersLinkAiReadCardVisible:
         typeof input.tradersLinkAiReadCardVisible === "boolean"
           ? input.tradersLinkAiReadCardVisible

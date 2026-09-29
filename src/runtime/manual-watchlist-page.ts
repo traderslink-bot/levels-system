@@ -222,7 +222,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 
     <section>
       <h2>Live Website Controls</h2>
-      <div class="provider-control">
+      <div class="provider-control" hidden style="display:none">
         <label for="live-trader-read-visible-toggle">Live Website Trader Read Card</label>
         <div class="inline-control toggle-control">
           <label class="toggle-switch">
@@ -244,7 +244,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         </div>
         <div class="inline-status" id="potential-gain-visible-status"></div>
       </div>
-      <div class="provider-control">
+      <div class="provider-control" hidden style="display:none">
         <label for="watchlist-lifecycle-labels-visible-toggle">Watchlist Lifecycle Labels</label>
         <div class="inline-control toggle-control">
           <label class="toggle-switch">
@@ -2474,6 +2474,40 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           }
         });
         actions.appendChild(aiVisibilityButton);
+
+        const indicatorCardVisible = entry.indicatorCardVisible !== false;
+        const indicatorVisibilityButton = document.createElement("button");
+        indicatorVisibilityButton.textContent = indicatorCardVisible ? "Indicator card: On" : "Indicator card: Off";
+        indicatorVisibilityButton.className = indicatorCardVisible ? "" : "secondary";
+        indicatorVisibilityButton.setAttribute("role", "switch");
+        indicatorVisibilityButton.setAttribute("aria-label", "Show indicator card for " + entry.symbol);
+        indicatorVisibilityButton.setAttribute("aria-checked", String(indicatorCardVisible));
+        indicatorVisibilityButton.addEventListener("click", async () => {
+          indicatorVisibilityButton.disabled = true;
+          try {
+            const response = await fetch("/api/watchlist/indicator-visibility", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ symbol: entry.symbol, visible: !indicatorCardVisible }),
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+              setStatus(payload.error || "Indicator visibility update failed", true);
+              return;
+            }
+            setStatus(
+              "Indicator card " + (!indicatorCardVisible ? "shown" : "hidden") +
+              " for " + entry.symbol + ".",
+            );
+            await loadEntries();
+            await loadRuntimeStatus();
+          } catch (error) {
+            setStatus(String(error), true);
+          } finally {
+            indicatorVisibilityButton.disabled = false;
+          }
+        });
+        actions.appendChild(indicatorVisibilityButton);
 
         const dipBuyPlanVisible = entry.tradersLinkAiReadDipBuyPlanVisible !== false;
         const dipBuyPlanVisibilityButton = document.createElement("button");

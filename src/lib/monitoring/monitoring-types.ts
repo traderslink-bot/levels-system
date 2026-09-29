@@ -361,6 +361,7 @@ export type WatchlistEntry = {
   lastTradeStoryAt?: number;
   lastTriggerPrice?: number;
   refreshPending?: boolean;
+  indicatorCardVisible?: boolean;
   tradersLinkAiReadCardVisible?: boolean;
   tradersLinkAiReadDipBuyPlanVisible?: boolean;
   tradersLinkAiReadConfidence?: WatchlistTradersLinkAiReadConfidence;

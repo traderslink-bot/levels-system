@@ -2562,6 +2562,33 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (request.method === "POST" && url.pathname === "/api/watchlist/indicator-visibility") {
+      try {
+        const body = await readJsonBody(request);
+        const symbol = typeof body.symbol === "string" ? body.symbol : "";
+        if (symbol.trim().length === 0 || typeof body.visible !== "boolean") {
+          sendJson(response, 400, {
+            error: "Symbol and boolean visible value are required.",
+          });
+          return;
+        }
+        const entry = await manager.setIndicatorCardVisible(symbol, body.visible);
+        if (!entry) {
+          sendJson(response, 404, { error: "Symbol was not found." });
+          return;
+        }
+        sendJson(response, 200, { ok: true, entry });
+      } catch (error) {
+        if (error instanceof RequestBodyParseError) {
+          sendJson(response, error.statusCode, { error: error.message });
+          return;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        sendJson(response, 500, { error: message });
+      }
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/api/watchlist/ai-read-visibility") {
       try {
         const body = await readJsonBody(request);

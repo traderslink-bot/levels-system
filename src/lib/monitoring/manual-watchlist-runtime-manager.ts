@@ -1006,6 +1006,8 @@ function resolvePriorRegularCloseReference(
   return null;
 }
 
+const LEGACY_WATCHLIST_READ_ENABLED = false;
+
 function resolveInitialLiveTraderReadCardVisible(): boolean {
   const raw = process.env.TRADERSLINK_WATCHLIST_TRADER_READ_VISIBLE?.trim().toLowerCase();
   return raw !== "0" && raw !== "false" && raw !== "no" && raw !== "off";
@@ -3191,7 +3193,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly lastWebsiteTechnicalContextStateKey = new Map<string, string>();
   private readonly lastWebsitePullbackReadPublishAt = new Map<string, number>();
   private readonly lastWebsitePullbackReadStateKey = new Map<string, string>();
-  private liveTraderReadCardVisible = resolveInitialLiveTraderReadCardVisible();
+  private liveTraderReadCardVisible = LEGACY_WATCHLIST_READ_ENABLED && resolveInitialLiveTraderReadCardVisible();
   private potentialGainCardVisible = resolveInitialPotentialGainCardVisible();
   private watchlistLifecycleLabelsVisible = false;
   private reversalWatchlistVisible = true;
@@ -3255,11 +3257,11 @@ export class ManualWatchlistRuntimeManager {
     this.analysisFormat = options.initialAnalysisFormat ?? "current";
     const haltService = new NasdaqTradingHaltService();
     this.tradingHaltLookup = options.tradingHaltLookup ?? haltService.lookup.bind(haltService);
-    this.liveTraderReadCardVisible =
-      options.initialLiveTraderReadCardVisible ?? resolveInitialLiveTraderReadCardVisible();
+    this.liveTraderReadCardVisible = LEGACY_WATCHLIST_READ_ENABLED &&
+      (options.initialLiveTraderReadCardVisible ?? resolveInitialLiveTraderReadCardVisible());
     this.potentialGainCardVisible =
       options.initialPotentialGainCardVisible ?? resolveInitialPotentialGainCardVisible();
-    this.watchlistLifecycleLabelsVisible = options.initialWatchlistLifecycleLabelsVisible ?? false;
+    this.watchlistLifecycleLabelsVisible = false; // Retired.
     this.reversalWatchlistVisible = options.initialReversalWatchlistVisible ?? true;
     this.topRegularWatchlistVisible = options.initialTopRegularWatchlistVisible ?? true;
     this.tradersLinkAiReadGenerationSettings = {
@@ -5257,6 +5259,17 @@ export class ManualWatchlistRuntimeManager {
     }
     if (visible) {
       this.scheduleTradersLinkAiRead(symbol, true, "visibility_enabled");
+    }
+    return entry;
+  }
+
+  async setIndicatorCardVisible(symbolInput: string, visible: boolean): Promise<WatchlistEntry | null> {
+    const symbol = normalizeSymbol(symbolInput);
+    const entry = this.watchlistStore.patchEntry(symbol, { indicatorCardVisible: visible });
+    if (!entry) return null;
+    this.persistWatchlist();
+    if (this.liveWatchlistPublisher && this.isWatchlistPublicationApproved({ symbol, cards: {} })) {
+      await this.liveWatchlistPublisher.publish({ symbol, updatedAt: this.options.now?.() ?? Date.now(), indicatorCardVisible: visible, cards: {} });
     }
     return entry;
   }
@@ -7538,7 +7551,7 @@ export class ManualWatchlistRuntimeManager {
   }
 
   private pullbackReadEnabled(): boolean {
-    return this.options.pullbackReadEnabled !== false;
+    return false; // Legacy-only Yahoo polling is retired; Indicators use their own loader.
   }
 
   private pullbackReadPollIntervalMs(): number {
@@ -7664,7 +7677,7 @@ export class ManualWatchlistRuntimeManager {
     const service = this.options.recentIntradayCandleFetchService;
     const symbol = normalizeSymbol(symbolInput);
     const entry = this.watchlistStore.getEntry(symbol);
-    if ((!service && !this.options.indicatorCandleLoader) || !entry?.active) {
+    if ((!service && !this.options.indicatorCandleLoader) || !entry?.active || entry.indicatorCardVisible === false) {
       return;
     }
 
@@ -7734,11 +7747,11 @@ export class ManualWatchlistRuntimeManager {
         provider,
         dataQualityFlags,
       });
-      const volumeRead = this.resolveLiveVolumeRead(
+      const volumeRead = entry.tags.includes("auto-reversal-watch") ? this.resolveLiveVolumeRead(
         symbol,
         buildPullbackVolumeRead(fiveMinuteCandles, { nowMs: endTimeMs }),
         endTimeMs,
-      );
+      ) : null;
       if (currentPrice !== null) {
         const timestamp = endTimeMs;
         this.publishWebsiteTechnicalContext({
@@ -12092,7 +12105,8 @@ export class ManualWatchlistRuntimeManager {
     visible: boolean;
     refreshedSymbols: string[];
   }> {
-    this.liveTraderReadCardVisible = visible;
+    visible = false; // Compatibility endpoint cannot revive retired UI.
+    this.liveTraderReadCardVisible = false;
     this.options.liveTraderReadCardVisibilityListener?.(visible);
     const refreshedSymbols = this.watchlistStore.getActiveEntries().map((entry) => entry.symbol);
     const timestamp = Date.now();
@@ -12144,7 +12158,8 @@ export class ManualWatchlistRuntimeManager {
     visible: boolean;
     refreshedSymbols: string[];
   }> {
-    this.watchlistLifecycleLabelsVisible = visible;
+    visible = false;
+    this.watchlistLifecycleLabelsVisible = false;
     const entries = this.watchlistStore.getActiveEntries();
     const refreshedSymbols = entries.map((entry) => entry.symbol);
     const timestamp = Date.now();
@@ -12982,7 +12997,7 @@ export class ManualWatchlistRuntimeManager {
     );
     const websitePatch = {
       ...patch,
-      ...(entry ? { watchlistGroup: getWatchlistEntrySessionGroup(entry) } : {}),
+      ...(entry ? { watchlistGroup: getWatchlistEntrySessionGroup(entry), indicatorCardVisible: entry.indicatorCardVisible !== false } : {}),
       potentialGainCardVisible: this.potentialGainCardVisible,
       watchlistLifecycleLabelsVisible: lifecycleLabelsVisible,
       reversalWatchlistVisible: this.reversalWatchlistVisible,
@@ -13251,9 +13266,11 @@ export class ManualWatchlistRuntimeManager {
       args.timestamp,
     );
     const reversalWatchEntry = watchlistEntry?.tags.includes("auto-reversal-watch") === true;
+    // Only the separate reversal workflow still consumes this legacy calculation.
+    if (!reversalWatchEntry) return;
     if (
       !this.liveWatchlistPublisher ||
-      (!pullbackReadEnabled && tradeSetupReadMode === "off") ||
+      (!pullbackReadEnabled && tradeSetupReadMode === "off" && !reversalWatchEntry) ||
       (!this.liveTraderReadCardVisible &&
         !lifecycleLabelsVisible &&
         !reversalWatchEntry)
@@ -13510,7 +13527,7 @@ export class ManualWatchlistRuntimeManager {
       this.publishWebsiteTechnicalContext(update);
     }
     const technicalContext = this.technicalContextBySymbol.get(update.symbol);
-    if (technicalContext) {
+    if (technicalContext && this.watchlistStore.getEntry(update.symbol)?.tags.includes("auto-reversal-watch") === true) {
       const yahooLiveVolumeRead =
         typeof update.volume === "number" && Number.isFinite(update.volume) && update.volume > 0
           ? buildPullbackVolumeRead(this.technicalContextCandleStore.getCandles(update.symbol), {

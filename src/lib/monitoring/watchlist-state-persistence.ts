@@ -253,6 +253,14 @@ function validateEntry(value: unknown): WatchlistEntry | null {
   }
 
   if (
+    value.indicatorCardVisible !== undefined &&
+    value.indicatorCardVisible !== null &&
+    typeof value.indicatorCardVisible !== "boolean"
+  ) {
+    return null;
+  }
+
+  if (
     value.tradersLinkAiReadCardVisible !== undefined &&
     value.tradersLinkAiReadCardVisible !== null &&
     typeof value.tradersLinkAiReadCardVisible !== "boolean"
@@ -373,6 +381,9 @@ function validateEntry(value: unknown): WatchlistEntry | null {
       : {}),
     ...(lastTriggerPrice !== undefined ? { lastTriggerPrice } : {}),
     refreshPending: typeof value.refreshPending === "boolean" ? value.refreshPending : false,
+    ...(typeof value.indicatorCardVisible === "boolean"
+      ? { indicatorCardVisible: value.indicatorCardVisible }
+      : {}),
     ...(typeof value.tradersLinkAiReadCardVisible === "boolean"
       ? { tradersLinkAiReadCardVisible: value.tradersLinkAiReadCardVisible }
       : {}),
@@ -481,6 +492,9 @@ function buildPersistedState(entries: WatchlistEntry[], now = Date.now()): Persi
       lastThreadPostAt: normalizeOptionalTimestamp(entry.lastThreadPostAt),
       lastThreadPostKind: entry.lastThreadPostKind?.trim() || undefined,
       refreshPending: entry.refreshPending ?? false,
+      ...(typeof entry.indicatorCardVisible === "boolean"
+        ? { indicatorCardVisible: entry.indicatorCardVisible }
+        : {}),
       ...(typeof entry.tradersLinkAiReadCardVisible === "boolean"
         ? { tradersLinkAiReadCardVisible: entry.tradersLinkAiReadCardVisible }
         : {}),

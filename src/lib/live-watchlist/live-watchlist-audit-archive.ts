@@ -50,6 +50,7 @@ export type LiveWatchlistAuditArchiveSymbol = {
   watchlistLifecycleLabelsVisible?: boolean;
   watchlistLifecycle?: LiveWatchlistLifecycleRead | null;
   liveVolumeContext?: LiveWatchlistVolumeContext | null;
+  indicatorCardVisible?: boolean;
   tradersLinkAiReadCardVisible?: boolean;
   tradersLinkAiReadDipBuyPlanVisible?: boolean;
   companyName?: string | null;
@@ -176,6 +177,9 @@ function normalizeArchiveSymbol(value: unknown, now: number): LiveWatchlistAudit
       : {}),
     ...("liveVolumeContext" in value
       ? { liveVolumeContext: cloneJson(value.liveVolumeContext as LiveWatchlistVolumeContext | null) }
+      : {}),
+    ...(typeof value.indicatorCardVisible === "boolean"
+      ? { indicatorCardVisible: value.indicatorCardVisible }
       : {}),
     ...(typeof value.tradersLinkAiReadCardVisible === "boolean"
       ? { tradersLinkAiReadCardVisible: value.tradersLinkAiReadCardVisible }
@@ -364,6 +368,9 @@ function applyCardPatch(
     ...(patch.liveVolumeContext !== undefined
       ? { liveVolumeContext: cloneJson(patch.liveVolumeContext) }
       : {}),
+    ...(patch.indicatorCardVisible !== undefined
+      ? { indicatorCardVisible: patch.indicatorCardVisible }
+      : {}),
     ...(patch.tradersLinkAiReadCardVisible !== undefined
       ? { tradersLinkAiReadCardVisible: patch.tradersLinkAiReadCardVisible }
       : {}),
@@ -428,6 +435,9 @@ function applyTickerDataPatch(
       : {}),
     ...(patch.watchlistLifecycle !== undefined
       ? { watchlistLifecycle: cloneJson(patch.watchlistLifecycle) }
+      : {}),
+    ...(patch.indicatorCardVisible !== undefined
+      ? { indicatorCardVisible: patch.indicatorCardVisible }
       : {}),
     ...(patch.tradersLinkAiReadCardVisible !== undefined
       ? { tradersLinkAiReadCardVisible: patch.tradersLinkAiReadCardVisible }
