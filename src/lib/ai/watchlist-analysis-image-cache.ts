@@ -10,7 +10,7 @@ export async function approvedAnalysisImages(directory: string, revision: number
   if (publication.analysisImageVersion !== 1) return [];
   if (!Number.isSafeInteger(revision) || revision <= 0) throw new Error("Invalid approval revision");
   mkdirSync(directory, { recursive: true });
-  const file = join(directory, `analysis-images-${revision}${layout ? "-light-two" : ""}.json`);
+  const file = join(directory, `analysis-images-${revision}${layout ? "-light-two-branding-v3" : ""}.json`);
   const load = (): AnalysisImage[] => {
     const stored = JSON.parse(readFileSync(file, "utf8")) as { images: Array<{ filename: string; description: string; base64: string }> };
     if (!Array.isArray(stored.images) || stored.images.length > 4) throw new Error("Invalid image cache");

@@ -25,3 +25,7 @@ Implementation complete locally: deterministic saved-payload rendering for curre
 - Pending: production reconciliation by Coordinator, hosted build and real Discord attachment display verification. Owner has not yet requested release of this new image slice.
 
 References: https://docs.discord.com/developers/reference (multipart uploads); https://sharp.pixelplumbing.com/api-constructor/ (measured text rendering/fontfile); https://github.com/google/fonts/tree/main/ofl/lato (font source/license).
+
+## Horizontal branding and larger headings
+
+See [branding progress](watchlist-image-branding-progress.md) for the owner-requested export-only update and preview verification.
