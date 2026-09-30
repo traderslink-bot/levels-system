@@ -14087,11 +14087,12 @@ export class ManualWatchlistRuntimeManager {
   ): Promise<WatchlistEntry[]> {
     const normalizedSymbols = [...new Set(symbolInputs.map(normalizeSymbol).filter(Boolean))];
     const deactivatedAt = this.options.now?.() ?? Date.now();
-    const removalReviews = normalizedSymbols.flatMap(symbol => {
+    type RemovalReview = { symbol: string; review: import("../ai/traderslink-ai-read-review-store.js").ReviewState | null };
+    const removalReviews: RemovalReview[] = normalizedSymbols.flatMap((symbol): RemovalReview[] => {
       const entry = this.watchlistStore.getEntry(symbol), store = this.options.tradersLinkAiReadReviewStore;
       if (!entry?.active) return [];
       if (!store) return [{symbol,review:null}];
-      const reviews = [];
+      const reviews: RemovalReview[] = [];
       try {
         let cursor: string | undefined;
         do { const page = store.listCycles(symbol, cursor);
