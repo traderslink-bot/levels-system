@@ -1,3 +1,4 @@
+import { queueDiscordRemoval } from "../alerts/watchlist-discord-removal.js";
 import { DiscordPreparationFailure } from "../alerts/discord-preparation-failure.js";
 import { isTopWatchesGroup } from "../live-watchlist/top-watches-group.js";
 import type { WatchlistReasoningEffort } from "../ai/watchlist-model-options.js";
@@ -14086,6 +14087,22 @@ export class ManualWatchlistRuntimeManager {
   ): Promise<WatchlistEntry[]> {
     const normalizedSymbols = [...new Set(symbolInputs.map(normalizeSymbol).filter(Boolean))];
     const deactivatedAt = this.options.now?.() ?? Date.now();
+    const removalReviews = normalizedSymbols.flatMap(symbol => {
+      const entry = this.watchlistStore.getEntry(symbol), store = this.options.tradersLinkAiReadReviewStore;
+      if (!entry?.active) return [];
+      if (!store) return [{symbol,review:null}];
+      const reviews = [];
+      try {
+        let cursor: string | undefined;
+        do { const page = store.listCycles(symbol, cursor);
+          for (const cycle of page.cycles) if (cycle.cycleId === entry.publicationReview?.cycleId || (entry.activatedAt !== undefined && cycle.startedAt >= entry.activatedAt)) {
+            const review = store.read(cycle.cycleId); if(review) reviews.push({symbol,review});
+          }
+          cursor = page.nextCursor ?? undefined;
+        } while(cursor);
+      } catch { console.warn("Discord removal receipts could not be read for " + symbol); }
+      return reviews.length ? reviews : [{symbol,review:null}];
+    });
     const entries = normalizedSymbols
       .map((symbol) => this.prepareSymbolDeactivation(symbol))
       .filter((entry): entry is WatchlistEntry => entry !== null);
@@ -14100,6 +14117,7 @@ export class ManualWatchlistRuntimeManager {
     }
     this.persistMarketStructureStoryMemory();
     this.persistWatchlist();
+    for (const item of removalReviews) queueDiscordRemoval(item.symbol,item.review);
     for (const entry of entries) {
       await this.publishWebsiteTickerDeactivation(entry.symbol, deactivatedAt);
     }
@@ -14131,6 +14149,7 @@ export class ManualWatchlistRuntimeManager {
     const deactivatedAt = this.options.now?.() ?? Date.now();
     for (const symbol of normalizedSymbols) {
       await this.publishWebsiteTickerDeactivation(symbol, deactivatedAt);
+      queueDiscordRemoval(symbol, null);
     }
     return normalizedSymbols;
   }

@@ -8,7 +8,20 @@ export const WATCHLIST_DISCORD_MENTIONS_PANEL = String.raw`
   <p>Applies to future Watchlist Discord notifications. Removing a role here does not delete it from Discord. Channel permissions still control who can read posts.</p>
   <p>To find a role ID, enable Developer Mode in Discord, then use Copy Role ID on the role. Discord must allow the webhook or bot to mention that role.</p>
   <p id="discord-mention-status" role="status" aria-live="polite"></p>
+  <h3>Discord post deletion</h3>
+  <label><input type="checkbox" id="discord-delete-removed" style="width:auto" disabled> Delete Discord posts when removing tickers</label>
+  <p>Applies when removing a ticker or clearing a list. Turn off to keep the posts. Free Chat, potential-gain and X posts are not deleted.</p>
+  <p id="discord-delete-status" role="status" aria-live="polite"></p>
 </section>
+<script>
+(() => {
+ const toggle=document.getElementById('discord-delete-removed'),status=document.getElementById('discord-delete-status');
+ async function load(body){const r=await fetch("/api/watchlist/analysis-review/discord-mentions",{method:body?'POST':'GET',cache:'no-store',headers:body?{'content-type':'application/json','x-traderlink-journal-admin-request':'1'}:{},body:body?JSON.stringify(body):undefined});if(!r.ok)throw Error('Could not load or save Discord deletion settings.');const d=(await r.json()).deletion;toggle.checked=d.enabled;toggle.disabled=false;status.textContent=[d.pending?d.pending+' Discord posts awaiting deletion.':'',...d.failures.map(f=>f.symbol+': '+f.message),d.notice].filter(Boolean).join(' ');}
+ toggle.onchange=()=>{toggle.disabled=true;load({deletePostsOnRemoval:toggle.checked}).catch(e=>{status.textContent=e.message;toggle.disabled=false;});};
+ load().catch(e=>{status.textContent=e.message;});
+ setInterval(()=>{if(!document.hidden&&!toggle.disabled)load().catch(()=>{});},30000);
+})();
+</script>
 <script>
 (() => {
   const root = document.getElementById('watchlist-discord-notifications');
