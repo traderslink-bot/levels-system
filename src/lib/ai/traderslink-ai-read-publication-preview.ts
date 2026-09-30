@@ -52,7 +52,7 @@ export function renderApprovedAnalysisDiscord(read: TradersLinkAiReadPayload, an
 /** Apply only when freezing a new, authenticated owner approval. */
 export function attributeOwnerApprovedDiscord(chunks: string[], actor: string): string[] {
   if (actor === "runtime:automatic-boundary") return chunks.map((chunk,index) => index === 0
-    ? chunk.replace(/^(\S+ Analysis updated)(\r?\n|$)/, '$1 — Auto updated by AI$2') : chunk);
+    ? chunk.replace(/^(\S+ Analysis updated)(\r?\n|$)/, '$1 — Auto updated by AI$2').replace('Images show part of the analysis. View full analysis in the app 👇', 'View full analysis in the app 👇') : chunk);
   if (!/^platform-owner:[0-9a-f-]{36}$/i.test(actor)) return chunks;
   return chunks.map((chunk, index) => index === 0
     ? chunk.replace(/^([^\n]+?)(\.?)(\r?\n|$)/, (_match, title, period, ending) =>

@@ -45,7 +45,7 @@ export function parseAnalysisUpdateContext(value: unknown): AnalysisUpdateContex
   return { automatic: item.automatic, firstAnalysisPrice: price(item.firstAnalysisPrice), updatedAnalysisPrice: price(item.updatedAnalysisPrice) };
 }
 
-export const ANALYSIS_UPDATE_EXPLANATION = "Updated levels and setups as the trade develops—not a new entry signal.";
+export const ANALYSIS_UPDATE_EXPLANATION = "A follow-up to the original analysis, with updated levels and setups for those holding a position or watching the trade develop.";
 
 export function analysisUpdateComparison(context?: AnalysisUpdateContext): string | null {
   const first = price(context?.firstAnalysisPrice), updated = price(context?.updatedAnalysisPrice);

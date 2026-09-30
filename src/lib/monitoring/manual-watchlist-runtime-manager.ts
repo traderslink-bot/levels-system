@@ -5041,6 +5041,7 @@ export class ManualWatchlistRuntimeManager {
       frozen?.kind === "approve" && frozen.draftRevision === input.draftRevision && frozen.publication ? frozen.publication : {
       ...preview.publication,
       ...(preview.publication.analysisUpdateContext ? { analysisUpdateContext: { ...preview.publication.analysisUpdateContext, automatic: input.actor === "runtime:automatic-boundary" } } : {}),
+      analysisImageVersion: input.actor === "runtime:automatic-boundary" ? undefined : preview.publication.analysisImageVersion,
       discordChunks: attributeOwnerApprovedDiscord(preview.publication.discordChunks, input.actor),
       website: { ...preview.publication.website,
         ...(!alreadyListed ? { firstPostedAt: this.options.now?.() ?? Date.now() } : {}),
