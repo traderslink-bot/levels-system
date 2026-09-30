@@ -1,3 +1,4 @@
+import { analysisUpdateContextForDraft } from "../ai/watchlist-analysis-update-context.js";
 import { queueDiscordRemoval } from "../alerts/watchlist-discord-removal.js";
 import { DiscordPreparationFailure } from "../alerts/discord-preparation-failure.js";
 import { isTopWatchesGroup } from "../live-watchlist/top-watches-group.js";
@@ -5009,9 +5010,10 @@ export class ManualWatchlistRuntimeManager {
         this.watchlistStore.getEntry(read.symbol)?.traderNotesDraft ?? "",
       );
     }
+    const analysisUpdateContext = alreadyListed ? analysisUpdateContextForDraft(review, read.currentPrice) : undefined;
     const publication: ReviewPublication = frozenPublication
       ? frozenPublication
-      : { website: website as unknown as Record<string, unknown>, discordChunks: renderApprovedAnalysisDiscord(read, alreadyListed, audience), discordAudience: audience, discordWatchlistGroup: this.watchlistStore.getEntry(read.symbol)?.watchlistGroup, analysisImageVersion: 1 };
+      : { website: website as unknown as Record<string, unknown>, discordChunks: renderApprovedAnalysisDiscord(read, alreadyListed, audience, analysisUpdateContext), analysisUpdateContext, discordAudience: audience, discordWatchlistGroup: this.watchlistStore.getEntry(read.symbol)?.watchlistGroup, analysisImageVersion: 1 };
     return { cycleId: review.cycleId, expectedHead: review.head, draftRevision: draft.revision,
       publication, previewHash: publicationPreviewHash(publication) };
   }
@@ -5038,6 +5040,7 @@ export class ManualWatchlistRuntimeManager {
     const approval = store.approve(input.cycleId, currentReview.head, input.draftRevision, input.actor,
       frozen?.kind === "approve" && frozen.draftRevision === input.draftRevision && frozen.publication ? frozen.publication : {
       ...preview.publication,
+      ...(preview.publication.analysisUpdateContext ? { analysisUpdateContext: { ...preview.publication.analysisUpdateContext, automatic: input.actor === "runtime:automatic-boundary" } } : {}),
       discordChunks: attributeOwnerApprovedDiscord(preview.publication.discordChunks, input.actor),
       website: { ...preview.publication.website,
         ...(!alreadyListed ? { firstPostedAt: this.options.now?.() ?? Date.now() } : {}),

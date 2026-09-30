@@ -1,9 +1,11 @@
+import { analysisUpdateComparison, ANALYSIS_UPDATE_EXPLANATION, type AnalysisUpdateContext } from "./watchlist-analysis-update-context.js";
 import { createHash } from "node:crypto";
 import { appendDiscordMentions, type WatchlistDiscordAudience } from "../alerts/watchlist-discord-mentions.js";
 import { buildWatchlistDiscordLinkMessage } from "../alerts/watchlist-discord-link-message.js";
 import type { TradersLinkAiReadPayload } from "../live-watchlist/live-watchlist-types.js";
 
 export type ReviewPublication = {
+  analysisUpdateContext?: AnalysisUpdateContext;
   discordWatchlistGroup?: string;
   discordAudience?: WatchlistDiscordAudience;
   /** Missing fields preserve historical approved delivery behavior. */
@@ -42,13 +44,15 @@ export function splitApprovedAnalysisText(text: string): string[] {
 }
 
 /** Preserve the established linked notification; analysis belongs on the website. */
-export function renderApprovedAnalysisDiscord(read: TradersLinkAiReadPayload, analysisUpdate = false, audience?: WatchlistDiscordAudience): string[] {
+export function renderApprovedAnalysisDiscord(read: TradersLinkAiReadPayload, analysisUpdate = false, audience?: WatchlistDiscordAudience, context?: AnalysisUpdateContext): string[] {
   const linked = buildWatchlistDiscordLinkMessage(read.symbol).replace("\n\n", "\n\nImages show part of the analysis. View full analysis in the app 👇\n\n");
-  return [appendDiscordMentions(analysisUpdate ? `${read.symbol} Analysis updated` + linked.slice(linked.indexOf("\n\n")) : linked, audience ?? { everyone: false, roles: [] })];
+  return [appendDiscordMentions(analysisUpdate ? [`${read.symbol} Analysis updated`, analysisUpdateComparison(context), ANALYSIS_UPDATE_EXPLANATION].filter(Boolean).join("\n") + linked.slice(linked.indexOf("\n\n")) : linked, audience ?? { everyone: false, roles: [] })];
 }
 
 /** Apply only when freezing a new, authenticated owner approval. */
 export function attributeOwnerApprovedDiscord(chunks: string[], actor: string): string[] {
+  if (actor === "runtime:automatic-boundary") return chunks.map((chunk,index) => index === 0
+    ? chunk.replace(/^(\S+ Analysis updated)(\r?\n|$)/, '$1 — Auto updated by AI$2') : chunk);
   if (!/^platform-owner:[0-9a-f-]{36}$/i.test(actor)) return chunks;
   return chunks.map((chunk, index) => index === 0
     ? chunk.replace(/^([^\n]+?)(\.?)(\r?\n|$)/, (_match, title, period, ending) =>
