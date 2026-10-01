@@ -1,5 +1,6 @@
 export type AnalysisUpdateContext = Readonly<{
   automatic: boolean;
+  categoryMoveNote?: string;
   firstAnalysisPrice: number | null;
   updatedAnalysisPrice: number | null;
 }>;
@@ -42,7 +43,7 @@ export function analysisUpdateContextFromReview(value: unknown, approvalRevision
 export function parseAnalysisUpdateContext(value: unknown): AnalysisUpdateContext | undefined {
   const item = record(value);
   if (typeof item.automatic !== "boolean") return undefined;
-  return { automatic: item.automatic, firstAnalysisPrice: price(item.firstAnalysisPrice), updatedAnalysisPrice: price(item.updatedAnalysisPrice) };
+  return { ...(typeof item.categoryMoveNote === "string" && /^Now on (Overnight Watches|Main Session|Top Regular Hour Watches|Post-Market|General Watchlist|Swings)\.$/.test(item.categoryMoveNote) ? {categoryMoveNote:item.categoryMoveNote} : {}), automatic: item.automatic, firstAnalysisPrice: price(item.firstAnalysisPrice), updatedAnalysisPrice: price(item.updatedAnalysisPrice) };
 }
 
 export const ANALYSIS_UPDATE_EXPLANATION = "A follow-up to the original analysis, with updated levels and setups for those holding a position or watching the trade develop.";

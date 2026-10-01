@@ -50,3 +50,9 @@ export async function drainDiscordRemovals(transport:typeof fetch=fetch){
  }}catch{console.warn('Discord deletion queue unavailable; no further deletions attempted.');}finally{running=false;}
 }
 const timer=setInterval(()=>{void drainDiscordRemovals();},30000);timer.unref();
+
+export function queueCategoryMoveRemovals(symbol:string,receipts:{channelId:string;messageId:string}[]){
+  try{const state=read();if(!state.enabled)return;
+  for(const receipt of receipts){if(!id(receipt.channelId)||!id(receipt.messageId))continue;if(!state.jobs.some(job=>job.channelId===receipt.channelId&&job.messageId===receipt.messageId))state.jobs.push({symbol,...receipt,state:'pending',message:''});}
+  save(state);void drainDiscordRemovals();}catch{console.warn('Category move deletion receipts could not be queued.');}
+}

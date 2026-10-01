@@ -5,7 +5,7 @@ import { DiscordConfirmedRejection } from "../lib/alerts/discord-confirmed-rejec
 import { loadDiscordMentions, saveDiscordMentions } from "../lib/alerts/watchlist-discord-mentions.js";
 
 type ReviewManager = Pick<ManualWatchlistRuntimeManager,
-  "getTradersLinkAiReadReview" | "getTradersLinkAiReadPublicationPreview" | "listTradersLinkAiReadReviews" |
+  "getCategoryMoves" | "moveCategory" | "getTradersLinkAiReadReview" | "getTradersLinkAiReadPublicationPreview" | "listTradersLinkAiReadReviews" |
   "listTradersLinkAiReadHistory" | "getHistoricalTradersLinkAiReadReview" |
   "getAutomaticAnalysisEvents" | "exportFreeChatPublication" | "cancelAnalysisGeneration" |
   "saveTraderNotes" | "saveTradersLinkAiReadOwnerEdit" | "approveTradersLinkAiRead" | "publishTickerWithoutAnalysis" |
@@ -13,6 +13,7 @@ type ReviewManager = Pick<ManualWatchlistRuntimeManager,
   "publishApprovedTradersLinkAiReadToDiscord">;
 
 export const ANALYSIS_REVIEW_PATHS = new Set([
+  "/api/watchlist/analysis-review/category-move",
   "/api/watchlist/analysis-review/cancel-generation",
   "/api/watchlist/analysis-review/free-chat-publication",
   "/api/watchlist/automatic-analysis-events",
@@ -85,6 +86,16 @@ export async function dispatchAnalysisReviewRequest(input: {
   }
   if (!input.actor || !/^platform-owner:[A-Za-z0-9_-]{1,128}$/.test(input.actor)) return { status: 403, body: { error: "Owner review authorization is required." } };
   if (!ANALYSIS_REVIEW_PATHS.has(input.pathname)) return { status: 404, body: { error: "Not found." } };
+  if(input.pathname.endsWith('/category-move')){
+    try{
+      if(input.method==='GET')return {status:200,body:{moves:manager.getCategoryMoves(input.searchParams.get('symbol')??'')}};
+      if(input.method!=='POST')return {status:405,body:{error:'Method not allowed.'}};
+      const body=input.body as Record<string,unknown>;
+      if(!body||typeof body.symbol!=='string'||typeof body.id!=='string'||typeof body.to!=='string'||typeof body.notify!=='boolean'||(body.messageId!==undefined&&typeof body.messageId!=='string'))return {status:400,body:{error:'Invalid move request.'}};
+      const move=await manager.moveCategory({symbol:body.symbol,id:body.id,to:body.to,notify:body.notify,actor:input.actor,messageId:body.messageId as string|undefined});
+      return {status:200,body:{ok:true,move}};
+    }catch{return {status:400,body:{error:'Move could not complete. Refresh the ticker list and check move delivery status before retrying.'}};}
+  }
   if (input.pathname.endsWith("/discord-mentions")) {
     if (input.method !== "GET" && input.method !== "POST") return { status: 405, body: { error: "Method not allowed." } };
     try {

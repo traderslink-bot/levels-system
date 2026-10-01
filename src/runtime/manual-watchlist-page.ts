@@ -2371,6 +2371,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     }
 
     const pendingMoveGroups = new Map();
+    const moveNotifyChoices = new Map();
+    const moveRequests = new Map();
     const movingSymbols = new Set();
     let moveSelectionEntries = [];
     function renderEntries(entries) {
@@ -2634,6 +2636,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             option.selected = value === selectedMoveGroup;
             moveSelect.appendChild(option);
           }
+          const notifyLabel=document.createElement('label'),notifyMove=document.createElement('input');
+          notifyMove.type='checkbox';notifyMove.style.width='auto';notifyMove.checked=moveNotifyChoices.get(entry.symbol)===true;
+          notifyMove.onchange=()=>moveNotifyChoices.set(entry.symbol,notifyMove.checked);
+          notifyLabel.append(notifyMove,document.createTextNode(' Move Discord post and notify users'));
+          actionGroups.move.append(notifyLabel);
           const moveButton = document.createElement("button");
             moveButton.textContent = "Move to List";
             moveButton.disabled = movingSymbols.has(entry.symbol);
@@ -2645,13 +2652,12 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             moveButton.disabled = true;
             moveSelect.disabled = true;
             try {
-              const response = await fetch("/api/watchlist/move-to-list", {
+              let request=moveRequests.get(entry.symbol);
+              if(!request||request.to!==moveSelect.value||request.notify!==notifyMove.checked){request={symbol:entry.symbol,id:crypto.randomUUID(),to:moveSelect.value,notify:notifyMove.checked};moveRequests.set(entry.symbol,request);}
+              const response = await fetch("/api/watchlist/analysis-review/category-move", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  symbol: entry.symbol,
-                  watchlistGroup: moveSelect.value,
-                }),
+                headers: { "Content-Type": "application/json", "x-traderlink-journal-admin-request":"1" },
+                body: JSON.stringify(request),
               });
               const payload = await response.json();
               if (!response.ok) {
@@ -2659,10 +2665,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
                 return;
               }
               setStatus(
-                "Moved " + payload.entry.symbol + " to " +
-                moveSelect.options[moveSelect.selectedIndex].text +
-                " without deactivating it.",
+                payload.move.notice || "Moved " + entry.symbol + " to " + moveSelect.options[moveSelect.selectedIndex].text,
               );
+                if(payload.move.destination==='confirmed'||payload.move.destination==='skipped'){moveRequests.delete(entry.symbol);moveNotifyChoices.delete(entry.symbol);}
                 pendingMoveGroups.delete(entry.symbol);
                 movingSymbols.delete(entry.symbol);
                 await loadEntries();
@@ -2678,6 +2683,31 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           });
           actionGroups.move.appendChild(moveSelect);
           actionGroups.move.appendChild(moveButton);
+          const moveDetails=document.createElement('button');moveDetails.type='button';moveDetails.className='secondary';moveDetails.textContent='Move delivery details';
+          moveDetails.onclick=async()=>{
+            const dialog=document.createElement('dialog');dialog.style.maxWidth='min(520px,92vw)';
+            const heading=document.createElement('h2');heading.textContent=entry.symbol+' — Move delivery';
+            const message=document.createElement('p');message.setAttribute('role','status');message.textContent='Loading…';
+            const retry=document.createElement('button');retry.type='button';retry.textContent='Retry move delivery';retry.hidden=true;
+            const receipt=document.createElement('input');receipt.placeholder='Discord message ID';receipt.setAttribute('aria-label','Existing Discord message ID');receipt.hidden=true;
+            const verify=document.createElement('button');verify.type='button';verify.textContent='Confirm existing Discord post';verify.hidden=true;
+            const refresh=document.createElement('button');refresh.type='button';refresh.textContent='Refresh status';
+            const close=document.createElement('button');close.type='button';close.textContent='Close';close.onclick=()=>dialog.close();
+            dialog.append(heading,message,retry,receipt,verify,refresh,close);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove());dialog.showModal();
+            const position=()=>{if(window.parent===window||!window.frameElement)return;const frame=window.frameElement.getBoundingClientRect(),top=Math.max(0,-frame.top),bottom=Math.min(window.innerHeight,window.parent.innerHeight-frame.top);dialog.style.position='fixed';dialog.style.margin='0 auto';dialog.style.left='0';dialog.style.right='0';dialog.style.top=(top+12)+'px';dialog.style.maxHeight=Math.max(120,bottom-top-24)+'px';};position();
+            let latest,busy=false;
+            const load=async(body)=>{if(busy)return;busy=true;retry.disabled=verify.disabled=refresh.disabled=true;
+              try{const response=await fetch('/api/watchlist/analysis-review/category-move'+(body?'':'?symbol='+encodeURIComponent(entry.symbol)),{method:body?'POST':'GET',cache:'no-store',headers:body?{'Content-Type':'application/json','x-traderlink-journal-admin-request':'1'}:{},body:body?JSON.stringify(body):undefined});const result=await response.json();if(!response.ok)throw Error(result.error||'Move status unavailable.');
+                if(body){message.textContent=result.move.notice;return;}
+                latest=result.moves.at(-1);message.textContent=latest?(latest.notice||'Move delivery is pending.'):'No move delivery recorded.';
+                retry.hidden=!latest||!latest.current||!latest.notify||!latest.published||['sending','uncertain','skipped'].includes(latest.destination)||latest.destination==='confirmed'&&!latest.cleanupFailed&&latest.notification==='confirmed';
+                retry.textContent=latest?.destination==='confirmed'?'Retry cleanup':'Retry move delivery';receipt.hidden=verify.hidden=!latest||!latest.current||!['sending','uncertain'].includes(latest.destination);
+              }catch(error){message.textContent=String(error.message||error);}finally{busy=false;retry.disabled=verify.disabled=refresh.disabled=false;position();}
+            };
+            retry.onclick=async()=>{if(latest){await load({symbol:entry.symbol,id:latest.id,to:latest.to,notify:latest.notify});await load();}};
+            verify.onclick=async()=>{if(latest&&/^\d{17,20}$/.test(receipt.value.trim())){await load({symbol:entry.symbol,id:latest.id,to:latest.to,notify:latest.notify,messageId:receipt.value.trim()});await load();}};
+            refresh.onclick=()=>load();await load();
+          };actionGroups.more.append(moveDetails);
         }
 
         const removeFromListButton = document.createElement("button");

@@ -1,5 +1,6 @@
+import { CategoryMoveService } from "../alerts/watchlist-category-move-service.js";
 import { analysisUpdateContextForDraft } from "../ai/watchlist-analysis-update-context.js";
-import { queueDiscordRemoval } from "../alerts/watchlist-discord-removal.js";
+import { queueDiscordRemoval, queueCategoryMoveRemovals } from "../alerts/watchlist-discord-removal.js";
 import { DiscordPreparationFailure } from "../alerts/discord-preparation-failure.js";
 import { isTopWatchesGroup } from "../live-watchlist/top-watches-group.js";
 import type { WatchlistReasoningEffort } from "../ai/watchlist-model-options.js";
@@ -5010,10 +5011,11 @@ export class ManualWatchlistRuntimeManager {
         this.watchlistStore.getEntry(read.symbol)?.traderNotesDraft ?? "",
       );
     }
-    const analysisUpdateContext = alreadyListed ? analysisUpdateContextForDraft(review, read.currentPrice) : undefined;
+    const categoryMoveNote = this.categoryMoves().analysisNote(read.symbol,review.cycleId,review.approved?.at ?? 0);
+    const analysisUpdateContext = alreadyListed ? {...analysisUpdateContextForDraft(review, read.currentPrice), ...(categoryMoveNote ? {categoryMoveNote} : {})} : undefined;
     const publication: ReviewPublication = frozenPublication
       ? frozenPublication
-      : { website: website as unknown as Record<string, unknown>, discordChunks: renderApprovedAnalysisDiscord(read, alreadyListed, audience, analysisUpdateContext), analysisUpdateContext, discordAudience: audience, discordWatchlistGroup: this.watchlistStore.getEntry(read.symbol)?.watchlistGroup, analysisImageVersion: 1 };
+      : { website: website as unknown as Record<string, unknown>, discordChunks: renderApprovedAnalysisDiscord(read, alreadyListed, audience, analysisUpdateContext).map((chunk,index)=>index===0&&categoryMoveNote ? chunk.replace("\n", "\n"+categoryMoveNote+"\n") : chunk), analysisUpdateContext, discordAudience: audience, discordWatchlistGroup: this.watchlistStore.getEntry(read.symbol)?.watchlistGroup, analysisImageVersion: 1 };
     return { cycleId: review.cycleId, expectedHead: review.head, draftRevision: draft.revision,
       publication, previewHash: publicationPreviewHash(publication) };
   }
@@ -5192,6 +5194,7 @@ export class ManualWatchlistRuntimeManager {
         throw error;
       }
       store.acknowledgeDiscordChunk(input.cycleId, store.read(input.cycleId)!.head, approval.revision, index, receipt);
+      try{await this.categoryMoves().recordLateReceipt(symbol,input.cycleId,approval.body.publication.discordWatchlistGroup ?? 'main',receipt);}catch{console.warn('Late Discord receipt cleanup could not complete.');}
     }
     store.recordDelivery(input.cycleId, store.read(input.cycleId)!.head, approval.revision, "discord", "acknowledged", channelClaim.deliveryKey);
     return store.read(input.cycleId);
@@ -11969,6 +11972,18 @@ export class ManualWatchlistRuntimeManager {
     };
   }
 
+  private categoryMoveService?: CategoryMoveService;
+  private categoryMoves(){
+    return this.categoryMoveService ??= new CategoryMoveService({
+      entry:symbol=>this.watchlistStore.getEntry(symbol),review:symbol=>this.getTradersLinkAiReadReview(symbol)??null,
+      place:(symbol,group)=>this.moveSymbolToWatchlistGroup(symbol,group as WatchlistGroup),
+      send:input=>this.options.discordAlertRouter.routeApprovedAnalysisChunk(input),
+      verify:(input,messageId,at)=>this.options.discordAlertRouter.verifyApprovedAnalysisMessage(input,messageId,at),
+    });
+  }
+  getCategoryMoves(symbol:string){return this.categoryMoves().status(normalizeSymbol(symbol));}
+  moveCategory(input:{symbol:string;id:string;to:string;notify:boolean;actor:string;messageId?:string}){return this.categoryMoves().execute(input);}
+
   async moveSymbolToWatchlistGroup(
     symbolInput: string,
     watchlistGroup: WatchlistGroup,
@@ -14122,6 +14137,7 @@ export class ManualWatchlistRuntimeManager {
     }
     this.persistMarketStructureStoryMemory();
     this.persistWatchlist();
+    for(const item of removalReviews)if(item.review)queueCategoryMoveRemovals(item.symbol,this.categoryMoves().removalReceipts(item.symbol,item.review.cycleId));
     for (const item of removalReviews) queueDiscordRemoval(item.symbol,item.review);
     for (const entry of entries) {
       await this.publishWebsiteTickerDeactivation(entry.symbol, deactivatedAt);
