@@ -1,3 +1,4 @@
+import { includeBreakoutCheckpoint } from "./watchlist-breakout-checkpoint.js";
 import { WATCHLIST_MODEL_PRICING, isWatchlistModel, isWatchlistReasoningEffort } from "./watchlist-model-options.js";
 import type { WatchlistModel, WatchlistReasoningEffort } from "./watchlist-model-options.js";
 import { createHash } from "node:crypto";
@@ -3197,6 +3198,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     }
 
     read = applyPriorPlanBoundaryContext(read, input.priorPlanBoundary);
+    read = includeBreakoutCheckpoint(read, referenceQuote.price);
 
     const sources = selectPayloadSources(availableSources, read);
     const generatedAt = Date.now();
