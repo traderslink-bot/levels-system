@@ -11,13 +11,16 @@ export const WATCHLIST_DISCORD_MENTIONS_PANEL = String.raw`
   <h3>Discord post deletion</h3>
   <label><input type="checkbox" id="discord-delete-removed" style="width:auto" disabled> Delete Discord posts when removing tickers</label>
   <p>Applies when removing a ticker or clearing a list. Turn off to keep the posts. Free Chat, potential-gain and X posts are not deleted.</p>
+  <button type="button" id="discord-delete-retry" hidden>Retry failed deletions</button>
   <p id="discord-delete-status" role="status" aria-live="polite"></p>
 </section>
 <script>
 (() => {
- const toggle=document.getElementById('discord-delete-removed'),status=document.getElementById('discord-delete-status');
- async function load(body){const r=await fetch("/api/watchlist/analysis-review/discord-mentions",{method:body?'POST':'GET',cache:'no-store',headers:body?{'content-type':'application/json','x-traderlink-journal-admin-request':'1'}:{},body:body?JSON.stringify(body):undefined});if(!r.ok)throw Error('Could not load or save Discord deletion settings.');const d=(await r.json()).deletion;toggle.checked=d.enabled;toggle.disabled=false;status.textContent=[d.pending?d.pending+' Discord posts awaiting deletion.':'',...d.failures.map(f=>f.symbol+': '+f.message),d.notice].filter(Boolean).join(' ');}
+ const toggle=document.getElementById('discord-delete-removed'),status=document.getElementById('discord-delete-status'),retry=document.getElementById('discord-delete-retry');
+ let deletionBusy=false;
+ async function load(body){const r=await fetch("/api/watchlist/analysis-review/discord-mentions",{method:body?'POST':'GET',cache:'no-store',headers:body?{'content-type':'application/json','x-traderlink-journal-admin-request':'1'}:{},body:body?JSON.stringify(body):undefined});if(!r.ok)throw Error('Could not load or save Discord deletion settings.');const d=(await r.json()).deletion;toggle.checked=d.enabled;toggle.disabled=false;retry.hidden=!d.failures.length;retry.disabled=!d.enabled||deletionBusy;status.textContent=[d.pending?d.pending+' Discord posts awaiting deletion.':'',...d.failures.map(f=>f.symbol+': '+f.message),d.notice].filter(Boolean).join(' ');}
  toggle.onchange=()=>{toggle.disabled=true;load({deletePostsOnRemoval:toggle.checked}).catch(e=>{status.textContent=e.message;toggle.disabled=false;});};
+ retry.onclick=async()=>{if(deletionBusy)return;deletionBusy=true;retry.disabled=true;try{await load({retryFailedDeletions:true});}catch(e){status.textContent=e.message;}finally{deletionBusy=false;retry.disabled=!toggle.checked;}};
  load().catch(e=>{status.textContent=e.message;});
  setInterval(()=>{if(!document.hidden&&!toggle.disabled)load().catch(()=>{});},30000);
 })();
@@ -31,7 +34,7 @@ export const WATCHLIST_DISCORD_MENTIONS_PANEL = String.raw`
   const save = document.getElementById('discord-mention-save');
   const status = document.getElementById('discord-mention-status');
   let busy = true;
-  const lock = value => { busy = value; root.querySelectorAll('input,button').forEach(el => { el.disabled = value; }); };
+  const lock = value => { busy = value; root.querySelectorAll('#discord-mention-everyone,#discord-mention-roles input,#discord-mention-roles button,#discord-mention-add,#discord-mention-save').forEach(el => { el.disabled = value; }); };
   function row(value = {id:'',label:'',enabled:true}) {
     const group = document.createElement('fieldset'); group.style.minWidth = '0';
     const legend = document.createElement('legend'); legend.textContent = 'Role mention'; group.append(legend);

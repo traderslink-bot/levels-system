@@ -1,4 +1,4 @@
-import { discordRemovalStatus, setDiscordRemoval } from "../lib/alerts/watchlist-discord-removal.js";
+import { discordRemovalStatus, setDiscordRemoval, retryFailedDiscordRemovals } from "../lib/alerts/watchlist-discord-removal.js";
 import { createHash } from "node:crypto";
 import type { ManualWatchlistRuntimeManager } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
 import { DiscordConfirmedRejection } from "../lib/alerts/discord-confirmed-rejection.js";
@@ -88,8 +88,9 @@ export async function dispatchAnalysisReviewRequest(input: {
   if (input.pathname.endsWith("/discord-mentions")) {
     if (input.method !== "GET" && input.method !== "POST") return { status: 405, body: { error: "Method not allowed." } };
     try {
-      const body = input.body as { deletePostsOnRemoval?: unknown } | undefined;
-      if (input.method === "POST" && body && Object.keys(body).length === 1 && "deletePostsOnRemoval" in body) setDiscordRemoval(body.deletePostsOnRemoval);
+      const body = input.body as { deletePostsOnRemoval?: unknown; retryFailedDeletions?: unknown } | undefined;
+      if (input.method === "POST" && body && Object.keys(body).length === 1 && body.retryFailedDeletions === true) retryFailedDiscordRemovals();
+      else if (input.method === "POST" && body && Object.keys(body).length === 1 && "deletePostsOnRemoval" in body) setDiscordRemoval(body.deletePostsOnRemoval);
       else if(input.method === "POST") saveDiscordMentions(input.body);
       return { status: 200, body: { settings: loadDiscordMentions(), deletion: discordRemovalStatus() } };
     }

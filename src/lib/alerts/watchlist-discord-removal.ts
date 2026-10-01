@@ -16,6 +16,14 @@ function read():State {
 function save(s:State){mkdirSync(resolveManualWatchlistDurableDirectory(),{recursive:true});writeFileSync(path()+'.tmp',JSON.stringify(s),{mode:0o600});renameSync(path()+'.tmp',path());}
 export function discordRemovalStatus(){try{const s=read();return {enabled:s.enabled,pending:s.jobs.filter(j=>j.state==='pending').length,failures:s.jobs.filter(j=>j.state==='failed').map(j=>({symbol:j.symbol,message:j.message})),notice:s.notice};}catch{return {enabled:false,pending:0,failures:[],notice:'Discord deletion settings are unavailable. Posts will be kept.'};}}
 export function setDiscordRemoval(enabled:unknown){if(typeof enabled!=='boolean')throw Error('Choose on or off.');const s=read();s.enabled=enabled;if(!enabled)s.jobs=[];save(s);return discordRemovalStatus();}
+/** Explicit retry of saved deletion jobs only; never creates a publication. */
+export function retryFailedDiscordRemovals(){
+ const state=read();
+ if(!state.enabled)throw Error('Turn on Discord post deletion before retrying failed deletions.');
+ for(const job of state.jobs)if(job.state==='failed'){job.state='pending';job.message='';}
+ save(state);
+ return discordRemovalStatus();
+}
 export function removalReceipts(review:ReviewState|null){const found=new Map<string,{channelId:string;messageId:string}>();for(const e of review?.events??[]){const b=e.body;if(b.kind==='discord_chunk'&&b.status==='acknowledged'&&b.receipt&&id(b.receipt.channelId)&&id(b.receipt.messageId))found.set(b.receipt.channelId+':'+b.receipt.messageId,b.receipt);}return [...found.values()];}
 export function queueDiscordRemoval(symbol:string,review:ReviewState|null){
  try{const s=read();if(!s.enabled)return;const receipts=removalReceipts(review);
