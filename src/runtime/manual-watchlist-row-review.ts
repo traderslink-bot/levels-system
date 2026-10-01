@@ -1,5 +1,16 @@
 /** Owner console only. Uses the existing authenticated review API; never generates AI. */
 export const WATCHLIST_ROW_REVIEW = String.raw`
+<style>
+.entry-actions.watchlist-grouped-actions { display:flex; flex-direction:column; align-items:stretch; gap:12px; width:100%; min-width:0; }
+.watchlist-action-group { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-width:0; }
+.watchlist-action-group > label { display:flex; align-items:center; gap:6px; }
+.watchlist-action-group > button,.watchlist-action-group > select { min-height:40px; }
+.watchlist-action-group > [role="status"] { flex-basis:100%; }
+.watchlist-action-more { border-top:1px solid rgba(148,163,184,.3); padding-top:8px; }
+.watchlist-action-more > summary { cursor:pointer; font-weight:600; padding:4px 0 8px; }
+.watchlist-action-remove { border-top:1px solid rgba(148,163,184,.3); padding-top:10px; }
+@media(max-width:600px) { .watchlist-action-group > button { flex:1 1 160px; } .watchlist-action-group > select { flex:1 1 100%; max-width:100%; } .watchlist-action-group > label { flex-basis:100%; } }
+</style>
 <script>
 (() => {
   let queue = new Map(), loading = null;
@@ -27,7 +38,7 @@ export const WATCHLIST_ROW_REVIEW = String.raw`
   }
 // Embedded in the existing Runtime owner-console IIFE by the exact-parent packager.
 const xChoices = new Map();
-function attachX(entry, actions, state) {
+function attachX(entry, actions, state, more = actions) {
   const cycleId = state?.cycleId || entry.publicationReview?.cycleId;
   if (!cycleId) return;
   const choiceKey = cycleId + ':' + state?.draftRevision;
@@ -68,7 +79,7 @@ function attachX(entry, actions, state) {
       retry.onclick=async()=>{retry.disabled=true;try{current=await request('/x-post',{action:'retry',symbol:entry.symbol,cycleId:current.cycleId,postKey:current.posts[0].postKey});show();}catch(error){status.textContent=String(error.message||error);}finally{retry.disabled=false;}};
     }catch(error){status.textContent=String(error.message||error);}
   }
-  const open=document.createElement('button');open.type='button';open.className='secondary';open.textContent='Post to X';open.onclick=()=>openX(false);actions.append(open);
+  const open=document.createElement('button');open.type='button';open.className='secondary';open.textContent='Post to X';open.onclick=()=>openX(false);more.append(open);
   if(state?.canReview){
     const label=document.createElement('label'),choice=document.createElement('input');choice.type='checkbox';choice.style.width='auto';choice.checked=xChoices.get(choiceKey)?.enabled===true;
     choice.onchange=()=>{if(choice.checked){choice.checked=false;openX(true);}else{xChoices.delete(choiceKey);}};
@@ -77,11 +88,22 @@ function attachX(entry, actions, state) {
   }
 }
 
-  function attach(entry, actions) {
+  const expandedActions = new Set();
+  function groups(symbol, root) {
+    root.classList.add('watchlist-grouped-actions');
+    const make = label => { const group=document.createElement('div');group.className='watchlist-action-group';group.setAttribute('role','group');group.setAttribute('aria-label',label+' for '+symbol);return group; };
+    const review=make('Review and publish'),move=make('Move ticker'),more=make('More actions'),remove=make('Remove ticker');
+    remove.classList.add('watchlist-action-remove');
+    const details=document.createElement('details');details.className='watchlist-action-more';details.open=expandedActions.has(symbol);
+    const summary=document.createElement('summary');summary.textContent='More actions';details.append(summary,more);
+    details.addEventListener('toggle',()=>{if(details.isConnected){if(details.open)expandedActions.add(symbol);else expandedActions.delete(symbol);}});
+    root.append(review,move,details,remove);return {review,move,more,remove};
+  }
+  function attach(entry, actions, more = actions) {
     if (entry.analysisGeneration) {
       const run = entry.analysisGeneration;
       const elapsed = Math.max(0, Math.floor((Date.now() - run.startedAt) / 1000));
-      const status = document.createElement('span'); status.textContent = 'Analysis running · ' + Math.floor(elapsed / 60) + 'm ' + (elapsed % 60) + 's';
+      const status = document.createElement('span'); status.setAttribute('role','status'); status.textContent = 'Analysis running · ' + Math.floor(elapsed / 60) + 'm ' + (elapsed % 60) + 's';
       const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'secondary'; cancel.textContent = run.cancelling ? 'Cancelling…' : 'Cancel analysis'; cancel.disabled = run.cancelling;
       cancel.onclick = async () => { cancel.disabled = true; try { await request('/cancel-generation',{symbol:entry.symbol,runId:run.runId}); status.textContent = 'Analysis cancelled. Previous approved analysis is unchanged.'; } catch(error) { status.textContent = String(error.message || error); cancel.disabled = false; } };
       actions.append(status,cancel);
@@ -91,7 +113,7 @@ function attachX(entry, actions, state) {
       if (window.parent === window) { window.alert('Open Watchlist Admin in the dashboard to preview and post the card.'); return; }
       window.parent.postMessage({ source: 'traderslink-watchlist-admin', type: 'post-potential-gain', symbol: entry.symbol }, window.location.origin);
     };
-    actions.append(gainPost);
+    more.append(gainPost);
     const free = document.createElement('button'); free.type = 'button'; free.className = 'secondary'; free.textContent = 'Post to Free Chat';
     free.disabled = !entry.publicationReview?.cycleId;
     free.onclick = async () => {
@@ -128,8 +150,8 @@ function attachX(entry, actions, state) {
         dialog.insertBefore(label,close); dialog.insertBefore(send,close); dialog.insertBefore(check,close); show(); position();
       } catch(error) { message.textContent = String(error.message || error); }
     };
-    actions.append(free);
-    attachX(entry,actions,queue.get(entry.symbol));
+    more.append(free);
+    attachX(entry,actions,queue.get(entry.symbol),more);
     if (!entry.publicationReview?.required) return;
     const state = queue.get(entry.symbol);
     const status = document.createElement('p'); status.setAttribute('role', 'status');
@@ -234,10 +256,10 @@ function attachX(entry, actions, state) {
         document.getElementById('analysis-review-load').click();
         document.getElementById('analysis-review-panel').scrollIntoView({ block: 'start' });
       };
-      actions.append(recovery);
+      more.append(recovery);
     }
   }
-  window.watchlistRowReview = { refresh, attach };
+  window.watchlistRowReview = { refresh, attach, groups };
   window.addEventListener('message', event => {
     if (event.origin !== window.location.origin || event.source !== window.parent || event.data?.source !== 'traderslink-watchlist-editor' || event.data?.type !== 'saved') return;
     window.dispatchEvent(new Event('watchlist-review-updated'));

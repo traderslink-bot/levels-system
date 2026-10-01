@@ -2404,7 +2404,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         const actions = document.createElement("div");
 
         actions.className = "entry-actions";
-        window.watchlistRowReview.attach(entry, actions);
+        const actionGroups = window.watchlistRowReview.groups(entry.symbol, actions);
+          window.watchlistRowReview.attach(entry, actionGroups.review, actionGroups.more);
         if (entry.discordThreadId) {
           const copyButton = document.createElement("button");
           copyButton.textContent = "Copy Thread";
@@ -2412,7 +2413,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           copyButton.addEventListener("click", async () => {
             await copyThreadId(entry);
           });
-          actions.appendChild(copyButton);
+          actionGroups.more.appendChild(copyButton);
         }
 
         if (entry.lifecycle === "active" || entry.lifecycle === "refresh_pending" || entry.lifecycle === "extension_pending") {
@@ -2427,7 +2428,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
               repostButton.disabled = false;
             }
           });
-          actions.appendChild(repostButton);
+          actionGroups.more.appendChild(repostButton);
 
           const refreshButton = document.createElement("button");
           refreshButton.textContent = "Refresh Levels";
@@ -2440,7 +2441,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
               refreshButton.disabled = false;
             }
           });
-          actions.appendChild(refreshButton);
+          actionGroups.more.appendChild(refreshButton);
 
           const aiRefreshButton = document.createElement("button");
           aiRefreshButton.textContent = entry.automaticAnalysisEnabled === false ? "Generate analysis" : "Refresh AI Read";
@@ -2476,7 +2477,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
               aiRefreshButton.disabled = aiReadConfigured === false || !aiReadGenerationAllowed;
             }
           });
-          actions.appendChild(aiRefreshButton);
+          actionGroups.more.appendChild(aiRefreshButton);
         }
 
         const aiCardVisible = entry.tradersLinkAiReadCardVisible !== false;
@@ -2509,7 +2510,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             aiVisibilityButton.disabled = false;
           }
         });
-        actions.appendChild(aiVisibilityButton);
+        actionGroups.more.appendChild(aiVisibilityButton);
 
         const indicatorCardVisible = entry.indicatorCardVisible !== false;
         const indicatorVisibilityButton = document.createElement("button");
@@ -2543,7 +2544,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             indicatorVisibilityButton.disabled = false;
           }
         });
-        actions.appendChild(indicatorVisibilityButton);
+        actionGroups.more.appendChild(indicatorVisibilityButton);
 
         const dipBuyPlanVisible = entry.tradersLinkAiReadDipBuyPlanVisible !== false;
         const dipBuyPlanVisibilityButton = document.createElement("button");
@@ -2586,7 +2587,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             dipBuyPlanVisibilityButton.disabled = false;
           }
         });
-        actions.appendChild(dipBuyPlanVisibilityButton);
+        actionGroups.more.appendChild(dipBuyPlanVisibilityButton);
 
         if (entry.lifecycle === "activation_failed") {
           const retryButton = document.createElement("button");
@@ -2605,7 +2606,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
               await loadRuntimeStatus();
             }
           });
-          actions.appendChild(retryButton);
+          actionGroups.more.appendChild(retryButton);
         }
 
         if (
@@ -2675,8 +2676,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
               moveSelect.disabled = false;
             }
           });
-          actions.appendChild(moveSelect);
-          actions.appendChild(moveButton);
+          actionGroups.move.appendChild(moveSelect);
+          actionGroups.move.appendChild(moveButton);
         }
 
         const removeFromListButton = document.createElement("button");
@@ -2694,7 +2695,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             removeFromListButton.disabled = false;
           }
         });
-        actions.appendChild(removeFromListButton);
+        actionGroups.remove.appendChild(removeFromListButton);
 
         const deactivateButton = document.createElement("button");
         deactivateButton.textContent = entry.lifecycle === "activating" ? "Cancel" : "Deactivate";
@@ -2721,7 +2722,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             deactivateButton.disabled = false;
           }
         });
-        actions.appendChild(deactivateButton);
+        actionGroups.remove.appendChild(deactivateButton);
 
         item.appendChild(meta);
         item.appendChild(actions);
