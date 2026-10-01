@@ -2406,8 +2406,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         const actions = document.createElement("div");
 
         actions.className = "entry-actions";
-        const actionGroups = window.watchlistRowReview.groups(entry.symbol, actions);
-          window.watchlistRowReview.attach(entry, actionGroups.review, actionGroups.more);
+        item.classList.add('watchlist-control-row');
+          const actionGroups = window.watchlistRowReview.groups(entry.symbol, actions, meta);
+          window.watchlistRowReview.attach(entry, actionGroups.review, actionGroups.more, actionGroups.options, actionGroups.header, actionGroups.listing);
         if (entry.discordThreadId) {
           const copyButton = document.createElement("button");
           copyButton.textContent = "Copy Thread";
@@ -2640,7 +2641,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           notifyMove.type='checkbox';notifyMove.style.width='auto';notifyMove.checked=moveNotifyChoices.get(entry.symbol)===true;
           notifyMove.onchange=()=>moveNotifyChoices.set(entry.symbol,notifyMove.checked);
           notifyLabel.append(notifyMove,document.createTextNode(' Move Discord post and notify users'));
-          actionGroups.move.append(notifyLabel);
+          // Append the notification choice after the destination and Move button.
           const moveButton = document.createElement("button");
             moveButton.textContent = "Move to List";
             moveButton.disabled = movingSymbols.has(entry.symbol);
@@ -2683,6 +2684,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           });
           actionGroups.move.appendChild(moveSelect);
           actionGroups.move.appendChild(moveButton);
+          actionGroups.move.append(notifyLabel);
           const moveDetails=document.createElement('button');moveDetails.type='button';moveDetails.className='secondary';moveDetails.textContent='Move delivery details';
           moveDetails.onclick=async()=>{
             const dialog=document.createElement('dialog');dialog.style.maxWidth='min(520px,92vw)';

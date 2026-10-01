@@ -1,15 +1,29 @@
 /** Owner console only. Uses the existing authenticated review API; never generates AI. */
 export const WATCHLIST_ROW_REVIEW = String.raw`
 <style>
-.entry-actions.watchlist-grouped-actions { display:flex; flex-direction:column; align-items:stretch; gap:12px; width:100%; min-width:0; }
-.watchlist-action-group { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-width:0; }
-.watchlist-action-group > label { display:flex; align-items:center; gap:6px; }
-.watchlist-action-group > button,.watchlist-action-group > select { min-height:40px; }
-.watchlist-action-group > [role="status"] { flex-basis:100%; }
+li.watchlist-control-row { display:flex; flex-direction:column; align-items:stretch; }
+.watchlist-control-row > .entry-main { width:100%; }
+.entry-actions.watchlist-grouped-actions { display:flex; flex-direction:column; align-items:stretch; gap:8px; width:100%; min-width:0; }
+.watchlist-action-group { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:8px; min-width:0; }
+.watchlist-action-group:empty { display:none; }
+.watchlist-x-choice { display:inline-flex; align-items:center; gap:8px; max-width:100%; }
+.watchlist-x-choice > label { display:inline-flex; align-items:center; gap:6px; margin:0; width:auto; }
+.watchlist-x-choice > button { margin:0; min-height:40px; }
+.watchlist-action-group > label { display:inline-flex; align-items:center; gap:6px; margin:0; width:auto; }
+.watchlist-action-group input[type="checkbox"] { width:auto; margin:0; flex:none; }
+.watchlist-action-group > button,.watchlist-action-group > select { min-height:40px; margin:0; width:auto; }
+.watchlist-action-move > select { flex:0 1 260px; max-width:100%; }
+.watchlist-review-status { margin:4px 0; }
 .watchlist-action-more { border-top:1px solid rgba(148,163,184,.3); padding-top:8px; }
 .watchlist-action-more > summary { cursor:pointer; font-weight:600; padding:4px 0 8px; }
-.watchlist-action-remove { border-top:1px solid rgba(148,163,184,.3); padding-top:10px; }
-@media(max-width:600px) { .watchlist-action-group > button { flex:1 1 160px; } .watchlist-action-group > select { flex:1 1 100%; max-width:100%; } .watchlist-action-group > label { flex-basis:100%; } }
+.watchlist-action-remove { margin-top:8px; }
+@media(max-width:600px) {
+ .watchlist-action-group > button { min-height:44px; }
+ .watchlist-action-group label { min-height:44px; cursor:pointer; }
+ .watchlist-x-choice > button { min-height:44px; }
+ .watchlist-action-move > select { flex:1 1 180px; min-width:0; }
+ .watchlist-action-move > label { flex-basis:100%; }
+}
 </style>
 <script>
 (() => {
@@ -38,6 +52,9 @@ export const WATCHLIST_ROW_REVIEW = String.raw`
   }
 // Embedded in the existing Runtime owner-console IIFE by the exact-parent packager.
 const xChoices = new Map();
+function hasPublishableDraft(state) {
+  return !!state && ['Ready for review', 'New draft — awaiting review', 'Replacement failed — previous version available'].includes(state.status);
+}
 function attachX(entry, actions, state, more = actions) {
   const cycleId = state?.cycleId || entry.publicationReview?.cycleId;
   if (!cycleId) return;
@@ -80,26 +97,28 @@ function attachX(entry, actions, state, more = actions) {
     }catch(error){status.textContent=String(error.message||error);}
   }
   const open=document.createElement('button');open.type='button';open.className='secondary';open.textContent='Post to X';open.onclick=()=>openX(false);more.append(open);
-  if(state?.canReview){
+  if(state?.canReview && hasPublishableDraft(state)){
     const label=document.createElement('label'),choice=document.createElement('input');choice.type='checkbox';choice.style.width='auto';choice.checked=xChoices.get(choiceKey)?.enabled===true;
     choice.onchange=()=>{if(choice.checked){choice.checked=false;openX(true);}else{xChoices.delete(choiceKey);}};
-    label.append(choice,document.createTextNode(' Also post to X'));actions.append(label);
-    const caption=document.createElement('button');caption.type='button';caption.className='secondary';caption.textContent='Edit X caption';caption.onclick=()=>openX(true);actions.append(caption);
+    const xGroup=document.createElement('div');xGroup.className='watchlist-x-choice';
+    label.append(choice,document.createTextNode(' Also post to X'));xGroup.append(label);actions.append(xGroup);
+    const caption=document.createElement('button');caption.type='button';caption.className='secondary';caption.textContent='Edit X caption';caption.onclick=()=>openX(true);xGroup.append(caption);
   }
 }
 
   const expandedActions = new Set();
-  function groups(symbol, root) {
+  function groups(symbol, root, header) {
     root.classList.add('watchlist-grouped-actions');
     const make = label => { const group=document.createElement('div');group.className='watchlist-action-group';group.setAttribute('role','group');group.setAttribute('aria-label',label+' for '+symbol);return group; };
-    const review=make('Review and publish'),move=make('Move ticker'),more=make('More actions'),remove=make('Remove ticker');
+    const review=make('Review and publish'),options=make('Publishing options'),listing=make('Publish without analysis'),move=make('Move ticker'),more=make('More actions'),remove=make('Remove ticker');
+    move.classList.add('watchlist-action-move');
     remove.classList.add('watchlist-action-remove');
     const details=document.createElement('details');details.className='watchlist-action-more';details.open=expandedActions.has(symbol);
-    const summary=document.createElement('summary');summary.textContent='More actions';details.append(summary,more);
+    const summary=document.createElement('summary');summary.textContent='More actions';details.append(summary,more,remove);
     details.addEventListener('toggle',()=>{if(details.isConnected){if(details.open)expandedActions.add(symbol);else expandedActions.delete(symbol);}});
-    root.append(review,move,details,remove);return {review,move,more,remove};
+    root.append(review,options,listing,move,details);return {review,options,listing,move,more,remove,header};
   }
-  function attach(entry, actions, more = actions) {
+  function attach(entry, actions, more = actions, options = actions, header = actions, listing = actions) {
     if (entry.analysisGeneration) {
       const run = entry.analysisGeneration;
       const elapsed = Math.max(0, Math.floor((Date.now() - run.startedAt) / 1000));
@@ -151,12 +170,12 @@ function attachX(entry, actions, state, more = actions) {
       } catch(error) { message.textContent = String(error.message || error); }
     };
     more.append(free);
-    attachX(entry,actions,queue.get(entry.symbol),more);
+    attachX(entry,options,queue.get(entry.symbol),more);
     if (!entry.publicationReview?.required) return;
     const state = queue.get(entry.symbol);
     const status = document.createElement('p'); status.setAttribute('role', 'status');
     status.textContent = (state?.status || 'Review status unavailable. Check the owner session.') + (errors.has(entry.symbol) ? ' — ' + errors.get(entry.symbol) : '');
-    actions.append(status);
+    status.className = 'watchlist-review-status'; (header.querySelector('.entry-title') || header).append(status);
     const notes = document.createElement('button'); notes.type = 'button'; notes.className = 'secondary'; notes.textContent = 'My notes';
     notes.disabled = !state?.cycleId || pending.has(entry.symbol);
     notes.onclick = () => {
@@ -182,19 +201,19 @@ function attachX(entry, actions, state, more = actions) {
       dialog.append(title,text,message,save); if(state.listed) dialog.append(publish); dialog.append(close);
       dialog.addEventListener('close',()=>dialog.remove()); document.body.append(dialog); dialog.showModal();
     };
-    actions.append(notes);
+    // Append after the analysis button to keep the primary action order stable.
     const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'secondary';
     edit.textContent = 'View / edit analysis'; edit.disabled = !state?.canReview || pending.has(entry.symbol);
     edit.onclick = () => {
       if (window.parent === window) { status.textContent = 'Open Watchlist Admin in the dashboard to edit the analysis card.'; return; }
       window.parent.postMessage({ source: 'traderslink-watchlist-admin', type: 'edit-analysis', symbol: entry.symbol }, window.location.origin);
     };
-    actions.append(edit);
+    actions.append(edit,notes);
     if (state?.canPublishWithoutAnalysis) {
       const choice = document.createElement('label'); const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.style.width = 'auto';
       const key = state.cycleId + ':listing'; checkbox.checked = notificationChoices.get(key) !== false;
       checkbox.onchange = () => notificationChoices.set(key,checkbox.checked);
-      choice.append(checkbox,document.createTextNode(' Notify users for ticker-only post')); actions.append(choice);
+      choice.append(checkbox,document.createTextNode(' Notify users for ticker-only post')); listing.append(choice);
       const list = document.createElement('button'); list.type = 'button'; list.className = 'secondary';
       list.textContent = 'Publish ticker without analysis'; list.disabled = pending.has(entry.symbol);
       list.onclick = async () => {
@@ -207,25 +226,25 @@ function attachX(entry, actions, state, more = actions) {
         } catch (error) { errors.set(entry.symbol, String(error.message || error) + ' Check delivery status before retrying.'); }
         finally { pending.delete(entry.symbol); await refresh(); window.dispatchEvent(new Event('watchlist-review-updated')); }
       };
-      actions.append(list);
+      listing.prepend(list);
     }
     const choiceKey = state?.cycleId + ':' + state?.draftRevision;
-    if (state?.canReview) {
+    if (state?.canReview && hasPublishableDraft(state)) {
       const label = document.createElement('label'), choice = document.createElement('input'); choice.type = 'checkbox'; choice.style.width = 'auto';
       choice.checked = freeChatChoices.get(choiceKey) === true; choice.disabled = pending.has(entry.symbol);
       choice.onchange = () => freeChatChoices.set(choiceKey,choice.checked);
-      label.append(choice,document.createTextNode(' Also post to Free Chat')); actions.append(label);
+      label.append(choice,document.createTextNode(' Also post to Free Chat')); options.prepend(label);
     }
-    if (state?.listed) {
+    if (state?.listed && hasPublishableDraft(state)) {
       const label = document.createElement('label');
       const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.style.width = 'auto';
       checkbox.checked = notificationChoices.get(choiceKey) === true; checkbox.disabled = pending.has(entry.symbol);
       checkbox.onchange = () => notificationChoices.set(choiceKey, checkbox.checked);
-      label.append(checkbox, document.createTextNode(' Notify users')); actions.append(label);
+      label.append(checkbox, document.createTextNode(' Notify users')); options.prepend(label);
     }
     const approve = document.createElement('button'); approve.type = 'button'; approve.textContent = state?.listed ? 'Approve and publish analysis' : 'Approve and publish';
     // Do not offer a second publication for an already approved version or while a replacement is running.
-    const ready = state && ['Ready for review', 'New draft — awaiting review', 'Replacement failed — previous version available'].includes(state.status);
+    const ready = hasPublishableDraft(state);
     approve.disabled = !ready || pending.has(entry.symbol);
     approve.onclick = async () => {
       if (pending.has(entry.symbol)) return;
@@ -245,7 +264,7 @@ function attachX(entry, actions, state, more = actions) {
       } catch (error) { errors.set(entry.symbol, String(error.message || error) + ' Check delivery status before retrying.'); status.textContent = errors.get(entry.symbol); }
       finally { pending.delete(entry.symbol); await refresh(); window.dispatchEvent(new Event('watchlist-review-updated')); }
     };
-    actions.append(approve);
+    if (ready || pending.has(entry.symbol)) actions.append(approve);
     if (state?.status === 'Approved — delivery needs attention') {
       const recovery = document.createElement('button'); recovery.type = 'button'; recovery.className = 'secondary';
       recovery.textContent = 'Delivery details';
