@@ -2640,7 +2640,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           const notifyLabel=document.createElement('label'),notifyMove=document.createElement('input');
           notifyMove.type='checkbox';notifyMove.style.width='auto';notifyMove.checked=moveNotifyChoices.get(entry.symbol)===true;
           notifyMove.onchange=()=>moveNotifyChoices.set(entry.symbol,notifyMove.checked);
-          notifyLabel.append(notifyMove,document.createTextNode(' Move Discord post and notify users'));
+          notifyLabel.append(notifyMove,document.createTextNode(' Post to destination and notify users (keep original posts)'));
           // Append the notification choice after the destination and Move button.
           const moveButton = document.createElement("button");
             moveButton.textContent = "Move to List";
@@ -2654,7 +2654,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             moveSelect.disabled = true;
             try {
               let request=moveRequests.get(entry.symbol);
-              if(!request||request.to!==moveSelect.value||request.notify!==notifyMove.checked){request={symbol:entry.symbol,id:crypto.randomUUID(),to:moveSelect.value,notify:notifyMove.checked};moveRequests.set(entry.symbol,request);}
+              if(!request||request.to!==moveSelect.value||request.notify!==notifyMove.checked){request={symbol:entry.symbol,id:crypto.randomUUID(),to:moveSelect.value,notify:notifyMove.checked,discordText:window.watchlistDiscordText?.get(entry.publicationReview?.cycleId+':move:'+moveSelect.value)};moveRequests.set(entry.symbol,request);}
               const response = await fetch("/api/watchlist/analysis-review/category-move", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "x-traderlink-journal-admin-request":"1" },
@@ -2685,6 +2685,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           actionGroups.move.appendChild(moveSelect);
           actionGroups.move.appendChild(moveButton);
           actionGroups.move.append(notifyLabel);
+            const editMovePost=document.createElement('button');editMovePost.type='button';editMovePost.textContent='Edit move post';editMovePost.onclick=()=>window.watchlistDiscordText?.open(entry.publicationReview?.cycleId+':move:'+moveSelect.value,entry.symbol,'move',moveSelect.value);actionGroups.move.append(editMovePost);
           const moveDetails=document.createElement('button');moveDetails.type='button';moveDetails.className='secondary';moveDetails.textContent='Move delivery details';
           moveDetails.onclick=async()=>{
             const dialog=document.createElement('dialog');dialog.style.maxWidth='min(520px,92vw)';

@@ -5,7 +5,7 @@ import { DiscordConfirmedRejection } from "../lib/alerts/discord-confirmed-rejec
 import { loadDiscordMentions, saveDiscordMentions } from "../lib/alerts/watchlist-discord-mentions.js";
 
 type ReviewManager = Pick<ManualWatchlistRuntimeManager,
-  "getCategoryMoves" | "moveCategory" | "getTradersLinkAiReadReview" | "getTradersLinkAiReadPublicationPreview" | "listTradersLinkAiReadReviews" |
+  "getDiscordTextPreview" | "getCategoryMoves" | "moveCategory" | "getTradersLinkAiReadReview" | "getTradersLinkAiReadPublicationPreview" | "listTradersLinkAiReadReviews" |
   "listTradersLinkAiReadHistory" | "getHistoricalTradersLinkAiReadReview" |
   "getAutomaticAnalysisEvents" | "exportFreeChatPublication" | "cancelAnalysisGeneration" |
   "saveTraderNotes" | "saveTradersLinkAiReadOwnerEdit" | "approveTradersLinkAiRead" | "publishTickerWithoutAnalysis" |
@@ -13,6 +13,7 @@ type ReviewManager = Pick<ManualWatchlistRuntimeManager,
   "publishApprovedTradersLinkAiReadToDiscord">;
 
 export const ANALYSIS_REVIEW_PATHS = new Set([
+  "/api/watchlist/analysis-review/discord-text",
   "/api/watchlist/analysis-review/category-move",
   "/api/watchlist/analysis-review/cancel-generation",
   "/api/watchlist/analysis-review/free-chat-publication",
@@ -86,13 +87,18 @@ export async function dispatchAnalysisReviewRequest(input: {
   }
   if (!input.actor || !/^platform-owner:[A-Za-z0-9_-]{1,128}$/.test(input.actor)) return { status: 403, body: { error: "Owner review authorization is required." } };
   if (!ANALYSIS_REVIEW_PATHS.has(input.pathname)) return { status: 404, body: { error: "Not found." } };
+  if(input.pathname.endsWith('/discord-text')){
+    if(input.method!=='GET')return {status:405,body:{error:'Method not allowed.'}};
+    try{return {status:200,body:manager.getDiscordTextPreview(input.searchParams.get('symbol')??'',input.searchParams.get('kind')??'',input.searchParams.get('to')??'',input.actor)};}
+    catch{return {status:400,body:{error:'Post preview unavailable. Refresh and try again.'}};}
+  }
   if(input.pathname.endsWith('/category-move')){
     try{
       if(input.method==='GET')return {status:200,body:{moves:manager.getCategoryMoves(input.searchParams.get('symbol')??'')}};
       if(input.method!=='POST')return {status:405,body:{error:'Method not allowed.'}};
       const body=input.body as Record<string,unknown>;
       if(!body||typeof body.symbol!=='string'||typeof body.id!=='string'||typeof body.to!=='string'||typeof body.notify!=='boolean'||(body.messageId!==undefined&&typeof body.messageId!=='string'))return {status:400,body:{error:'Invalid move request.'}};
-      const move=await manager.moveCategory({symbol:body.symbol,id:body.id,to:body.to,notify:body.notify,actor:input.actor,messageId:body.messageId as string|undefined});
+      const move=await manager.moveCategory({symbol:body.symbol,id:body.id,to:body.to,notify:body.notify,actor:input.actor,messageId:body.messageId as string|undefined,discordText:body.discordText as string|undefined});
       return {status:200,body:{ok:true,move}};
     }catch{return {status:400,body:{error:'Move could not complete. Refresh the ticker list and check move delivery status before retrying.'}};}
   }
@@ -175,9 +181,9 @@ export async function dispatchAnalysisReviewRequest(input: {
       : { review: selectedCycle ? manager.getHistoricalTradersLinkAiReadReview(symbol, selectedCycle) : manager.getTradersLinkAiReadReview(symbol), historical: Boolean(selectedCycle) } };
     const action = input.pathname.split("/").at(-1);
     const allowed = action === "save-notes" ? ["symbol", "cycleId", "text", "publish"]
-      : action === "publish-without-analysis" ? ["symbol", "cycleId", "expectedHead", "notifyUsers"]
+      : action === "publish-without-analysis" ? ["symbol", "cycleId", "expectedHead", "notifyUsers", "discordText"]
       : action === "save" ? ["symbol", "cycleId", "expectedHead", "patch"]
-      : action === "approve" ? ["symbol", "cycleId", "expectedHead", "draftRevision", "previewHash", "notifyUsers"]
+      : action === "approve" ? ["symbol", "cycleId", "expectedHead", "draftRevision", "previewHash", "notifyUsers", "discordText"]
       : action === "verify-discord" ? ["symbol", "cycleId", "expectedHead", "approvalRevision", "index", "messageId"]
       : ["symbol", "cycleId", "approvalRevision"];
     if (Object.keys(fields).some((key) => !allowed.includes(key))) throw new Error("Invalid review request.");
@@ -194,7 +200,7 @@ export async function dispatchAnalysisReviewRequest(input: {
     }
     if (action === "publish-without-analysis" && fields.notifyUsers !== undefined && typeof fields.notifyUsers !== "boolean") throw new Error("Invalid review request.");
     if (action === "publish-without-analysis") return { status: 200, body: { review: await manager.publishTickerWithoutAnalysis({
-      symbol, cycleId, expectedHead: revision("expectedHead"), actor: input.actor, notifyUsers: fields.notifyUsers as boolean | undefined,
+      symbol, cycleId, expectedHead: revision("expectedHead"), actor: input.actor, notifyUsers: fields.notifyUsers as boolean | undefined, discordText: fields.discordText as string | undefined,
     }) } };
     if (action === "save") return { status: 200, body: manager.saveTradersLinkAiReadOwnerEdit({
       symbol, cycleId, expectedHead: revision("expectedHead"), patch: fields.patch, actor: input.actor,
@@ -212,7 +218,7 @@ export async function dispatchAnalysisReviewRequest(input: {
       // Legacy clients may supply this display token; it is not approval authority.
       const previewHash = typeof fields.previewHash === "string" ? fields.previewHash : "";
       return { status: 200, body: { review: await manager.approveTradersLinkAiRead({ symbol, cycleId,
-        expectedHead: revision("expectedHead"), draftRevision: revision("draftRevision"), previewHash, actor: input.actor, notifyUsers: fields.notifyUsers as boolean | undefined,
+        expectedHead: revision("expectedHead"), draftRevision: revision("draftRevision"), previewHash, actor: input.actor, notifyUsers: fields.notifyUsers as boolean | undefined, discordText: fields.discordText as string | undefined,
       }) } };
     }
     return { status: 200, body: { review: await manager.publishApprovedTradersLinkAiReadToDiscord({ symbol, cycleId, approvalRevision: revision("approvalRevision") }) } };
@@ -228,6 +234,7 @@ export async function dispatchAnalysisReviewRequest(input: {
     // Only fixed product messages are exposed. Provider errors can contain
     // response bodies or private paths and must not be returned to the browser.
     const safe = new Set([
+      "Enter Discord post text.", "Use Discord notification settings for mentions.", "Discord post text is too long.",
       "Draft changed. Review the latest version.", "Draft changed. Reload before saving.",
       "Publication preview changed. Review it before publishing.", "Review changed. Reload before saving.",
       "Discord message does not match the approved delivery. No delivery status was changed.",

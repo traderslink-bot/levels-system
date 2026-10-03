@@ -1,3 +1,4 @@
+import { applyDiscordOwnerText } from "./watchlist-discord-owner-text.js";
 import { CategoryMoveStore } from "./watchlist-category-move-store.js";
 import { advanceCategoryMove, newCategoryMove, type MoveReceipt } from "./watchlist-category-move-state.js";
 import { categoryMoveCopy, categoryMoveLabel, sourceCategoryReceipts } from "./watchlist-category-move-receipts.js";
@@ -16,7 +17,7 @@ const locks=new Map<string,Promise<unknown>>();
 export class CategoryMoveService{
  constructor(private readonly ports:Ports,private readonly store=new CategoryMoveStore()){}
  analysisNote(symbol:string,cycleId:string,after:number){const move=this.store.read(symbol).at(-1),entry=this.ports.entry(symbol);return entry?.active&&move&&move.cycleId===cycleId&&(entry.watchlistGroup??'main')===move.to&&move.from!==move.to&&move.placement==='complete'&&move.createdAt>after?`Now on ${categoryMoveLabel(move.to)}.`:'';}
- removalReceipts(symbol:string,cycleId:string|undefined){return this.store.read(symbol).filter(move=>move.cycleId===cycleId&&move.destinationReceipt).map(move=>move.destinationReceipt!);}
+ removalReceipts(symbol:string,cycleId:string|undefined){return this.store.read(symbol).filter(move=>move.cycleId===cycleId).flatMap(move=>[...move.cleanup.filter(job=>job.state!=='deleted').map(job=>job.receipt),...(move.destinationReceipt?[move.destinationReceipt]:[])]);}
  async recordLateReceipt(symbol:string,cycleId:string,group:string,receipt:MoveReceipt){
   const previous=locks.get(symbol)??Promise.resolve();
   const operation=previous.catch(()=>{}).then(async()=>{
@@ -33,14 +34,14 @@ export class CategoryMoveService{
  }
  status(symbol:string){const entry=this.ports.entry(symbol),moves=this.store.read(symbol);return moves.map(move=>({id:move.id,symbol:move.symbol,cycleId:move.cycleId,to:move.to,createdAt:move.createdAt,placement:move.placement,destination:move.destination,notification:move.notification,notice:move.notice,
   current:Boolean(entry?.active&&moves.at(-1)?.id===move.id&&(!entry.publicationReview?.cycleId||entry.publicationReview.cycleId===move.cycleId)&&(entry.watchlistGroup??'main')===move.to),
-  cleanupFailed:move.cleanup.some(job=>job.state==='failed'),notify:move.notify,published:move.published}));}
- async execute(input:{symbol:string;id:string;to:string;notify:boolean;actor:string;messageId?:string}){
+  cleanupFailed:false,notify:move.notify,published:move.published}));}
+ async execute(input:{symbol:string;id:string;to:string;notify:boolean;actor:string;messageId?:string;discordText?:string}){
   const symbol=input.symbol.trim().toUpperCase();
   const previous=locks.get(symbol)??Promise.resolve();
   const operation=previous.catch(()=>{}).then(()=>this.run({...input,symbol}));locks.set(symbol,operation);
   try{return await operation;}finally{if(locks.get(symbol)===operation)locks.delete(symbol);}
  }
- private async run(input:{symbol:string;id:string;to:string;notify:boolean;actor:string;messageId?:string}){
+ private async run(input:{symbol:string;id:string;to:string;notify:boolean;actor:string;messageId?:string;discordText?:string}){
   categoryMoveCopy(input.symbol,input.to); // Validate before changing placement.
   let move=this.store.get(input.symbol,input.id);
   const entry=this.ports.entry(input.symbol);
@@ -52,7 +53,7 @@ export class CategoryMoveService{
    const approval=review?.events.filter(event=>event.body.kind==='approve'&&acknowledged.has(event.revision)).at(-1);
    const from=entry.watchlistGroup??'main',copy=categoryMoveCopy(input.symbol,input.to),audience=currentDiscordAudience();
    const linked=buildWatchlistDiscordLinkMessage(input.symbol);
-   const content=appendDiscordMentions(copy.title+'\n'+copy.body+linked.slice(linked.indexOf('\n\n')),audience);
+   const content=applyDiscordOwnerText(appendDiscordMentions(copy.title+'\n'+copy.body+linked.slice(linked.indexOf('\n\n')),audience),input.discordText);
    const oldMoves=this.store.read(input.symbol).filter(item=>item.cycleId===entry.publicationReview?.cycleId&&item.to===from&&item.destinationReceipt).map(item=>item.destinationReceipt!);
    move={...newCategoryMove({id:input.id,symbol:input.symbol,cycleId:entry.publicationReview?.cycleId??input.id,from,to:input.to,content,createdAt:Date.now(),notify:input.notify,published:Boolean(approval)},[...sourceCategoryReceipts(review,from),...oldMoves]),actor:input.actor,audience,approvalRevision:approval?.revision??null};
    this.store.save(move);

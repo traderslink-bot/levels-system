@@ -1,3 +1,5 @@
+import { applyDiscordOwnerText, discordTextParts } from "../alerts/watchlist-discord-owner-text.js";
+import { categoryMoveCopy } from "../alerts/watchlist-category-move-receipts.js";
 import { CategoryMoveService } from "../alerts/watchlist-category-move-service.js";
 import { analysisUpdateContextForDraft } from "../ai/watchlist-analysis-update-context.js";
 import { queueDiscordRemoval, queueCategoryMoveRemovals } from "../alerts/watchlist-discord-removal.js";
@@ -5020,7 +5022,7 @@ export class ManualWatchlistRuntimeManager {
       publication, previewHash: publicationPreviewHash(publication) };
   }
 
-  async approveTradersLinkAiReadForWebsite(input: { symbol: string; cycleId: string; expectedHead: number; draftRevision: number; actor: string; previewHash?: string; notifyUsers?: boolean }) {
+  async approveTradersLinkAiReadForWebsite(input: { symbol: string; cycleId: string; expectedHead: number; draftRevision: number; actor: string; previewHash?: string; notifyUsers?: boolean; discordText?: string }) {
     const symbol = normalizeSymbol(input.symbol);
     const entry = this.watchlistStore.getEntry(symbol);
     const store = this.options.tradersLinkAiReadReviewStore;
@@ -5044,7 +5046,7 @@ export class ManualWatchlistRuntimeManager {
       ...preview.publication,
       ...(preview.publication.analysisUpdateContext ? { analysisUpdateContext: { ...preview.publication.analysisUpdateContext, automatic: input.actor === "runtime:automatic-boundary" } } : {}),
       analysisImageVersion: input.actor === "runtime:automatic-boundary" ? undefined : preview.publication.analysisImageVersion,
-      discordChunks: attributeOwnerApprovedDiscord(preview.publication.discordChunks, input.actor),
+      discordChunks: attributeOwnerApprovedDiscord(preview.publication.discordChunks, input.actor).map((chunk,index)=>index===0?applyDiscordOwnerText(chunk,input.discordText):chunk),
       website: { ...preview.publication.website,
         ...(!alreadyListed ? { firstPostedAt: this.options.now?.() ?? Date.now() } : {}),
       },
@@ -5100,7 +5102,7 @@ export class ManualWatchlistRuntimeManager {
     return { saved: true, published: input.publish };
   }
 
-  async publishTickerWithoutAnalysis(input: { symbol: string; cycleId: string; expectedHead: number; actor: string; notifyUsers?: boolean }) {
+  async publishTickerWithoutAnalysis(input: { symbol: string; cycleId: string; expectedHead: number; actor: string; notifyUsers?: boolean; discordText?: string }) {
     const symbol = normalizeSymbol(input.symbol);
     const entry = this.watchlistStore.getEntry(symbol);
     const store = this.options.tradersLinkAiReadReviewStore;
@@ -5119,7 +5121,7 @@ export class ManualWatchlistRuntimeManager {
     if (!alreadyListed) snapshot.firstPostedAt = this.options.now?.() ?? Date.now();
     const audience = currentDiscordAudience();
     const approval = store.approveListingOnly(input.cycleId,store.read(input.cycleId)!.head,input.actor, {
-      discordWatchlistGroup: entry.watchlistGroup, website: snapshot as unknown as Record<string,unknown>, discordChunks: attributeOwnerApprovedDiscord([appendDiscordMentions(buildWatchlistDiscordLinkMessage(symbol), audience)], input.actor), discordAudience: audience,
+      discordWatchlistGroup: entry.watchlistGroup, website: snapshot as unknown as Record<string,unknown>, discordChunks: attributeOwnerApprovedDiscord([appendDiscordMentions(buildWatchlistDiscordLinkMessage(symbol), audience)], input.actor).map(chunk=>applyDiscordOwnerText(chunk,input.discordText)), discordAudience: audience,
       notificationKind: "listing", notifyUsers: input.notifyUsers !== false,
     });
     if (approval.body.kind !== "approve" || !approval.body.publication) throw new Error("Listing publication unavailable.");
@@ -5222,7 +5224,7 @@ export class ManualWatchlistRuntimeManager {
     return store!.read(input.cycleId);
   }
 
-  async approveTradersLinkAiRead(input: { symbol: string; cycleId: string; expectedHead: number; draftRevision: number; actor: string; previewHash: string; notifyUsers?: boolean }) {
+  async approveTradersLinkAiRead(input: { symbol: string; cycleId: string; expectedHead: number; draftRevision: number; actor: string; previewHash: string; notifyUsers?: boolean; discordText?: string }) {
     const review = await this.approveTradersLinkAiReadForWebsite(input);
     if (!review?.approved) throw new Error("Publication approval is unavailable.");
     return this.publishApprovedTradersLinkAiReadToDiscord({ symbol: input.symbol, cycleId: input.cycleId, approvalRevision: review.approved.revision });
@@ -11981,8 +11983,17 @@ export class ManualWatchlistRuntimeManager {
       verify:(input,messageId,at)=>this.options.discordAlertRouter.verifyApprovedAnalysisMessage(input,messageId,at),
     });
   }
+  getDiscordTextPreview(symbol:string,kind:string,to:string,actor:string){
+    symbol=normalizeSymbol(symbol);
+    let content:string;
+    if(kind==='analysis')content=attributeOwnerApprovedDiscord(this.getTradersLinkAiReadPublicationPreview(symbol).publication.discordChunks,actor)[0];
+    else if(kind==='listing')content=attributeOwnerApprovedDiscord([appendDiscordMentions(buildWatchlistDiscordLinkMessage(symbol),currentDiscordAudience())],actor)[0];
+    else if(kind==='move'){const copy=categoryMoveCopy(symbol,to),linked=buildWatchlistDiscordLinkMessage(symbol);content=appendDiscordMentions(copy.title+'\n'+copy.body+linked.slice(linked.indexOf('\n\n')),currentDiscordAudience());}
+    else throw Error('Invalid Discord preview.');
+    const parts=discordTextParts(content);return {...parts,maxLength:2000-parts.suffix.length};
+  }
   getCategoryMoves(symbol:string){return this.categoryMoves().status(normalizeSymbol(symbol));}
-  moveCategory(input:{symbol:string;id:string;to:string;notify:boolean;actor:string;messageId?:string}){return this.categoryMoves().execute(input);}
+  moveCategory(input:{symbol:string;id:string;to:string;notify:boolean;actor:string;messageId?:string;discordText?:string}){return this.categoryMoves().execute(input);}
 
   async moveSymbolToWatchlistGroup(
     symbolInput: string,

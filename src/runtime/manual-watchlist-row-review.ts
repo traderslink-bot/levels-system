@@ -31,6 +31,35 @@ li.watchlist-control-row { display:flex; flex-direction:column; align-items:stre
   const pending = new Set(), errors = new Map(), notificationChoices = new Map();
   const notesDrafts = new Map();
   const freeChatChoices = new Map();
+  const discordTextDrafts=new Map();
+  window.watchlistDiscordText={
+    get:key=>discordTextDrafts.get(key),
+    open:async(key,symbol,kind,to='')=>{
+      const dialog=document.createElement('dialog');dialog.style.cssText='width:min(600px,92vw);max-height:85vh;overflow:auto';
+      const title=document.createElement('h2');title.textContent=symbol+' — Edit Discord post';
+      const text=document.createElement('textarea');text.rows=8;text.style.width='100%';text.setAttribute('aria-label','Discord post text');text.disabled=true;
+      const fixed=document.createElement('p');fixed.style.whiteSpace='pre-wrap';
+      const status=document.createElement('p');status.setAttribute('role','status');
+      const use=document.createElement('button');use.type='button';use.textContent='Use text';use.disabled=true;
+      const reset=document.createElement('button');reset.type='button';reset.textContent='Reset to generated text';reset.disabled=true;
+      const close=document.createElement('button');close.type='button';close.textContent='Close';close.onclick=()=>dialog.close();
+      dialog.append(title,text,fixed,status,use,reset,close);document.body.append(dialog);dialog.showModal();
+      const position=()=>{if(window.parent===window||!window.frameElement)return;const f=window.frameElement.getBoundingClientRect(),top=Math.max(0,-f.top),bottom=Math.min(window.innerHeight,window.parent.innerHeight-f.top);dialog.style.position='fixed';dialog.style.margin='0 auto';dialog.style.left='0';dialog.style.right='0';dialog.style.top=(top+12)+'px';dialog.style.maxHeight=Math.max(120,bottom-top-24)+'px';};
+      position();window.parent.addEventListener('scroll',position,true);window.parent.addEventListener('resize',position);
+      dialog.addEventListener('close',()=>{window.parent.removeEventListener('scroll',position,true);window.parent.removeEventListener('resize',position);dialog.remove();});
+      try{
+        const generated=await request('/discord-text?symbol='+encodeURIComponent(symbol)+'&kind='+kind+'&to='+encodeURIComponent(to));
+        if(!dialog.isConnected)return;
+        text.value=discordTextDrafts.get(key)??generated.text;text.maxLength=generated.maxLength;
+        fixed.textContent='Links and notification tags stay unchanged:'+generated.suffix;
+        const validate=()=>{status.textContent=text.value.length+' / '+generated.maxLength+' characters. This does not send a post.';use.disabled=!text.value.trim()||text.value.length>generated.maxLength||/@(everyone|here)\b|<@/i.test(text.value);};
+        text.disabled=reset.disabled=false;text.oninput=()=>{discordTextDrafts.set(key,text.value);validate();};
+        reset.onclick=()=>{discordTextDrafts.delete(key);text.value=generated.text;validate();};
+        use.onclick=()=>{discordTextDrafts.set(key,text.value);dialog.close();};validate();position();
+      }catch(error){status.textContent=String(error.message||error);}
+    }
+  };
+
   async function request(path, body) {
     const response = await fetch("/api/watchlist/analysis-review" + path, {
       method: body ? 'POST' : 'GET', cache: 'no-store', signal: AbortSignal.timeout(30000),
@@ -221,14 +250,16 @@ function attachX(entry, actions, state, more = actions) {
         pending.add(entry.symbol); errors.delete(entry.symbol); list.disabled = true; edit.disabled = true;
         status.textContent = 'Publishing ticker without analysis…';
         try {
-          await request('/publish-without-analysis', { symbol: entry.symbol, cycleId: state.cycleId, expectedHead: state.expectedHead, notifyUsers: notificationChoices.get(state.cycleId + ":listing") !== false });
+          await request('/publish-without-analysis', { symbol: entry.symbol, cycleId: state.cycleId, expectedHead: state.expectedHead, discordText: window.watchlistDiscordText.get(state.cycleId+':listing'), notifyUsers: notificationChoices.get(state.cycleId + ":listing") !== false });
           status.textContent = 'Listing approved. Checking delivery status…';
         } catch (error) { errors.set(entry.symbol, String(error.message || error) + ' Check delivery status before retrying.'); }
         finally { pending.delete(entry.symbol); await refresh(); window.dispatchEvent(new Event('watchlist-review-updated')); }
       };
+      const editPost=document.createElement('button');editPost.type='button';editPost.textContent='Edit Discord post';editPost.onclick=()=>window.watchlistDiscordText.open(state.cycleId+':listing',entry.symbol,'listing');listing.append(editPost);
       listing.prepend(list);
     }
     const choiceKey = state?.cycleId + ':' + state?.draftRevision;
+    if(state?.canReview&&hasPublishableDraft(state)){const editPost=document.createElement('button');editPost.type='button';editPost.textContent='Edit Discord post';editPost.onclick=()=>window.watchlistDiscordText.open(choiceKey,entry.symbol,'analysis');options.append(editPost);}
     if (state?.canReview && hasPublishableDraft(state)) {
       const label = document.createElement('label'), choice = document.createElement('input'); choice.type = 'checkbox'; choice.style.width = 'auto';
       choice.checked = freeChatChoices.get(choiceKey) === true; choice.disabled = pending.has(entry.symbol);
@@ -255,7 +286,7 @@ function attachX(entry, actions, state, more = actions) {
         const approvalResult = await request('/approve', { symbol: entry.symbol, cycleId: preview.cycleId, expectedHead: preview.expectedHead,
           xPost: xChoices.get(choiceKey)?.enabled === true && preview.draftRevision === state.draftRevision,
           xCaption: xChoices.get(choiceKey)?.caption,
-          draftRevision: preview.draftRevision, previewHash: preview.previewHash, notifyUsers: notificationChoices.get(choiceKey) === true, freeChat: freeChatChoices.get(choiceKey) === true && preview.draftRevision === state.draftRevision });
+          discordText: preview.draftRevision===state.draftRevision?window.watchlistDiscordText.get(choiceKey):undefined, draftRevision: preview.draftRevision, previewHash: preview.previewHash, notifyUsers: notificationChoices.get(choiceKey) === true, freeChat: freeChatChoices.get(choiceKey) === true && preview.draftRevision === state.draftRevision });
         notificationChoices.delete(choiceKey);
         freeChatChoices.delete(choiceKey);
         xChoices.delete(choiceKey);

@@ -103,17 +103,8 @@ export async function advanceCategoryMove(move: CategoryMove, ports: MovePorts):
     state.notification="confirmed";
     save();
   }
-  for (const item of state.cleanup) {
-    if (item.state === "deleted") continue;
-    // Even if source and destination share a channel, never delete this move's receipt.
-    if (item.receipt.channelId === state.destinationReceipt?.channelId && item.receipt.messageId === state.destinationReceipt.messageId) continue;
-    try { await ports.remove(item.receipt); item.state="deleted"; }
-    catch { item.state="failed"; }
-    save();
-  }
-  state.notice=state.cleanup.some(item => item.state === "failed")
-    ? "New post sent. Some original Discord posts could not be deleted. Retry cleanup without sending another notification."
-    : "Ticker moved. Discord post sent and member notifications queued.";
+  // Retain source receipts for eventual ticker removal; moves never delete posts.
+  state.notice="Ticker moved. Original posts retained. Discord post sent and member notifications queued.";
   save();
   return state;
 }
