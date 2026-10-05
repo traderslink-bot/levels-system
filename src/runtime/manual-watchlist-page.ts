@@ -153,7 +153,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         <option value="main" selected>Main Session (Premarket + Regular Hours)</option>
         <option value="postmarket">Post-Market</option>
         <option value="general">General Watchlist</option>
-        <option value="swings">Swings</option>
+        <option value="swings">Swings</option><option value="private">Private</option>
         <option id="top-watches-add-option" value="" disabled>Overnight Watches (loading date)</option>
       </select>
       <div class="field-hint">
@@ -217,7 +217,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           <h3>Swings</h3>
           <button class="danger" id="remove-swings-tickers-button" type="button">Clear Swings</button>
         </div>
-        <ul id="swings-list"></ul>
+        <ul id="swings-list"></ul></div><div class="watchlist-admin-group"><div class="watchlist-group-heading"><h3>Private</h3><button class="danger" id="remove-private-tickers-button" type="button">Clear Private</button></div><ul id="private-list"></ul>
       </div>
       <div id="dated-top-watches-lists">
       </div>
@@ -643,7 +643,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       main: document.getElementById("main-session-list"),
       postmarket: document.getElementById("postmarket-list"),
       general: document.getElementById("general-list"),
-      swings: document.getElementById("swings-list"),
+      swings: document.getElementById("swings-list"), private: document.getElementById("private-list"),
     };
     const watchlistHealthEl = document.getElementById("watchlist-health");
     const dayTradeAdapterToggleEl = document.getElementById("day-trade-adapter-toggle");
@@ -2349,7 +2349,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       if (
         entry.watchlistGroup === "top_regular" ||
         entry.watchlistGroup === "main" ||
-        entry.watchlistGroup === "postmarket" || entry.watchlistGroup === "general" || entry.watchlistGroup === "swings" || isTopWatchesGroup(entry.watchlistGroup)
+        entry.watchlistGroup === "postmarket" || entry.watchlistGroup === "general" || entry.watchlistGroup === "private" || entry.watchlistGroup === "swings" || isTopWatchesGroup(entry.watchlistGroup)
       ) {
         return entry.watchlistGroup;
       }
@@ -2628,7 +2628,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             ["main", "Main Session"],
             ["postmarket", "Post-Market"],
             ["general", "General Watchlist"],
-            ["swings", "Swings"],
+            ["swings", "Swings"], ["private", "Private"],
             ...Array.from(new Set(availableTopWatchesGroups.concat(isTopWatchesGroup(selectedMoveGroup) ? [selectedMoveGroup] : []))).map(group => [group, topWatchesLabel(group)]),
           ]) {
             const option = document.createElement("option");
@@ -2767,7 +2767,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         main: "No Main Session tickers are active.",
         postmarket: "No Post-Market tickers are active.",
         general: "No General Watchlist tickers are active.",
-        swings: "No Swings tickers are active.",
+        swings: "No Swings tickers are active.", private: "No Private tickers are active.",
       };
       for (const [group, list] of Object.entries(listEls)) {
         if (list.childElementCount === 0) {
@@ -3799,6 +3799,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     removeMainTickersButtonEl.addEventListener("click", () => deactivateTickerGroup("main", "Main Session"));
     removePostmarketTickersButtonEl.addEventListener("click", () => deactivateTickerGroup("postmarket", "Post-Market"));
     document.getElementById("remove-general-tickers-button").addEventListener("click", () => deactivateTickerGroup("general", "General Watchlist"));
+    document.getElementById("remove-private-tickers-button").addEventListener("click", () => deactivateTickerGroup("private", "Private"));
     document.getElementById("remove-swings-tickers-button").addEventListener("click", () => deactivateTickerGroup("swings", "Swings"));
     removeReversalTickersButtonEl.addEventListener("click", () => deactivateTickerGroup("reversal", "Potential Reversal Watchlist"));
     aiCleanReadButtonEl.addEventListener("click", () => {

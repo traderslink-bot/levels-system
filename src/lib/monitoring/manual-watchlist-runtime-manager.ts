@@ -807,7 +807,7 @@ function watchlistGroupForActivation(input: ManualWatchlistActivationInput): Wat
   if (
     input.watchlistGroup === "top_regular" ||
     input.watchlistGroup === "main" ||
-    input.watchlistGroup === "postmarket" || input.watchlistGroup === "general" || input.watchlistGroup === "swings" || isTopWatchesGroup(input.watchlistGroup)
+    input.watchlistGroup === "postmarket" || input.watchlistGroup === "general" || input.watchlistGroup === "private" || input.watchlistGroup === "swings" || isTopWatchesGroup(input.watchlistGroup)
   ) {
     return input.watchlistGroup;
   }
@@ -3339,6 +3339,7 @@ export class ManualWatchlistRuntimeManager {
       const entry = this.watchlistStore.getEntry(symbol);
       // Legacy activation creates the thread before the entry. New reviewed
       // activation must persist its cycle first so this check can hold it.
+      if (entry?.watchlistGroup === "private") return false;
       if (!entry?.publicationReview) return true;
       return this.isWatchlistPublicationApproved({ symbol, cards: {} });
     });
@@ -3517,6 +3518,8 @@ export class ManualWatchlistRuntimeManager {
       if (entry.active || !("updatedAt" in patch) ||
         (admittedAt !== undefined && patch.updatedAt < admittedAt)) return false;
     }
+    if (entry?.watchlistGroup === "private" && "watchlistGroup" in patch && patch.watchlistGroup === "private" && "cards" in patch && Object.keys(patch.cards ?? {}).length === 0) return true;
+    if (entry?.watchlistGroup === "private") return false;
     if (isWatchlistRemovalPatch(patch)) return true;
     if (!entry) return false;
     if (!("status" in patch && patch.status === "deactivated")) {
@@ -5024,6 +5027,7 @@ export class ManualWatchlistRuntimeManager {
 
   async approveTradersLinkAiReadForWebsite(input: { symbol: string; cycleId: string; expectedHead: number; draftRevision: number; actor: string; previewHash?: string; notifyUsers?: boolean; discordText?: string }) {
     const symbol = normalizeSymbol(input.symbol);
+    if (this.watchlistStore.getEntry(symbol)?.watchlistGroup === "private") throw new Error("Move this ticker out of Private before publishing.");
     const entry = this.watchlistStore.getEntry(symbol);
     const store = this.options.tradersLinkAiReadReviewStore;
     const publisher = this.liveWatchlistPublisher;
@@ -5047,10 +5051,10 @@ export class ManualWatchlistRuntimeManager {
       ...(preview.publication.analysisUpdateContext ? { analysisUpdateContext: { ...preview.publication.analysisUpdateContext, automatic: input.actor === "runtime:automatic-boundary" } } : {}),
       analysisImageVersion: input.actor === "runtime:automatic-boundary" ? undefined : preview.publication.analysisImageVersion,
       discordChunks: attributeOwnerApprovedDiscord(preview.publication.discordChunks, input.actor).map((chunk,index)=>index===0?applyDiscordOwnerText(chunk,input.discordText):chunk),
-      website: { ...preview.publication.website,
+      website: { ...preview.publication.website, watchlistGroup: entry.watchlistGroup,
         ...(!alreadyListed ? { firstPostedAt: this.options.now?.() ?? Date.now() } : {}),
       },
-      notifyUsers: alreadyListed ? input.notifyUsers === true : true,
+      notifyUsers: alreadyListed ? input.notifyUsers === true : input.notifyUsers !== false,
       notificationKind: alreadyListed ? "analysis" : "listing",
     });
     if (approval.body.kind !== "approve" || !approval.body.publication) throw new Error("Approved publication payload is unavailable.");
@@ -5092,6 +5096,7 @@ export class ManualWatchlistRuntimeManager {
     if (!entry?.active || entry.publicationReview?.cycleId !== input.cycleId || !review || review.cancelled) throw new Error("Ticker review changed. Reload the ticker.");
     if (typeof input.text !== "string" || input.text.length > 12000) throw new Error("Notes must be at most 12,000 characters.");
     const listed = review.preserveExistingPublication === true || review.events.some(event => event.body.kind === "delivery" && event.body.channel === "website" && event.body.status === "acknowledged");
+    if (entry.watchlistGroup === "private") input = { ...input, publish: false };
     if (input.publish && !listed) throw new Error("Save your notes, then publish the ticker.");
     this.watchlistStore.patchEntry(symbol, { traderNotesDraft: input.text });
     this.persistWatchlist();
@@ -5104,6 +5109,7 @@ export class ManualWatchlistRuntimeManager {
 
   async publishTickerWithoutAnalysis(input: { symbol: string; cycleId: string; expectedHead: number; actor: string; notifyUsers?: boolean; discordText?: string }) {
     const symbol = normalizeSymbol(input.symbol);
+    if (this.watchlistStore.getEntry(symbol)?.watchlistGroup === "private") throw new Error("Move this ticker out of Private before publishing.");
     const entry = this.watchlistStore.getEntry(symbol);
     const store = this.options.tradersLinkAiReadReviewStore;
     const publisher = this.liveWatchlistPublisher;
@@ -5112,6 +5118,7 @@ export class ManualWatchlistRuntimeManager {
       this.buildLevelSnapshotPayload(symbol, this.options.now?.() ?? Date.now()),
       { pullbackReadEnabled: this.options.pullbackReadEnabled },
     ));
+    snapshot.watchlistGroup = entry.watchlistGroup;
     delete snapshot.cards.tradersLinkAiRead;
     snapshot.tradersLinkAiReadCardVisible = false;
     snapshot.cards.traderNotes = this.buildTraderNotesCard(entry.traderNotesDraft ?? "");
@@ -5136,6 +5143,7 @@ export class ManualWatchlistRuntimeManager {
 
   async exportFreeChatPublication(input: { symbol: string; cycleId: string; approvalRevision: number }) {
     const symbol = normalizeSymbol(input.symbol);
+    if (this.watchlistStore.getEntry(symbol)?.watchlistGroup === "private") throw new Error("Move this ticker out of Private before publishing.");
     const entry = this.watchlistStore.getEntry(symbol);
     const store = this.options.tradersLinkAiReadReviewStore;
     if (!entry?.active || entry.publicationReview?.cycleId !== input.cycleId || !store) throw new Error("Ticker review changed.");
@@ -5154,6 +5162,7 @@ export class ManualWatchlistRuntimeManager {
 
   async publishApprovedTradersLinkAiReadToDiscord(input: { symbol: string; cycleId: string; approvalRevision: number }) {
     const symbol = normalizeSymbol(input.symbol);
+    if (this.watchlistStore.getEntry(symbol)?.watchlistGroup === "private") throw new Error("Move this ticker out of Private before publishing.");
     const entry = this.watchlistStore.getEntry(symbol);
     const store = this.options.tradersLinkAiReadReviewStore;
     if (!entry?.active || entry.publicationReview?.cycleId !== input.cycleId || !store) throw new Error("Ticker review changed.");
@@ -11993,7 +12002,13 @@ export class ManualWatchlistRuntimeManager {
     const parts=discordTextParts(content);return {...parts,maxLength:2000-parts.suffix.length};
   }
   getCategoryMoves(symbol:string){return this.categoryMoves().status(normalizeSymbol(symbol));}
-  moveCategory(input:{symbol:string;id:string;to:string;notify:boolean;actor:string;messageId?:string;discordText?:string}){return this.categoryMoves().execute(input);}
+  async moveCategory(input:{symbol:string;id:string;to:string;notify:boolean;actor:string;messageId?:string;discordText?:string}){
+    const symbol=normalizeSymbol(input.symbol),entry=this.watchlistStore.getEntry(symbol);
+    if(watchlistGroupForActivation({symbol,watchlistGroup:input.to as WatchlistGroup})!==input.to)throw new Error("Invalid Watchlist category.");
+    if(input.to!=="private"&&entry?.watchlistGroup!=="private")return this.categoryMoves().execute(input);
+    await this.moveSymbolToWatchlistGroup(symbol,input.to as WatchlistGroup);
+    return {notice:input.to==="private"?"Moved to Private. Only you can see this ticker.":"Moved. Review and publish when ready.",destination:"skipped"};
+  }
 
   async moveSymbolToWatchlistGroup(
     symbolInput: string,
@@ -12003,6 +12018,18 @@ export class ManualWatchlistRuntimeManager {
     const existing = this.watchlistStore.getEntry(symbol);
     if (!existing?.active || existing.lifecycle !== "active") {
       throw new Error(`${symbol} must be active before it can be moved to another watchlist.`);
+    }
+    if (watchlistGroup === "private") {
+      const store=this.options.tradersLinkAiReadReviewStore;
+      if(!store || !this.liveWatchlistPublisher) throw new Error("Private storage is unavailable.");
+      const previous=this.getTradersLinkAiReadReview(symbol),draft=previous?.draft;
+      const cycleId=randomUUID();store.begin(cycleId,symbol,true,"runtime:private:"+(previous?.cycleId??""));
+      if(draft && (draft.body.kind==="original"||draft.body.kind==="edit")) store.saveDraft({cycleId,expectedHead:store.read(cycleId)!.head,actor:"runtime:private",payload:draft.body.payload});
+      const now=this.options.now?.()??Date.now();
+      const moved=this.watchlistStore.patchEntry(symbol,{watchlistGroup,publicationReview:{cycleId,required:true},discordThreadId:null})!;
+      this.persistWatchlist();
+      await this.liveWatchlistPublisher.publish({symbol,updatedAt:now,watchlistGroup:"private",cards:{}});
+      return moved;
     }
     // Moving changes placement only: keep the review cycle, notes, analysis and
     // original tracking time. Do not run activation or schedule an AI request.
@@ -13733,7 +13760,7 @@ export class ManualWatchlistRuntimeManager {
 
   private shouldPreparePrivateActivation(input: ManualWatchlistActivationInput): boolean {
     if (this.watchlistStore.getEntry(normalizeSymbol(input.symbol))?.active) return false;
-    if (input.generateAnalysis === false) return true;
+    if (input.watchlistGroup === "private" || input.generateAnalysis === false) return true;
     if (input.source === "auto" && classifyUsEquityMarketSession(this.options.now?.() ?? Date.now()).session === "closed") return false;
     const settings = this.tradersLinkAiReadGenerationSettings;
     return requiresInitialWatchlistReview({
@@ -13770,6 +13797,7 @@ export class ManualWatchlistRuntimeManager {
     this.aiReadState.delete(symbol);
     this.aiReadInitialGenerationSuppressedSymbols.delete(symbol);
     this.persistWatchlist();
+    if (input.watchlistGroup === "private") await this.liveWatchlistPublisher?.publish({symbol,updatedAt:now,watchlistGroup:"private",cards:{}});
     const assertCurrent = () => {
       this.assertActivationCurrent(symbol, activationEpoch);
       const current = this.watchlistStore.getEntry(symbol);
@@ -14149,7 +14177,17 @@ export class ManualWatchlistRuntimeManager {
     this.persistMarketStructureStoryMemory();
     this.persistWatchlist();
     for(const item of removalReviews)if(item.review)queueCategoryMoveRemovals(item.symbol,this.categoryMoves().removalReceipts(item.symbol,item.review.cycleId));
-    for (const item of removalReviews) queueDiscordRemoval(item.symbol,item.review);
+    for (const item of removalReviews) {
+      queueDiscordRemoval(item.symbol,item.review);
+      let ancestor=item.review;const seen=new Set<string>();
+      while(ancestor){
+        const actor=ancestor.events[0]?.actor??"";
+        const previous=actor.startsWith("runtime:private:")?actor.slice("runtime:private:".length):"";
+        if(!previous||seen.has(previous))break;seen.add(previous);
+        ancestor=this.options.tradersLinkAiReadReviewStore?.read(previous)??null;
+        if(ancestor){queueDiscordRemoval(item.symbol,ancestor);queueCategoryMoveRemovals(item.symbol,this.categoryMoves().removalReceipts(item.symbol,ancestor.cycleId));}
+      }
+    }
     for (const entry of entries) {
       await this.publishWebsiteTickerDeactivation(entry.symbol, deactivatedAt);
     }

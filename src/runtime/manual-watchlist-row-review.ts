@@ -85,6 +85,7 @@ function hasPublishableDraft(state) {
   return !!state && ['Ready for review', 'New draft — awaiting review', 'Replacement failed — previous version available'].includes(state.status);
 }
 function attachX(entry, actions, state, more = actions) {
+  if(entry.watchlistGroup === "private")return;
   const cycleId = state?.cycleId || entry.publicationReview?.cycleId;
   if (!cycleId) return;
   const choiceKey = cycleId + ':' + state?.draftRevision;
@@ -148,6 +149,7 @@ function attachX(entry, actions, state, more = actions) {
     root.append(review,options,listing,move,details);return {review,options,listing,move,more,remove,header};
   }
   function attach(entry, actions, more = actions, options = actions, header = actions, listing = actions) {
+    if(entry.watchlistGroup === "private"){listing.hidden=true;const note=document.createElement("small");note.textContent="Private — only you can see this ticker. Move it to another list to publish.";header.append(note);}
     if (entry.analysisGeneration) {
       const run = entry.analysisGeneration;
       const elapsed = Math.max(0, Math.floor((Date.now() - run.startedAt) / 1000));
@@ -161,7 +163,7 @@ function attachX(entry, actions, state, more = actions) {
       if (window.parent === window) { window.alert('Open Watchlist Admin in the dashboard to preview and post the card.'); return; }
       window.parent.postMessage({ source: 'traderslink-watchlist-admin', type: 'post-potential-gain', symbol: entry.symbol }, window.location.origin);
     };
-    more.append(gainPost);
+    if(entry.watchlistGroup !== "private") more.append(gainPost);
     const free = document.createElement('button'); free.type = 'button'; free.className = 'secondary'; free.textContent = 'Post to Free Chat';
     free.disabled = !entry.publicationReview?.cycleId;
     free.onclick = async () => {
@@ -198,7 +200,7 @@ function attachX(entry, actions, state, more = actions) {
         dialog.insertBefore(label,close); dialog.insertBefore(send,close); dialog.insertBefore(check,close); show(); position();
       } catch(error) { message.textContent = String(error.message || error); }
     };
-    more.append(free);
+    if(entry.watchlistGroup !== "private") more.append(free);
     attachX(entry,options,queue.get(entry.symbol),more);
     if (!entry.publicationReview?.required) return;
     const state = queue.get(entry.symbol);
@@ -256,11 +258,11 @@ function attachX(entry, actions, state, more = actions) {
         finally { pending.delete(entry.symbol); await refresh(); window.dispatchEvent(new Event('watchlist-review-updated')); }
       };
       const editPost=document.createElement('button');editPost.type='button';editPost.textContent='Edit Discord post';editPost.onclick=()=>window.watchlistDiscordText.open(state.cycleId+':listing',entry.symbol,'listing');listing.append(editPost);
-      listing.prepend(list);
+      if(entry.watchlistGroup !== "private") listing.prepend(list);
     }
     const choiceKey = state?.cycleId + ':' + state?.draftRevision;
-    if(state?.canReview&&hasPublishableDraft(state)){const editPost=document.createElement('button');editPost.type='button';editPost.textContent='Edit Discord post';editPost.onclick=()=>window.watchlistDiscordText.open(choiceKey,entry.symbol,'analysis');options.append(editPost);}
-    if (state?.canReview && hasPublishableDraft(state)) {
+    if(entry.watchlistGroup !== "private" && state?.canReview&&hasPublishableDraft(state)){const editPost=document.createElement('button');editPost.type='button';editPost.textContent='Edit Discord post';editPost.onclick=()=>window.watchlistDiscordText.open(choiceKey,entry.symbol,'analysis');options.append(editPost);}
+    if (entry.watchlistGroup !== "private" && state?.canReview && hasPublishableDraft(state)) {
       const label = document.createElement('label'), choice = document.createElement('input'); choice.type = 'checkbox'; choice.style.width = 'auto';
       choice.checked = freeChatChoices.get(choiceKey) === true; choice.disabled = pending.has(entry.symbol);
       choice.onchange = () => freeChatChoices.set(choiceKey,choice.checked);
@@ -295,7 +297,7 @@ function attachX(entry, actions, state, more = actions) {
       } catch (error) { errors.set(entry.symbol, String(error.message || error) + ' Check delivery status before retrying.'); status.textContent = errors.get(entry.symbol); }
       finally { pending.delete(entry.symbol); await refresh(); window.dispatchEvent(new Event('watchlist-review-updated')); }
     };
-    if (ready || pending.has(entry.symbol)) actions.append(approve);
+    if (entry.watchlistGroup !== "private" && (ready || pending.has(entry.symbol))) actions.append(approve);
     if (state?.status === 'Approved — delivery needs attention') {
       const recovery = document.createElement('button'); recovery.type = 'button'; recovery.className = 'secondary';
       recovery.textContent = 'Delivery details';

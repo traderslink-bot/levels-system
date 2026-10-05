@@ -228,7 +228,7 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     value.watchlistGroup !== null &&
     value.watchlistGroup !== "top_regular" &&
     value.watchlistGroup !== "main" &&
-    value.watchlistGroup !== "postmarket" && value.watchlistGroup !== "general" && value.watchlistGroup !== "swings" && !isTopWatchesGroup(value.watchlistGroup)
+    value.watchlistGroup !== "postmarket" && value.watchlistGroup !== "general" && value.watchlistGroup !== "private" && value.watchlistGroup !== "swings" && !isTopWatchesGroup(value.watchlistGroup)
   ) {
     return null;
   }
@@ -351,7 +351,7 @@ function validateEntry(value: unknown): WatchlistEntry | null {
     tags: [...value.tags],
     ...(value.watchlistGroup === "top_regular" ||
     value.watchlistGroup === "main" ||
-    value.watchlistGroup === "postmarket" || value.watchlistGroup === "general" || value.watchlistGroup === "swings" || isTopWatchesGroup(value.watchlistGroup)
+    value.watchlistGroup === "postmarket" || value.watchlistGroup === "general" || value.watchlistGroup === "private" || value.watchlistGroup === "swings" || isTopWatchesGroup(value.watchlistGroup)
       ? { watchlistGroup: value.watchlistGroup }
       : {}),
     note:

@@ -2453,7 +2453,7 @@ async function main(): Promise<void> {
         const watchlistGroup =
           body.watchlistGroup === "top_regular" ||
           body.watchlistGroup === "main" ||
-          body.watchlistGroup === "postmarket" || body.watchlistGroup === "general" || body.watchlistGroup === "swings" || (isTopWatchesGroup(body.watchlistGroup) && topWatchesTradingDay(body.watchlistGroup.slice(12)).isTradingDay)
+          body.watchlistGroup === "postmarket" || body.watchlistGroup === "general" || body.watchlistGroup === "private" || body.watchlistGroup === "swings" || (isTopWatchesGroup(body.watchlistGroup) && topWatchesTradingDay(body.watchlistGroup.slice(12)).isTradingDay)
             ? body.watchlistGroup
             : null;
 
@@ -2545,7 +2545,7 @@ async function main(): Promise<void> {
         const watchlistGroup =
           body.watchlistGroup === "top_regular" ||
           body.watchlistGroup === "main" ||
-          body.watchlistGroup === "postmarket" || body.watchlistGroup === "general" || body.watchlistGroup === "swings" || (isTopWatchesGroup(body.watchlistGroup) && topWatchesTradingDay(body.watchlistGroup.slice(12)).isTradingDay)
+          body.watchlistGroup === "postmarket" || body.watchlistGroup === "general" || body.watchlistGroup === "private" || body.watchlistGroup === "swings" || (isTopWatchesGroup(body.watchlistGroup) && topWatchesTradingDay(body.watchlistGroup.slice(12)).isTradingDay)
             ? body.watchlistGroup
             : null;
         if (symbol.trim().length === 0 || watchlistGroup === null) {
@@ -2810,7 +2810,7 @@ async function main(): Promise<void> {
           scope !== "all" &&
           scope !== "top_regular" &&
           scope !== "main" &&
-          scope !== "postmarket" && scope !== "general" && scope !== "swings" && !isTopWatchesGroup(scope) &&
+          scope !== "postmarket" && scope !== "general" && scope !== "private" && scope !== "swings" && !isTopWatchesGroup(scope) &&
           scope !== "reversal"
         ) {
           sendJson(response, 400, {

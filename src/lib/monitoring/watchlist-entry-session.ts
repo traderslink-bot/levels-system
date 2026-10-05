@@ -10,7 +10,7 @@ export function getWatchlistEntrySessionGroup(
   if (
     entry.watchlistGroup === "top_regular" ||
     entry.watchlistGroup === "main" ||
-    entry.watchlistGroup === "postmarket" || entry.watchlistGroup === "general" || entry.watchlistGroup === "swings" || isTopWatchesGroup(entry.watchlistGroup)
+    entry.watchlistGroup === "postmarket" || entry.watchlistGroup === "general" || entry.watchlistGroup === "private" || entry.watchlistGroup === "swings" || isTopWatchesGroup(entry.watchlistGroup)
   ) {
     return entry.watchlistGroup;
   }
