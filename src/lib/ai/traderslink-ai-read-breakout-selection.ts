@@ -3,7 +3,7 @@ import { validateBreakoutOrdering } from "./traderslink-ai-read-section-validati
 import type { TradersLinkAiReadPriceActionContext } from "./traderslink-ai-read-price-action.js";
 import { unambiguousPriceCandles } from "./traderslink-ai-read-observations.js";
 
-export type BreakoutEvidence = { id: string; price: number; observedAt: number; timeframe: "intraday" | "one_minute" | "daily"; kind: "candle_high" };
+export type BreakoutEvidence = { id: string; price: number; observedAt: number; timeframe: "intraday" | "one_minute" | "daily" | "four_hour"; kind: "candle_high" };
 
 /** Addressable observed highs, not inferred support/resistance or a guarantee
  * that a high makes a good breakout. Model selection still has to explain the
@@ -12,7 +12,7 @@ export type BreakoutEvidence = { id: string; price: number; observedAt: number; 
 export function buildBreakoutEvidence(context: TradersLinkAiReadPriceActionContext, referencePrice: number, dataAsOf: number): BreakoutEvidence[] {
   if (!Number.isFinite(referencePrice) || referencePrice <= 0 || !Number.isFinite(dataAsOf)) return [];
   const observations: BreakoutEvidence[] = [];
-  for (const [timeframe, candles] of [["intraday", context.intradayCandles], ["one_minute", context.oneMinuteCandles ?? []], ["daily", context.dailyCandles]] as const) {
+  for (const [timeframe, candles] of [["intraday", context.intradayCandles], ["one_minute", context.oneMinuteCandles ?? []], ["daily", context.dailyCandles], ["four_hour", (context.fourHourCandles ?? []).filter(bar => bar.timestamp >= dataAsOf - 93 * 86_400_000)]] as const) {
     for (const candle of unambiguousPriceCandles(candles, dataAsOf)) {
       const id = `breakout:${timeframe}:${candle.timestamp}:high`;
       observations.push({ id, price: candle.high, observedAt: candle.timestamp, timeframe, kind: "candle_high" });

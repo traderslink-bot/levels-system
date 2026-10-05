@@ -1,3 +1,4 @@
+import { buildResistanceComparison } from "./watchlist-resistance-comparison.js";
 import { includeBreakoutCheckpoint } from "./watchlist-breakout-checkpoint.js";
 import { WATCHLIST_MODEL_PRICING, isWatchlistModel, isWatchlistReasoningEffort } from "./watchlist-model-options.js";
 import type { WatchlistModel, WatchlistReasoningEffort } from "./watchlist-model-options.js";
@@ -648,7 +649,8 @@ Interpretation contract:
 - Return only the requested structured JSON.`;
 
 export function buildTradersLinkAiReadDeveloperPrompt(ownerReview = false): string {
-  return (ownerReview ? OWNER_REVIEW_DEVELOPER_PROMPT : DEVELOPER_PROMPT) +
+  return (ownerReview ? OWNER_REVIEW_DEVELOPER_PROMPT : DEVELOPER_PROMPT).replaceAll('session and daily highs', 'session, four-hour and daily highs').replaceAll('supplied daily history shows', 'supplied daily or four-hour history shows') +
+    "\nResistance selection: before choosing upside checkpoints, compare competing observations across the supplied daily bars, four-hour bars, session structure and levelsSystem zones. A historical high proves a price was traded, not that it is the best checkpoint. For nearby alternatives, inspect the sequence into and after each high: rejection and close away from it, later retests or acceptance through it, recency, and participation where volume is available. Do not count overlapping daily/four-hour representations of the same event as independent tests, and do not treat unavailable volume as zero. A recent rebound high that rejected after a selloff can be more relevant than an older isolated high; neither recency nor timeframe alone decides. Check what happened AFTER each candidate, including whether later trading invalidates its resistance interpretation. When observations belong to one compact supply area, choose its most relevant observed boundary or rejection price and describe the area briefly; do not average distinct highs into an unobserved point. Preserve two nearby checkpoints only when they represent distinct useful barriers. Before finalizing, compare each selected checkpoint with nearby omitted alternatives and prefer the one with stronger contextual evidence, not merely the first matching catalog entry or the nearest price. Keep genuine older resistance and meaningful intermediate and farther coverage. This is a selection instruction, not a new minimum-distance rule or reason to reject or blank an otherwise useful analysis. Explain the chosen level briefly in normal trader language without exposing this comparison checklist or candle timestamps.\nBuild the historical upside route from resistanceComparison.shortlist: these are exact observed rejection boundaries prioritized against nearby alternatives using subsequent price action, not arbitrary nearest highs. Select the relevant distinct checkpoints above your breakout; the shortlist does NOT decide the main breakout. Within a nearby group, prefer its selected boundary over weaker nearbyAlternatives; use another boundary only when the full chart supplies a concrete stronger current reason. Raw session structure and distinct farther resistance outside the bounded shortlist remain available, so retain meaningful near and broad coverage without listing every row. A bar closing at its high is not evidence of rejection. Previously crossed highs require a supported current reclaim/rejection role, not merely historical existence. Keep price progression separate from chronology: say \"above X, watch Y\" for the future route; avoid \"later\" or \"subsequent\" for historical events unless their actual timestamps establish that order. Do not expose ranking, omitted alternatives, candle timestamps or internal comparison mechanics in public prose." +
     "\nCandle identifiers and candle timestamps are internal evidence only. Never quote timeframe:epoch identifiers (for example 5m:1790637300000), raw epoch numbers, or candle times in member-facing prose. Describe the observed base, retest, support or resistance in ordinary trading language. Keep exact candidate/candle IDs only in dedicated evidence fields when the schema requires them; do not remove price levels.";
 }
 
@@ -2274,7 +2276,13 @@ function compactSnapshot(
         };
       })()
     : null;
+  const compactPriceAction = compactAnalysisCandleTransport(buildTradersLinkAiPriceActionPacket(
+      priceAction,
+      referenceQuote.price,
+      referenceQuote.dataAsOf,
+    ));
   return {
+    resistanceComparison: buildResistanceComparison(compactPriceAction, referenceQuote.price, referenceQuote.dataAsOf),
     symbol: normalizeSymbol(snapshot.symbol),
     currentPrice: referenceQuote.price,
     currentPriceSource: referenceQuote.source,
@@ -2293,11 +2301,7 @@ function compactSnapshot(
     dataAsOf: referenceQuote.dataAsOf,
     dataAsOfIso: new Date(referenceQuote.dataAsOf).toISOString(),
     marketSession: marketSessionAt(referenceQuote.dataAsOf),
-    priceAction: compactAnalysisCandleTransport(buildTradersLinkAiPriceActionPacket(
-      priceAction,
-      referenceQuote.price,
-      referenceQuote.dataAsOf,
-    )),
+    priceAction: compactPriceAction,
   };
 }
 
