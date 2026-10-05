@@ -24,6 +24,23 @@ li.watchlist-control-row { display:flex; flex-direction:column; align-items:stre
  .watchlist-action-move > select { flex:1 1 180px; min-width:0; }
  .watchlist-action-move > label { flex-basis:100%; }
 }
+.watchlist-action-section { min-width:0; padding:10px 0; border-bottom:1px solid #e2e8f0; }
+.watchlist-action-section > h4 { margin:0 0 8px; font-size:13px; font-weight:700; }
+.watchlist-action-section:has(> .watchlist-action-group:only-of-type:empty) { display:none; }
+.watchlist-access-controls { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 16px; width:100%; }
+.watchlist-access-option { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.watchlist-access-option label { display:flex; align-items:center; gap:6px; margin:0; }
+.watchlist-access-option small:empty { display:none; }
+.watchlist-action-move { display:grid; grid-template-columns:minmax(160px,260px) auto; justify-content:start; }
+.watchlist-action-move > label { grid-column:1 / -1; }
+.watchlist-action-move > button { justify-self:start; }
+.watchlist-diagnostics .meta { overflow-wrap:anywhere; }
+@media(max-width:600px) {
+ .watchlist-access-controls { grid-template-columns:1fr; }
+ .watchlist-action-move { grid-template-columns:minmax(0,1fr) auto; width:100%; }
+ .watchlist-action-move > select { width:100%; }
+ .watchlist-action-group > button { max-width:100%; white-space:normal; }
+}
 </style>
 <script>
 (() => {
@@ -140,13 +157,16 @@ function attachX(entry, actions, state, more = actions) {
   function groups(symbol, root, header) {
     root.classList.add('watchlist-grouped-actions');
     const make = label => { const group=document.createElement('div');group.className='watchlist-action-group';group.setAttribute('role','group');group.setAttribute('aria-label',label+' for '+symbol);return group; };
-    const review=make('Review and publish'),options=make('Publishing options'),listing=make('Publish without analysis'),move=make('Move ticker'),more=make('More actions'),remove=make('Remove ticker');
+    const review=make('Review and publish'),options=make('Publishing options'),listing=make('Publish without analysis'),move=make('Move ticker'),more=make('Posting'),remove=make('Remove ticker'),access=make('Access'),settings=make('Settings'),diagnostics=make('Diagnostics');
+    access.classList.add('watchlist-access-controls'); diagnostics.classList.add('watchlist-diagnostics');
+    const section=(title,...groups)=>{const box=document.createElement('section'),heading=document.createElement('h4');box.className='watchlist-action-section';heading.textContent=title;box.append(heading,...groups);return box;};
+    for(const detail of header.querySelectorAll('.meta:not(.error-line)')) diagnostics.append(detail);
     move.classList.add('watchlist-action-move');
     remove.classList.add('watchlist-action-remove');
     const details=document.createElement('details');details.className='watchlist-action-more';details.open=expandedActions.has(symbol);
-    const summary=document.createElement('summary');summary.textContent='More actions';details.append(summary,more,remove);
+    const summary=document.createElement('summary');summary.textContent='More actions';details.append(summary,section('Access',access),section('Move',move),section('Posting',options,more),section('Settings',settings),section('Diagnostics',diagnostics),section('Remove',remove));
     details.addEventListener('toggle',()=>{if(details.isConnected){if(details.open)expandedActions.add(symbol);else expandedActions.delete(symbol);}});
-    root.append(review,options,listing,move,details);return {review,options,listing,move,more,remove,header};
+    root.append(review,listing,details);return {review,options,listing,move,more,remove,header,access,settings,diagnostics};
   }
   function attach(entry, actions, more = actions, options = actions, header = actions, listing = actions) {
     if(entry.watchlistGroup === "private"){listing.hidden=true;const note=document.createElement("small");note.textContent="Private — only you can see this ticker. Move it to another list to publish.";header.append(note);}

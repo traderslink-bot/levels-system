@@ -2416,7 +2416,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           copyButton.addEventListener("click", async () => {
             await copyThreadId(entry);
           });
-          actionGroups.more.appendChild(copyButton);
+          actionGroups.diagnostics.appendChild(copyButton);
         }
 
         if (entry.lifecycle === "active" || entry.lifecycle === "refresh_pending" || entry.lifecycle === "extension_pending") {
@@ -2444,7 +2444,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
               refreshButton.disabled = false;
             }
           });
-          actionGroups.more.appendChild(refreshButton);
+          actionGroups.settings.appendChild(refreshButton);
 
           const aiRefreshButton = document.createElement("button");
           aiRefreshButton.textContent = entry.automaticAnalysisEnabled === false ? "Generate analysis" : "Refresh AI Read";
@@ -2480,7 +2480,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
               aiRefreshButton.disabled = aiReadConfigured === false || !aiReadGenerationAllowed;
             }
           });
-          actionGroups.more.appendChild(aiRefreshButton);
+          actionGroups.review.appendChild(aiRefreshButton);
         }
 
         const aiCardVisible = entry.tradersLinkAiReadCardVisible !== false;
@@ -2513,7 +2513,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             aiVisibilityButton.disabled = false;
           }
         });
-        actionGroups.more.appendChild(aiVisibilityButton);
+        actionGroups.settings.appendChild(aiVisibilityButton);
 
         const indicatorCardVisible = entry.indicatorCardVisible !== false;
         const indicatorVisibilityButton = document.createElement("button");
@@ -2547,7 +2547,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             indicatorVisibilityButton.disabled = false;
           }
         });
-        actionGroups.more.appendChild(indicatorVisibilityButton);
+        actionGroups.settings.appendChild(indicatorVisibilityButton);
 
         const dipBuyPlanVisible = entry.tradersLinkAiReadDipBuyPlanVisible !== false;
         const dipBuyPlanVisibilityButton = document.createElement("button");
@@ -2590,7 +2590,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             dipBuyPlanVisibilityButton.disabled = false;
           }
         });
-        actionGroups.more.appendChild(dipBuyPlanVisibilityButton);
+        actionGroups.settings.appendChild(dipBuyPlanVisibilityButton);
 
         if (entry.lifecycle === "activation_failed") {
           const retryButton = document.createElement("button");
@@ -2609,7 +2609,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
               await loadRuntimeStatus();
             }
           });
-          actionGroups.more.appendChild(retryButton);
+          actionGroups.review.appendChild(retryButton);
         }
 
         if (
@@ -2710,7 +2710,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             retry.onclick=async()=>{if(latest){await load({symbol:entry.symbol,id:latest.id,to:latest.to,notify:latest.notify});await load();}};
             verify.onclick=async()=>{if(latest&&/^\d{17,20}$/.test(receipt.value.trim())){await load({symbol:entry.symbol,id:latest.id,to:latest.to,notify:latest.notify,messageId:receipt.value.trim()});await load();}};
             refresh.onclick=()=>load();await load();
-          };actionGroups.more.append(moveDetails);
+          };actionGroups.move.append(moveDetails);
         }
 
         const removeFromListButton = document.createElement("button");
