@@ -3,6 +3,10 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
 <div class="ai-read-console" id="analysis-review-panel">
   <h3>Analysis Review</h3>
   <div class="provider-control">
+    <fieldset><legend>Analysis display</legend>
+      <label><input type="checkbox" id="analysis-review-recovery-visible" style="width:auto" disabled /> Show failure and recovery section</label>
+      <p>Applies to all tickers. Off hides the Failure and recovery section, including its downside checkpoints. The Momentum failure level remains visible unless hidden in the analysis editor. Saved analysis is not deleted.</p>
+    </fieldset>
     <label for="analysis-review-format">Analysis format</label>
     <select id="analysis-review-format" disabled><option value="current">Current analysis</option><option value="simple">Simple analysis</option></select>
     <p>Applies to new requests only. Initial analyses and manual refreshes keep their review workflow.</p>
@@ -12,7 +16,9 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     <p>When on, new tickers wait for your approval when AI generation and the current session are enabled. Existing drafts stay held until approved.</p>
     <p id="analysis-review-effective" role="status"></p>
     <label><input type="checkbox" id="analysis-review-auto-publish" style="width:auto" disabled /> Automatically publish refreshed analyses</label>
-    <p>Applies to new automatic boundary refreshes only. When off, review and approve the replacement first. When on, publish it and send the normal Analysis updated notifications. Initial analyses and manual refreshes are unchanged.</p>
+    <p>Applies to new automatic boundary refreshes only. When off, review and approve the replacement first. When on, publish it automatically. The notification setting below controls member alerts. Initial analyses and manual refreshes are unchanged.</p>
+    <label><input type="checkbox" id="analysis-review-auto-notify" style="width:auto" disabled /> Notify users when analyses publish automatically</label>
+    <p>When off, automatic boundary updates publish silently. Manual approvals keep their own Notify users choice. This does not change alerts sent to you when a draft needs review.</p>
     <label><input type="checkbox" id="analysis-review-owner-notify" style="width:auto" disabled /> Notify me when an analysis needs review</label>
     <p>Notify your owner account when an automatic refreshed analysis is ready. Push uses your account's notification preferences and subscribed devices.</p>
     <label><input type="checkbox" id="analysis-review-owner-discord" style="width:auto" disabled /> Send review notifications to Discord</label>
@@ -463,10 +469,12 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     byId("automatic").checked = settings.automaticUpdatesEnabled;
     byId("required").checked = settings.reviewBeforePublishingEnabled;
     byId("auto-publish").checked = settings.autoPublishBoundaryRefreshes === true;
+    byId("auto-notify").checked = settings.notifyAutomaticAnalysisUpdates !== false;
+    byId("recovery-visible").checked = settings.failureRecoveryVisible === true;
     byId("owner-notify").checked = settings.ownerReviewNotificationsEnabled !== false;
     byId("owner-discord").checked = settings.ownerReviewDiscordEnabled !== false;
     byId("owner-delivery").textContent = settings.ownerReviewDeliveryStatus || "Owner delivery status is available in the dashboard Watchlist Admin.";
-    ["auto-publish", "owner-notify", "owner-discord"].forEach(id => { byId(id).disabled = false; });
+    ["recovery-visible", "auto-publish", "auto-notify", "owner-notify", "owner-discord"].forEach(id => { byId(id).disabled = false; });
     byId("effective").textContent = !settings.automaticUpdatesEnabled
       ? "Automatic boundary refresh is paused: Automatic AI updates is off."
       : !settings.boundaryRefreshEnabled ? "Automatic boundary refresh is off."
@@ -491,7 +499,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   byId("settings-save").onclick = () => run(async () => {
     if (!controlsLoaded) throw new Error("Load the saved controls first.");
     const result = await request("/settings", { automaticUpdatesEnabled: byId("automatic").checked, reviewBeforePublishingEnabled: byId("required").checked, analysisFormat:byId("format").value,
-      autoPublishBoundaryRefreshes: byId("auto-publish").checked, ownerReviewNotificationsEnabled: byId("owner-notify").checked, ownerReviewDiscordEnabled: byId("owner-discord").checked });
+      autoPublishBoundaryRefreshes: byId("auto-publish").checked, notifyAutomaticAnalysisUpdates: byId("auto-notify").checked, failureRecoveryVisible: byId("recovery-visible").checked, ownerReviewNotificationsEnabled: byId("owner-notify").checked, ownerReviewDiscordEnabled: byId("owner-discord").checked });
     showSettings(result.settings); message("Review controls saved. Session settings and existing pending drafts are unchanged.");
   });
   void loadSettings();

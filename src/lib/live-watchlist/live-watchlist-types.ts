@@ -69,6 +69,7 @@ export type LiveWatchlistCardPatch = {
   topRegularWatchlistVisible?: boolean;
   preserveExistingOnReactivation?: boolean;
   potentialGainCardVisible?: boolean;
+  failureRecoveryVisible?: boolean;
   watchlistLifecycleLabelsVisible?: boolean;
   watchlistLifecycle?: LiveWatchlistLifecycleRead | null;
   liveVolumeContext?: LiveWatchlistVolumeContext | null;
@@ -102,6 +103,7 @@ export type LiveWatchlistTickerDataPatch = {
   reversalWatchlistVisible?: boolean;
   topRegularWatchlistVisible?: boolean;
   potentialGainCardVisible?: boolean;
+  failureRecoveryVisible?: boolean;
   watchlistLifecycleLabelsVisible?: boolean;
   watchlistLifecycle?: LiveWatchlistLifecycleRead | null;
   indicatorCardVisible?: boolean;

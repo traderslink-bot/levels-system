@@ -883,6 +883,8 @@ async function main(): Promise<void> {
     tradersLinkAiReadReviewStore: new TradersLinkAiReadReviewStore(join(durableDataDirectory, "ai-read-owner-reviews")),
     initialReviewBeforePublishingEnabled: persistedTradersLinkAiReadSettings?.reviewBeforePublishingEnabled ?? true,
     initialAutoPublishBoundaryRefreshes: persistedTradersLinkAiReadSettings?.autoPublishBoundaryRefreshes ?? false,
+    initialNotifyAutomaticAnalysisUpdates: persistedTradersLinkAiReadSettings?.notifyAutomaticAnalysisUpdates ?? true,
+    initialFailureRecoveryVisible: persistedTradersLinkAiReadSettings?.failureRecoveryVisible ?? false,
     initialOwnerReviewNotificationsEnabled: persistedTradersLinkAiReadSettings?.ownerReviewNotificationsEnabled ?? true,
     initialOwnerReviewDiscordEnabled: persistedTradersLinkAiReadSettings?.ownerReviewDiscordEnabled ?? true,
     initialAnalysisFormat: persistedTradersLinkAiReadSettings?.analysisFormat ?? "current",
@@ -1160,7 +1162,7 @@ async function main(): Promise<void> {
               secrets: [process.env.OPENAI_API_KEY, runtimeAccessToken, process.env.DISCORD_BOT_TOKEN, process.env.TRADERSLINK_WATCHLIST_PUBLISHER_TOKEN].filter((value): value is string => Boolean(value)),
             });
           },
-          save: (settings) => {
+          save: async (settings) => {
             const saved = tradersLinkAiReadSettingsPersistence.load();
             if (!saved) throw new Error("Review settings storage is unavailable.");
             // Persist first and keep every model/session/budget/visibility field.
@@ -1168,6 +1170,7 @@ async function main(): Promise<void> {
             aiReadGenerationSettings = manager.setTradersLinkAiReadGenerationSettings({ ...aiReadGenerationSettings, automaticUpdatesEnabled: settings.automaticUpdatesEnabled });
             manager.setTradersLinkAiReadReviewBeforePublishing(settings.reviewBeforePublishingEnabled);
             manager.setAutomaticAnalysisPublicationControls(settings);
+            if (settings.failureRecoveryVisible !== undefined) await manager.setFailureRecoveryVisible(settings.failureRecoveryVisible);
             if (settings.analysisFormat) manager.setTradersLinkAiReadAnalysisFormat(settings.analysisFormat);
             return manager.getTradersLinkAiReadReviewControls();
           },

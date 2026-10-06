@@ -2036,6 +2036,7 @@ export function buildLiveWatchlistStatusPatch(args: {
   topRegularWatchlistVisible?: boolean;
   preserveExistingOnReactivation?: boolean;
   potentialGainCardVisible?: boolean;
+  failureRecoveryVisible?: boolean;
   watchlistLifecycleLabelsVisible?: boolean;
 }): LiveWatchlistCardPatch {
   return {
@@ -2060,6 +2061,7 @@ export function buildLiveWatchlistStatusPatch(args: {
     ...(args.preserveExistingOnReactivation === true
       ? { preserveExistingOnReactivation: true }
       : {}),
+    ...(args.failureRecoveryVisible !== undefined ? { failureRecoveryVisible: args.failureRecoveryVisible } : {}),
     ...(args.potentialGainCardVisible !== undefined
       ? { potentialGainCardVisible: args.potentialGainCardVisible }
       : {}),

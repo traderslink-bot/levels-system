@@ -15,6 +15,8 @@ export type TradersLinkAiReadSettings = {
   automaticUpdatesEnabled: boolean;
   reviewBeforePublishingEnabled: boolean;
   autoPublishBoundaryRefreshes?: boolean;
+  notifyAutomaticAnalysisUpdates?: boolean;
+  failureRecoveryVisible?: boolean;
   ownerReviewNotificationsEnabled?: boolean;
   ownerReviewDiscordEnabled?: boolean;
   analysisFormat: "current" | "simple";
@@ -105,6 +107,8 @@ function validateSettings(value: unknown): TradersLinkAiReadSettings | null {
     automaticUpdatesEnabled: value.automaticUpdatesEnabled === true,
     reviewBeforePublishingEnabled: value.reviewBeforePublishingEnabled !== false,
     autoPublishBoundaryRefreshes: value.autoPublishBoundaryRefreshes === true,
+    notifyAutomaticAnalysisUpdates: value.notifyAutomaticAnalysisUpdates !== false,
+    failureRecoveryVisible: value.failureRecoveryVisible === true,
     ownerReviewNotificationsEnabled: value.ownerReviewNotificationsEnabled !== false,
     ownerReviewDiscordEnabled: value.ownerReviewDiscordEnabled !== false,
     analysisFormat: value.analysisFormat === "simple" ? "simple" : "current",
@@ -206,6 +210,8 @@ export class TradersLinkAiReadSettingsPersistence {
     automaticUpdatesEnabled?: boolean;
     reviewBeforePublishingEnabled?: boolean;
     autoPublishBoundaryRefreshes?: boolean;
+  notifyAutomaticAnalysisUpdates?: boolean;
+  failureRecoveryVisible?: boolean;
     ownerReviewNotificationsEnabled?: boolean;
     ownerReviewDiscordEnabled?: boolean;
     analysisFormat?: "current" | "simple";
@@ -259,6 +265,8 @@ export class TradersLinkAiReadSettingsPersistence {
       generationEnabled: rawValues.generationEnabled ?? true,
       analysisFormat: (typeof input === "object" ? input.analysisFormat : undefined) ?? existing?.analysisFormat ?? "current",
       autoPublishBoundaryRefreshes: (typeof input === "object" ? input.autoPublishBoundaryRefreshes : undefined) ?? existing?.autoPublishBoundaryRefreshes ?? false,
+      failureRecoveryVisible: (typeof input === "object" ? input.failureRecoveryVisible : undefined) ?? existing?.failureRecoveryVisible ?? false,
+      notifyAutomaticAnalysisUpdates: (typeof input === "object" ? input.notifyAutomaticAnalysisUpdates : undefined) ?? existing?.notifyAutomaticAnalysisUpdates ?? true,
       ownerReviewNotificationsEnabled: (typeof input === "object" ? input.ownerReviewNotificationsEnabled : undefined) ?? existing?.ownerReviewNotificationsEnabled ?? true,
       ownerReviewDiscordEnabled: (typeof input === "object" ? input.ownerReviewDiscordEnabled : undefined) ?? existing?.ownerReviewDiscordEnabled ?? true,
       automaticUpdatesEnabled:

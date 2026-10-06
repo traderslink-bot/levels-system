@@ -289,6 +289,8 @@ export type ManualWatchlistRuntimeManagerOptions = {
   tradersLinkAiReadReviewStore?: TradersLinkAiReadReviewStore;
   initialReviewBeforePublishingEnabled?: boolean;
   initialAutoPublishBoundaryRefreshes?: boolean;
+  initialNotifyAutomaticAnalysisUpdates?: boolean;
+  initialFailureRecoveryVisible?: boolean;
   initialOwnerReviewNotificationsEnabled?: boolean;
   initialOwnerReviewDiscordEnabled?: boolean;
   initialAnalysisFormat?: "current" | "simple";
@@ -887,6 +889,7 @@ export type ManualWatchlistRuntimeHealth = {
   pendingActivationCount: number;
   liveTraderReadCardVisible: boolean;
   potentialGainCardVisible: boolean;
+  failureRecoveryVisible: boolean;
   watchlistLifecycleLabelsVisible: boolean;
   reversalWatchlistVisible: boolean;
   topRegularWatchlistVisible: boolean;
@@ -3147,6 +3150,8 @@ export class ManualWatchlistRuntimeManager {
   };
   private reviewBeforePublishingEnabled = true;
   private autoPublishBoundaryRefreshes = false;
+  private notifyAutomaticAnalysisUpdates = true;
+  private failureRecoveryVisible = false;
   private ownerReviewNotificationsEnabled = true;
   private ownerReviewDiscordEnabled = true;
   private analysisFormat: "current" | "simple" = "current";
@@ -3260,6 +3265,8 @@ export class ManualWatchlistRuntimeManager {
   constructor(private readonly options: ManualWatchlistRuntimeManagerOptions) {
     this.reviewBeforePublishingEnabled = options.initialReviewBeforePublishingEnabled ?? Boolean(options.tradersLinkAiReadReviewStore);
     this.autoPublishBoundaryRefreshes = options.initialAutoPublishBoundaryRefreshes === true;
+    this.notifyAutomaticAnalysisUpdates = options.initialNotifyAutomaticAnalysisUpdates !== false;
+    this.failureRecoveryVisible = options.initialFailureRecoveryVisible === true;
     this.ownerReviewNotificationsEnabled = options.initialOwnerReviewNotificationsEnabled !== false;
     this.ownerReviewDiscordEnabled = options.initialOwnerReviewDiscordEnabled !== false;
     this.analysisFormat = options.initialAnalysisFormat ?? "current";
@@ -3546,13 +3553,16 @@ export class ManualWatchlistRuntimeManager {
     return { automaticUpdatesEnabled: this.tradersLinkAiReadGenerationSettings.automaticUpdatesEnabled,
       reviewBeforePublishingEnabled: this.reviewBeforePublishingEnabled,
       autoPublishBoundaryRefreshes: this.autoPublishBoundaryRefreshes,
+      notifyAutomaticAnalysisUpdates: this.notifyAutomaticAnalysisUpdates,
+      failureRecoveryVisible: this.failureRecoveryVisible,
       ownerReviewNotificationsEnabled: this.ownerReviewNotificationsEnabled,
       ownerReviewDiscordEnabled: this.ownerReviewDiscordEnabled,
       boundaryRefreshEnabled: this.tradersLinkAiReadBoundaryRefreshSettings.enabled,
       analysisFormat: this.analysisFormat };
   }
 
-  setAutomaticAnalysisPublicationControls(input: { autoPublishBoundaryRefreshes?: boolean; ownerReviewNotificationsEnabled?: boolean; ownerReviewDiscordEnabled?: boolean }): void {
+  setAutomaticAnalysisPublicationControls(input: { notifyAutomaticAnalysisUpdates?: boolean; autoPublishBoundaryRefreshes?: boolean; ownerReviewNotificationsEnabled?: boolean; ownerReviewDiscordEnabled?: boolean }): void {
+    if (input.notifyAutomaticAnalysisUpdates !== undefined) this.notifyAutomaticAnalysisUpdates = input.notifyAutomaticAnalysisUpdates;
     if (input.autoPublishBoundaryRefreshes !== undefined) this.autoPublishBoundaryRefreshes = input.autoPublishBoundaryRefreshes;
     if (input.ownerReviewNotificationsEnabled !== undefined) this.ownerReviewNotificationsEnabled = input.ownerReviewNotificationsEnabled;
     if (input.ownerReviewDiscordEnabled !== undefined) this.ownerReviewDiscordEnabled = input.ownerReviewDiscordEnabled;
@@ -4626,7 +4636,7 @@ export class ManualWatchlistRuntimeManager {
           try {
             await this.approveTradersLinkAiRead({ symbol, cycleId: cycle.cycleId, expectedHead: saved.head,
               draftRevision: saved.draft.revision, actor: "runtime:automatic-boundary", previewHash: "",
-              notifyUsers: true });
+              notifyUsers: this.notifyAutomaticAnalysisUpdates });
           } catch {
             // Successful generation is retained; existing publication recovery owns retries.
             console.warn("[Watchlist] Automatic analysis publication needs delivery attention.");
@@ -5026,7 +5036,7 @@ export class ManualWatchlistRuntimeManager {
       ? frozenPublication
       : { website: website as unknown as Record<string, unknown>, discordChunks: renderApprovedAnalysisDiscord(read, alreadyListed, audience, analysisUpdateContext).map((chunk,index)=>index===0&&categoryMoveNote ? chunk.replace("\n", "\n"+categoryMoveNote+"\n") : chunk), analysisUpdateContext, discordAudience: audience, discordWatchlistGroup: this.watchlistStore.getEntry(read.symbol)?.watchlistGroup, analysisImageVersion: 1 };
     return { cycleId: review.cycleId, expectedHead: review.head, draftRevision: draft.revision,
-      publication, previewHash: publicationPreviewHash(publication) };
+      publication, failureRecoveryVisible: this.failureRecoveryVisible, previewHash: publicationPreviewHash(publication) };
   }
 
   async approveTradersLinkAiReadForWebsite(input: { symbol: string; cycleId: string; expectedHead: number; draftRevision: number; actor: string; previewHash?: string; notifyUsers?: boolean; discordText?: string }) {
@@ -12231,6 +12241,17 @@ export class ManualWatchlistRuntimeManager {
     };
   }
 
+  async setFailureRecoveryVisible(visible: boolean): Promise<void> {
+    this.failureRecoveryVisible = visible;
+    if (!this.liveWatchlistPublisher) return;
+    for (const entry of this.watchlistStore.getActiveEntries()) {
+      if (entry.watchlistGroup === "private") continue;
+      const review = this.getTradersLinkAiReadReview(entry.symbol);
+      if (entry.publicationReview?.required && !review?.events.some(event => event.body.kind === "delivery" && event.body.channel === "website" && event.body.status === "acknowledged") && !review?.preserveExistingPublication) continue;
+      await this.liveWatchlistPublisher.publish({ symbol: entry.symbol, status: "live", updatedAt: Date.now(), failureRecoveryVisible: visible, cards: {} });
+    }
+  }
+
   async setPotentialGainCardVisible(visible: boolean): Promise<{
     visible: boolean;
     refreshedSymbols: string[];
@@ -12392,6 +12413,7 @@ export class ManualWatchlistRuntimeManager {
       pendingActivationCount,
       liveTraderReadCardVisible: this.liveTraderReadCardVisible,
       potentialGainCardVisible: this.potentialGainCardVisible,
+      failureRecoveryVisible: this.failureRecoveryVisible,
       // This is the saved operator preference used to hydrate the admin toggle.
       // Per-entry website visibility is additionally gated by AI Read availability.
       watchlistLifecycleLabelsVisible: this.watchlistLifecycleLabelsVisible,
@@ -13103,6 +13125,7 @@ export class ManualWatchlistRuntimeManager {
       ...patch,
       ...(entry ? { watchlistGroup: getWatchlistEntrySessionGroup(entry), indicatorCardVisible: entry.indicatorCardVisible !== false } : {}),
       potentialGainCardVisible: this.potentialGainCardVisible,
+      failureRecoveryVisible: this.failureRecoveryVisible,
       watchlistLifecycleLabelsVisible: lifecycleLabelsVisible,
       reversalWatchlistVisible: this.reversalWatchlistVisible,
       topRegularWatchlistVisible: this.topRegularWatchlistVisible,
@@ -13162,6 +13185,7 @@ export class ManualWatchlistRuntimeManager {
           }
         : {}),
       potentialGainCardVisible: this.potentialGainCardVisible,
+      failureRecoveryVisible: this.failureRecoveryVisible,
       watchlistLifecycleLabelsVisible:
         this.lifecycleLabelsVisibleForSymbol(symbol),
       reversalWatchlistVisible: this.reversalWatchlistVisible,
@@ -13661,6 +13685,7 @@ export class ManualWatchlistRuntimeManager {
           }
         : {}),
       potentialGainCardVisible: this.potentialGainCardVisible,
+      failureRecoveryVisible: this.failureRecoveryVisible,
       watchlistLifecycleLabelsVisible:
         this.lifecycleLabelsVisibleForSymbol(update.symbol, update.timestamp),
       reversalWatchlistVisible: this.reversalWatchlistVisible,
