@@ -41,6 +41,10 @@ li.watchlist-control-row { display:flex; flex-direction:column; align-items:stre
  .watchlist-action-move > select { width:100%; }
  .watchlist-action-group > button { max-width:100%; white-space:normal; }
 }
+.watchlist-analysis-publication-controls { display:flex; flex-direction:column; align-items:flex-start; gap:6px; max-width:100%; }
+.watchlist-analysis-publication-controls > button { margin:0; min-height:40px; max-width:100%; white-space:normal; }
+.watchlist-analysis-publication-controls > label { display:flex; align-items:center; gap:6px; margin:0; width:auto; cursor:pointer; }
+@media(max-width:600px) { .watchlist-analysis-publication-controls > button,.watchlist-analysis-publication-controls > label { min-height:44px; } }
 </style>
 <script>
 (() => {
@@ -264,7 +268,7 @@ function attachX(entry, actions, state, more = actions) {
       const choice = document.createElement('label'); const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.style.width = 'auto';
       const key = state.cycleId + ':listing'; checkbox.checked = notificationChoices.get(key) !== false;
       checkbox.onchange = () => notificationChoices.set(key,checkbox.checked);
-      choice.append(checkbox,document.createTextNode(' Notify users for ticker-only post')); listing.append(choice);
+      choice.append(checkbox,document.createTextNode(' Notify published without analysis')); listing.append(choice);
       const list = document.createElement('button'); list.type = 'button'; list.className = 'secondary';
       list.textContent = 'Publish ticker without analysis'; list.disabled = pending.has(entry.symbol);
       list.onclick = async () => {
@@ -288,12 +292,13 @@ function attachX(entry, actions, state, more = actions) {
       choice.onchange = () => freeChatChoices.set(choiceKey,choice.checked);
       label.append(choice,document.createTextNode(' Also post to Free Chat')); options.prepend(label);
     }
-    if (state?.listed && hasPublishableDraft(state)) {
+    let analysisNotifyLabel = null;
+    if (entry.watchlistGroup !== "private" && hasPublishableDraft(state)) {
       const label = document.createElement('label');
       const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.style.width = 'auto';
       checkbox.checked = notificationChoices.get(choiceKey) === true; checkbox.disabled = pending.has(entry.symbol);
       checkbox.onchange = () => notificationChoices.set(choiceKey, checkbox.checked);
-      label.append(checkbox, document.createTextNode(' Notify users')); options.prepend(label);
+      label.append(checkbox, document.createTextNode(' Notify users of the approved analysis')); analysisNotifyLabel = label;
     }
     const approve = document.createElement('button'); approve.type = 'button'; approve.textContent = state?.listed ? 'Approve and publish analysis' : 'Approve and publish';
     // Do not offer a second publication for an already approved version or while a replacement is running.
@@ -317,7 +322,12 @@ function attachX(entry, actions, state, more = actions) {
       } catch (error) { errors.set(entry.symbol, String(error.message || error) + ' Check delivery status before retrying.'); status.textContent = errors.get(entry.symbol); }
       finally { pending.delete(entry.symbol); await refresh(); window.dispatchEvent(new Event('watchlist-review-updated')); }
     };
-    if (entry.watchlistGroup !== "private" && (ready || pending.has(entry.symbol))) actions.append(approve);
+    if (entry.watchlistGroup !== "private" && (ready || pending.has(entry.symbol))) {
+      const publicationControls = document.createElement('div'); publicationControls.className = 'watchlist-analysis-publication-controls';
+      publicationControls.append(approve);
+      if (analysisNotifyLabel) publicationControls.append(analysisNotifyLabel);
+      actions.append(publicationControls);
+    }
     if (state?.status === 'Approved — delivery needs attention') {
       const recovery = document.createElement('button'); recovery.type = 'button'; recovery.className = 'secondary';
       recovery.textContent = 'Delivery details';
