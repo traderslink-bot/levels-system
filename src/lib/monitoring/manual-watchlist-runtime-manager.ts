@@ -5066,7 +5066,7 @@ export class ManualWatchlistRuntimeManager {
       analysisImageVersion: input.actor === "runtime:automatic-boundary" ? undefined : preview.publication.analysisImageVersion,
       discordChunks: attributeOwnerApprovedDiscord(preview.publication.discordChunks, input.actor).map((chunk,index)=>index===0?applyDiscordOwnerText(chunk,input.discordText):chunk),
       website: { ...preview.publication.website, watchlistGroup: entry.watchlistGroup,
-        ...(!alreadyListed ? { firstPostedAt: this.options.now?.() ?? Date.now() } : {}),
+        ...(!alreadyListed ? { firstPostedAt: this.options.now?.() ?? Date.now(), publicationPrice: this.publicationPrice(symbol) } : {}),
       },
       notifyUsers: alreadyListed ? input.notifyUsers === true : input.notifyUsers !== false,
       notificationKind: alreadyListed ? "analysis" : "listing",
@@ -5097,6 +5097,11 @@ export class ManualWatchlistRuntimeManager {
     }
     void this.refreshPublishedCompanyInfo(symbol);
     return this.getTradersLinkAiReadReview(symbol);
+  }
+
+  private publicationPrice(symbol: string): number | null {
+    const price = this.watchlistStore.getEntry(symbol)?.lastPrice;
+    return typeof price === "number" && Number.isFinite(price) && price > 0 ? price : null;
   }
 
   private buildTraderNotesCard(text: string): import("../live-watchlist/live-watchlist-types.js").LiveWatchlistCardContent | null {
@@ -5139,7 +5144,10 @@ export class ManualWatchlistRuntimeManager {
     const currentReview = store.read(input.cycleId)!;
     const alreadyListed = currentReview.preserveExistingPublication === true || currentReview.events.some(event =>
       event.body.kind === "delivery" && event.body.channel === "website" && event.body.status === "acknowledged");
-    if (!alreadyListed) snapshot.firstPostedAt = this.options.now?.() ?? Date.now();
+    if (!alreadyListed) {
+      snapshot.firstPostedAt = this.options.now?.() ?? Date.now();
+      snapshot.publicationPrice = this.publicationPrice(symbol);
+    }
     const audience = currentDiscordAudience();
     const approval = store.approveListingOnly(input.cycleId,store.read(input.cycleId)!.head,input.actor, {
       discordWatchlistGroup: entry.watchlistGroup, website: snapshot as unknown as Record<string,unknown>, discordChunks: attributeOwnerApprovedDiscord([appendDiscordMentions(buildWatchlistDiscordLinkMessage(symbol), audience)], input.actor).map(chunk=>applyDiscordOwnerText(chunk,input.discordText)), discordAudience: audience,
@@ -13053,7 +13061,8 @@ export class ManualWatchlistRuntimeManager {
     );
     await this.liveWatchlistPublisher.publish({
       ...patch,
-      firstPostedAt: this.watchlistStore.getEntry(symbol)?.activatedAt ?? timestamp,
+      firstPostedAt: timestamp,
+      publicationPrice: this.publicationPrice(symbol),
       watchlistGroup: getWatchlistEntrySessionGroup(
         this.watchlistStore.getEntry(symbol) ?? {
           activatedAt: timestamp,
