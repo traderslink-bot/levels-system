@@ -4938,7 +4938,7 @@ export class ManualWatchlistRuntimeManager {
         if (generation?.body.kind === "generation" && generation.revision > (review.draft?.revision ?? 0) &&
           generation.revision > (review.approved?.revision ?? 0)) {
           if (generation.body.status === "failed") return { symbol: entry.symbol,
-            status: review.draft ? "Replacement failed — previous version available" : "Analysis failed — held for review",
+            status: review.draft ? "Replacement failed — previous version available" : "Analysis failed — no analysis available",
             canReview: Boolean(review.draft) };
           if (generation.body.status === "started") return { symbol: entry.symbol,
             status: review.draft ? "Preparing replacement — previous version available" : "Preparing analysis",
@@ -4946,7 +4946,7 @@ export class ManualWatchlistRuntimeManager {
           if (generation.body.status === "completed") return { symbol: entry.symbol,
             status: "Analysis storage needs attention", canReview: Boolean(review.draft) };
         }
-        if (!review.draft) return { symbol: entry.symbol, status: entry.automaticAnalysisEnabled === false ? "Notes ready for review" : entry.tradersLinkAiReadFailure ? "Analysis failed — held for review" : "Preparing analysis", canReview: false };
+        if (!review.draft) return { symbol: entry.symbol, status: entry.automaticAnalysisEnabled === false ? "Notes ready for review" : entry.tradersLinkAiReadFailure ? "Analysis failed — no analysis available" : "Preparing analysis", canReview: false };
         const approved = review.approved;
         let status = "Ready for review";
         if (approved?.body.kind === "approve") {
@@ -13808,7 +13808,7 @@ export class ManualWatchlistRuntimeManager {
       aiReadAdmission: { ...this.captureAiReadAdmission(input), ...(input.generateAnalysis === false ? { initialGenerationEnabled: false } : {}) },
       automaticAnalysisEnabled: input.generateAnalysis !== false, traderNotesDraft: input.traderNotes ?? "",
       tradersLinkAiReadCardVisible: input.generateAnalysis !== false,
-      pendingTradersLinkAiReadGeneration: null, operationStatus: "preparing private analysis",
+      pendingTradersLinkAiReadGeneration: null, operationStatus: "preparing analysis",
     });
     this.watchlistStore.patchEntry(symbol, { tradersLinkAiReadBoundaryState: undefined, tradersLinkAiReadFailure: null, overnightLevelReference: undefined, overnightQuoteAttemptedAt: undefined });
     this.aiReadState.delete(symbol);
@@ -13835,7 +13835,7 @@ export class ManualWatchlistRuntimeManager {
       const priceAction = await this.buildTradersLinkAiReadPriceActionContext(symbol, now);
       assertCurrent();
       const reference = resolveTradersLinkAiReadReferenceQuote(priceAction, 0, now);
-      if (!(reference.price > 0)) throw new Error("No current price is available for private analysis.");
+      if (!(reference.price > 0)) throw new Error("Analysis preparation failed: no usable price was returned for the requested trading session.");
       const current = assertCurrent();
       if (!current.lastPriceUpdateAt || current.lastPriceUpdateAt <= reference.dataAsOf) {
         this.watchlistStore.patchEntry(symbol, { lastPrice: reference.price, lastPriceUpdateAt: reference.dataAsOf });
@@ -13848,7 +13848,7 @@ export class ManualWatchlistRuntimeManager {
       const current = this.watchlistStore.getEntry(symbol);
       if (current?.publicationReview?.cycleId === cycleId && current.active) {
         if (!current.tradersLinkAiReadFailure) this.recordTradersLinkAiReadFailure(symbol, "preparation", "activation", error);
-        this.watchlistStore.patchEntry(symbol, { operationStatus: "private analysis needs attention" });
+        this.watchlistStore.patchEntry(symbol, { operationStatus: "analysis preparation failed" });
         this.persistWatchlist();
       }
       throw error;
