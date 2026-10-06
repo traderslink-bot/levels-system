@@ -2420,19 +2420,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         }
 
         if (entry.lifecycle === "active" || entry.lifecycle === "refresh_pending" || entry.lifecycle === "extension_pending") {
-          const repostButton = document.createElement("button");
-          repostButton.textContent = "Repost Snapshot";
-          repostButton.className = "secondary";
-          repostButton.addEventListener("click", async () => {
-            repostButton.disabled = true;
-            try {
-              await postEntryAction("/api/watchlist/repost-snapshot", entry.symbol, "Reposted snapshot for");
-            } finally {
-              repostButton.disabled = false;
-            }
-          });
-          actionGroups.more.appendChild(repostButton);
-
           const refreshButton = document.createElement("button");
           refreshButton.textContent = "Refresh Levels";
           refreshButton.className = "secondary";
@@ -2444,7 +2431,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
               refreshButton.disabled = false;
             }
           });
-          actionGroups.settings.appendChild(refreshButton);
+          actionGroups.diagnostics.appendChild(refreshButton);
 
           const aiRefreshButton = document.createElement("button");
           aiRefreshButton.textContent = entry.automaticAnalysisEnabled === false ? "Generate analysis" : "Refresh AI Read";
@@ -2485,7 +2472,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 
         const aiCardVisible = entry.tradersLinkAiReadCardVisible !== false;
         const aiVisibilityButton = document.createElement("button");
-        aiVisibilityButton.textContent = aiCardVisible ? "AI Card: Shown" : "AI Card: Hidden";
+        aiVisibilityButton.textContent = aiCardVisible ? "Analysis card: Shown" : "Analysis card: Hidden";
         aiVisibilityButton.className = aiCardVisible ? "" : "secondary";
         aiVisibilityButton.disabled = aiReadConfigured === false;
         aiVisibilityButton.addEventListener("click", async () => {
@@ -2549,52 +2536,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         });
         actionGroups.settings.appendChild(indicatorVisibilityButton);
 
-        const dipBuyPlanVisible = entry.tradersLinkAiReadDipBuyPlanVisible !== false;
-        const dipBuyPlanVisibilityButton = document.createElement("button");
-        dipBuyPlanVisibilityButton.type = "button";
-        dipBuyPlanVisibilityButton.setAttribute("role", "switch");
-        dipBuyPlanVisibilityButton.setAttribute(
-          "aria-checked",
-          dipBuyPlanVisible ? "true" : "false",
-        );
-        dipBuyPlanVisibilityButton.setAttribute(
-          "aria-label",
-          "Show Potential dip-buy plan for " + entry.symbol,
-        );
-        dipBuyPlanVisibilityButton.textContent = dipBuyPlanVisible
-          ? "Potential dip-buy plan: Shown"
-          : "Potential dip-buy plan: Hidden";
-        dipBuyPlanVisibilityButton.className = dipBuyPlanVisible ? "" : "secondary";
-        dipBuyPlanVisibilityButton.addEventListener("click", async () => {
-          dipBuyPlanVisibilityButton.disabled = true;
-          try {
-            const response = await fetch("/api/watchlist/ai-read-dip-buy-visibility", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ symbol: entry.symbol, visible: !dipBuyPlanVisible }),
-            });
-            const payload = await response.json();
-            if (!response.ok) {
-              setStatus(payload.error || "Dip-buy plan visibility update failed", true);
-              return;
-            }
-            setStatus(
-              "Potential dip-buy plan " + (!dipBuyPlanVisible ? "shown" : "hidden") +
-              " for " + entry.symbol + ".",
-            );
-            await loadEntries();
-            await loadRuntimeStatus();
-          } catch (error) {
-            setStatus(String(error), true);
-          } finally {
-            dipBuyPlanVisibilityButton.disabled = false;
-          }
-        });
-        actionGroups.settings.appendChild(dipBuyPlanVisibilityButton);
-
         if (entry.lifecycle === "activation_failed") {
           const retryButton = document.createElement("button");
-          retryButton.textContent = "Retry";
+          retryButton.textContent = "Retry activation";
           retryButton.className = "secondary";
           retryButton.addEventListener("click", async () => {
             const started = await activateEntry(
@@ -2730,8 +2674,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         });
         actionGroups.remove.appendChild(removeFromListButton);
 
+        if (entry.lifecycle === "activating") {
         const deactivateButton = document.createElement("button");
-        deactivateButton.textContent = entry.lifecycle === "activating" ? "Cancel" : "Deactivate";
+        deactivateButton.textContent = "Cancel";
         deactivateButton.className = "danger";
         deactivateButton.addEventListener("click", async () => {
           deactivateButton.disabled = true;
@@ -2743,19 +2688,20 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             });
             const payload = await response.json();
             if (!response.ok) {
-              setStatus(payload.error || "Deactivate failed", true);
+              setStatus(payload.error || "Cancellation failed", true);
               return;
             }
-            setStatus("Deactivated " + payload.entry.symbol);
+            setStatus("Cancelled activation for " + payload.entry.symbol);
             await loadEntries();
             await loadRuntimeStatus();
           } catch (error) {
-            setStatus("Deactivate request failed for " + entry.symbol + ": " + String(error), true);
+            setStatus("Cancellation request failed for " + entry.symbol + ": " + String(error), true);
           } finally {
             deactivateButton.disabled = false;
           }
         });
         actionGroups.remove.appendChild(deactivateButton);
+        }
 
         item.appendChild(meta);
         item.appendChild(actions);
