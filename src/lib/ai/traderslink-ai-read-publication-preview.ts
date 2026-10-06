@@ -46,7 +46,8 @@ export function splitApprovedAnalysisText(text: string): string[] {
 /** Preserve the established linked notification; analysis belongs on the website. */
 export function renderApprovedAnalysisDiscord(read: TradersLinkAiReadPayload, analysisUpdate = false, audience?: WatchlistDiscordAudience, context?: AnalysisUpdateContext): string[] {
   const linked = buildWatchlistDiscordLinkMessage(read.symbol).replace("\n\n", "\n\nImages show part of the analysis. View full analysis in the app 👇\n\n");
-  return [appendDiscordMentions(analysisUpdate ? [`${read.symbol} Analysis updated`, analysisUpdateComparison(context), ANALYSIS_UPDATE_EXPLANATION].filter(Boolean).join("\n") + linked.slice(linked.indexOf("\n\n")) : linked, audience ?? { everyone: false, roles: [] })];
+  const firstAnalysis = analysisUpdate && context?.hasPreviousAnalysis === false;
+  return [appendDiscordMentions(firstAnalysis ? `${read.symbol} Analysis published\nThe first analysis is now available. View the setups and levels in the app.` + linked.slice(linked.indexOf("\n\n")) : analysisUpdate ? [`${read.symbol} Analysis updated`, analysisUpdateComparison(context), ANALYSIS_UPDATE_EXPLANATION].filter(Boolean).join("\n") + linked.slice(linked.indexOf("\n\n")) : linked, audience ?? { everyone: false, roles: [] })];
 }
 
 /** Apply only when freezing a new, authenticated owner approval. */
