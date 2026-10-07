@@ -2257,20 +2257,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
-    async function copyThreadId(entry) {
-      if (!entry.discordThreadId) {
-        setStatus("No Discord thread id yet.", true);
-        return;
-      }
-
-      try {
-        await navigator.clipboard.writeText(entry.discordThreadId);
-        setStatus("Copied thread id for " + entry.symbol);
-      } catch {
-        setStatus("Thread id: " + entry.discordThreadId);
-      }
-    }
-
     function isTopWatchesGroup(value) {
       if (typeof value !== "string" || !/^top_watches:\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
       const date = value.slice(12), time = Date.parse(date + "T12:00:00Z");
@@ -2346,15 +2332,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         item.classList.add('watchlist-control-row');
           const actionGroups = window.watchlistRowReview.groups(entry.symbol, actions, meta);
           window.watchlistRowReview.attach(entry, actionGroups.review, actionGroups.more, actionGroups.options, actionGroups.header, actionGroups.listing);
-        if (entry.discordThreadId) {
-          const copyButton = document.createElement("button");
-          copyButton.textContent = "Copy Thread";
-          copyButton.className = "quiet";
-          copyButton.addEventListener("click", async () => {
-            await copyThreadId(entry);
-          });
-          actionGroups.diagnostics.appendChild(copyButton);
-        }
 
         if (entry.lifecycle === "active" || entry.lifecycle === "refresh_pending" || entry.lifecycle === "extension_pending") {
           const refreshButton = document.createElement("button");
