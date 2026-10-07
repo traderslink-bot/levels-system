@@ -1001,20 +1001,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       const meta = document.createElement("div");
       const header = document.createElement("div");
       const title = document.createElement("strong");
-      const details = document.createElement("div");
-      const lastPostText = formatTime(entry.lastLevelPostAt);
-      const lastLiveText = formatTime(entry.lastPriceUpdateAt);
-      const lastThreadPostText = formatTime(entry.lastThreadPostAt);
-      const lastStoryText = entry.lastTradeStoryState
-        ? lifecycleLabel(entry.lastTradeStoryState) + (entry.lastTradeStoryAt ? " at " + formatTime(entry.lastTradeStoryAt) : "")
-        : "";
-      const priceFreshness = entry.lastPriceUpdateAt
-        ? formatAge(Date.now() - entry.lastPriceUpdateAt)
-        : "";
-      const levelFreshness = entry.lastLevelPostAt
-        ? formatAge(Date.now() - entry.lastLevelPostAt)
-        : "";
-
       meta.className = "entry-main";
       header.className = "entry-title";
       title.textContent = entry.symbol;
@@ -1032,56 +1018,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         aiConfidence ? "badge badge-confidence-" + aiConfidence : "badge",
       ));
 
-      details.className = "meta";
-      details.appendChild(
-        document.createTextNode("Discord thread ID: " + (entry.discordThreadId || "pending")),
-      );
-      appendMetaValue(details, "last snapshot", lastPostText);
-      appendMetaValue(details, "last price", lastLiveText);
-      appendMetaValue(details, "price", formatNumber(entry.lastPrice));
-      const selectorActivity = entry.selectorSessionActivity;
-      const liveFiveMinuteVolume = entry.liveFiveMinuteVolume;
-      if (selectorActivity?.dataAvailable === true) {
-        appendMetaValue(
-          details,
-          selectorActivity.session ? lifecycleLabel(selectorActivity.session) + " volume" : "session volume",
-          formatShareVolume(selectorActivity.volume),
-        );
-      } else if (liveFiveMinuteVolume?.available === true &&
-        typeof liveFiveMinuteVolume.relativeVolumeRatio === "number") {
-        const current = typeof liveFiveMinuteVolume.currentVolume === "number"
-          ? formatShareVolume(liveFiveMinuteVolume.currentVolume)
-          : null;
-        const average = typeof liveFiveMinuteVolume.averageVolume === "number"
-          ? formatShareVolume(liveFiveMinuteVolume.averageVolume)
-          : null;
-        appendMetaValue(
-          details,
-          "live 5-minute confirmation",
-          liveFiveMinuteVolume.relativeVolumeRatio.toFixed(2) + "x recent 5-minute average" +
-            (current && average ? " (" + current + " / " + average + ")" : ""),
-        );
-      } else {
-        appendMetaValue(
-          details,
-          "session volume",
-          "unavailable" + (liveFiveMinuteVolume?.reason ? " (" + liveFiveMinuteVolume.reason + ")" : ""),
-        );
-      }
-      appendMetaValue(details, "price age", priceFreshness);
-      appendMetaValue(details, "last post", lastThreadPostText);
-      appendMetaValue(details, "post type", entry.lastThreadPostKind);
-      appendMetaValue(details, "story", lastStoryText);
-      appendMetaValue(details, "trigger", formatNumber(entry.lastTriggerPrice));
-      appendMetaValue(details, "levels age", levelFreshness);
-      appendMetaValue(details, "OpenAI notes", entry.note);
-      if (selectorState === "followup") {
-        appendMetaValue(details, "follow-up score", formatNumber(entry.selectorCurrentSlotScore));
-        appendMetaValue(details, "follow-up reason", entry.selectorStatusReason);
-      }
-
       meta.appendChild(header);
-      meta.appendChild(details);
       if (entry.operationStatus) {
         const state = document.createElement("div");
         state.className = "entry-state";
