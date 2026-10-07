@@ -170,7 +170,7 @@ function attachX(entry, actions, state, more = actions) {
     const details=document.createElement('details');details.className='watchlist-action-more';details.open=expandedActions.has(symbol);
     const summary=document.createElement('summary');summary.textContent='More actions';details.append(summary,section('Move',move),section('Posting',options,more),section('Settings',settings),section('Diagnostics',diagnostics),section('Remove',remove));
     details.addEventListener('toggle',()=>{if(details.isConnected){if(details.open)expandedActions.add(symbol);else expandedActions.delete(symbol);}});
-    root.append(review,listing,access,details);return {review,options,listing,move,more,remove,header,access,settings,diagnostics};
+    root.append(listing,review,access,details);return {review,options,listing,move,more,remove,header,access,settings,diagnostics};
   }
   function attach(entry, actions, more = actions, options = actions, header = actions, listing = actions) {
     if(entry.watchlistGroup === "private"){listing.hidden=true;const note=document.createElement("small");note.textContent="Private — only you can see this ticker. Move it to another list to publish.";header.append(note);}
