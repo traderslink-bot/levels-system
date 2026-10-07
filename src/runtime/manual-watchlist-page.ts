@@ -1019,7 +1019,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       ));
 
       meta.appendChild(header);
-      if (entry.operationStatus) {
+      if (entry.operationStatus && entry.operationStatus !== "monitoring live price") {
         const state = document.createElement("div");
         state.className = "entry-state";
         state.textContent = entry.operationStatus;
