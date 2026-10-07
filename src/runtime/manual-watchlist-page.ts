@@ -2404,6 +2404,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
               aiRefreshButton.disabled = aiReadConfigured === false || !aiReadGenerationAllowed;
             }
           });
+          aiRefreshButton.dataset.watchlistRefresh = "true";
           actionGroups.review.appendChild(aiRefreshButton);
         }
 
@@ -2609,7 +2610,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             removeFromListButton.disabled = false;
           }
         });
-        actionGroups.remove.appendChild(removeFromListButton);
+        const refreshAnchor = actionGroups.review.querySelector("[data-watchlist-refresh]");
+        if (refreshAnchor) refreshAnchor.after(removeFromListButton);
+        else actionGroups.review.appendChild(removeFromListButton);
 
         if (entry.lifecycle === "activating") {
         const deactivateButton = document.createElement("button");
