@@ -2499,7 +2499,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           const notifyLabel=document.createElement('label'),notifyMove=document.createElement('input');
           notifyMove.type='checkbox';notifyMove.style.width='auto';notifyMove.checked=moveNotifyChoices.get(entry.symbol)===true;
           notifyMove.onchange=()=>moveNotifyChoices.set(entry.symbol,notifyMove.checked);
-          notifyLabel.append(notifyMove,document.createTextNode(' Post to destination and notify users (keep original posts)'));
+          notifyLabel.append(notifyMove,document.createTextNode(' Post to destination and notify'));
           // Append the notification choice after the destination and Move button.
           const moveButton = document.createElement("button");
             moveButton.textContent = "Move to List";
