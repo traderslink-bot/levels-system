@@ -2345,7 +2345,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
               refreshButton.disabled = false;
             }
           });
-          actionGroups.diagnostics.appendChild(refreshButton);
+          actionGroups.settings.appendChild(refreshButton);
 
           const aiRefreshButton = document.createElement("button");
           aiRefreshButton.textContent = entry.automaticAnalysisEnabled === false ? "Generate analysis" : "Refresh AI Read";
