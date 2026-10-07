@@ -41,7 +41,7 @@ li.watchlist-control-row { display:flex; flex-direction:column; align-items:stre
  .watchlist-action-move > select { width:100%; }
  .watchlist-action-group > button { max-width:100%; white-space:normal; }
 }
-.watchlist-analysis-publication-controls { display:flex; flex-direction:column; align-items:flex-start; gap:6px; max-width:100%; }
+.watchlist-analysis-publication-controls { display:flex; flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px 10px; max-width:100%; }
 .watchlist-analysis-publication-controls > button { margin:0; min-height:40px; max-width:100%; white-space:normal; }
 .watchlist-analysis-publication-controls > label { display:flex; align-items:center; gap:6px; margin:0; width:auto; cursor:pointer; }
 @media(max-width:600px) { .watchlist-analysis-publication-controls > button,.watchlist-analysis-publication-controls > label { min-height:44px; } }
@@ -170,7 +170,7 @@ function attachX(entry, actions, state, more = actions) {
     const details=document.createElement('details');details.className='watchlist-action-more';details.open=expandedActions.has(symbol);
     const summary=document.createElement('summary');summary.textContent='More actions';details.append(summary,section('Move',move),section('Posting',options,more),section('Settings',settings),section('Diagnostics',diagnostics),section('Remove',remove));
     details.addEventListener('toggle',()=>{if(details.isConnected){if(details.open)expandedActions.add(symbol);else expandedActions.delete(symbol);}});
-    root.append(review,access,listing,details);return {review,options,listing,move,more,remove,header,access,settings,diagnostics};
+    root.append(review,listing,access,details);return {review,options,listing,move,more,remove,header,access,settings,diagnostics};
   }
   function attach(entry, actions, more = actions, options = actions, header = actions, listing = actions) {
     if(entry.watchlistGroup === "private"){listing.hidden=true;const note=document.createElement("small");note.textContent="Private — only you can see this ticker. Move it to another list to publish.";header.append(note);}
@@ -298,7 +298,7 @@ function attachX(entry, actions, state, more = actions) {
       const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.style.width = 'auto';
       checkbox.checked = notificationChoices.get(choiceKey) === true; checkbox.disabled = pending.has(entry.symbol);
       checkbox.onchange = () => notificationChoices.set(choiceKey, checkbox.checked);
-      label.append(checkbox, document.createTextNode(' Notify users of the approved analysis')); analysisNotifyLabel = label;
+      label.append(checkbox, document.createTextNode(' Notify Published')); analysisNotifyLabel = label;
     }
     const approve = document.createElement('button'); approve.type = 'button'; approve.textContent = state?.listed ? 'Approve and publish analysis' : 'Approve and publish';
     // Do not offer a second publication for an already approved version or while a replacement is running.

@@ -1006,7 +1006,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       title.textContent = entry.symbol;
       header.appendChild(title);
       const selectorState = entry.selectorManagedState;
-      header.appendChild(createBadge(
+      if (entry.lifecycle !== "active" || selectorState === "followup") header.appendChild(createBadge(
         selectorState === "followup"
           ? "Follow-up Ã¢â‚¬â€ not on public watchlist"
           : lifecycleLabel(entry.lifecycle),
