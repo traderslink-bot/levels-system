@@ -25,6 +25,7 @@ li.watchlist-control-row { display:flex; flex-direction:column; align-items:stre
  .watchlist-action-move > label { flex-basis:100%; }
 }
 .watchlist-action-section { min-width:0; padding:10px 0; border-bottom:1px solid #e2e8f0; }
+.watchlist-action-section > .watchlist-action-group:not(:empty) + .watchlist-action-group:not(:empty) { margin-top:8px; }
 .watchlist-action-section > h4 { margin:0 0 8px; font-size:13px; font-weight:700; }
 .watchlist-action-section:has(> .watchlist-action-group:only-of-type:empty) { display:none; }
 .watchlist-access-controls { display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%; margin:0; padding:0; border:0; background:none; }
