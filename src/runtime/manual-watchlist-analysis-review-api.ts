@@ -1,3 +1,5 @@
+import { DiscordPostDraftStore } from '../lib/alerts/watchlist-discord-drafts.js';
+import { applyDiscordOwnerText } from '../lib/alerts/watchlist-discord-owner-text.js';
 import { discordRemovalStatus, setDiscordRemoval, retryFailedDiscordRemovals } from "../lib/alerts/watchlist-discord-removal.js";
 import { createHash } from "node:crypto";
 import type { ManualWatchlistRuntimeManager } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
@@ -87,10 +89,41 @@ export async function dispatchAnalysisReviewRequest(input: {
   }
   if (!input.actor || !/^platform-owner:[A-Za-z0-9_-]{1,128}$/.test(input.actor)) return { status: 403, body: { error: "Owner review authorization is required." } };
   if (!ANALYSIS_REVIEW_PATHS.has(input.pathname)) return { status: 404, body: { error: "Not found." } };
+  const drafts = new DiscordPostDraftStore();
+  const draftIdentity = (symbol: string, kind: string, to = '') => {
+    symbol = symbol.trim().toUpperCase();
+    if (!/^[A-Z0-9][A-Z0-9.-]{0,19}$/.test(symbol) || !['listing','analysis','move'].includes(kind)) throw Error('Invalid post draft.');
+    const review = manager.getTradersLinkAiReadReview(symbol);
+    if (!review || review.cancelled) throw Error('Ticker review is unavailable.');
+    const original = kind === 'analysis' ? review.events.filter(event => event.body.kind === 'original').at(-1)?.revision : 0;
+    if (kind === 'analysis' && !original) throw Error('No analysis draft is available to edit.');
+    return { key: JSON.stringify([symbol, review.cycleId, kind, original, kind === 'move' ? to : '']), cycleId: review.cycleId };
+  };
+  const savedText = (symbol: string, kind: string, to = '', supplied?: unknown) => {
+    const saved = drafts.read(draftIdentity(symbol,kind,to).key);
+    return saved ? saved.text ?? undefined : supplied as string | undefined;
+  };
   if(input.pathname.endsWith('/discord-text')){
-    if(input.method!=='GET')return {status:405,body:{error:'Method not allowed.'}};
-    try{return {status:200,body:manager.getDiscordTextPreview(input.searchParams.get('symbol')??'',input.searchParams.get('kind')??'',input.searchParams.get('to')??'',input.actor)};}
-    catch{return {status:400,body:{error:'Post preview unavailable. Refresh and try again.'}};}
+    if(!['GET','POST'].includes(input.method))return {status:405,body:{error:'Method not allowed.'}};
+    try {
+      const fields = input.method === 'GET' ? Object.fromEntries(input.searchParams) : input.body as Record<string,unknown>;
+      if (!fields || typeof fields.symbol !== 'string' || typeof fields.kind !== 'string' || (fields.to !== undefined && typeof fields.to !== 'string')) throw Error('Invalid post draft.');
+      const symbol=fields.symbol.trim().toUpperCase(),kind=fields.kind,to=typeof fields.to==='string'?fields.to:'';
+      const identity=draftIdentity(symbol,kind,to);
+      const generated=manager.getDiscordTextPreview(symbol,kind,to,input.actor);
+      let saved=drafts.read(identity.key);
+      if(input.method==='POST') {
+        if(fields.identity!==identity.key || (fields.revision!==null && typeof fields.revision!=='string')) throw Error('This post changed. Reopen the editor before saving.');
+        if(fields.text!==null) applyDiscordOwnerText(generated.text+generated.suffix,fields.text);
+        if(fields.text!==null && typeof fields.text!=='string') throw Error('Enter Discord post text.');
+        saved=drafts.save(identity.key,fields.text as string|null,fields.revision as string|null,input.actor);
+      }
+      return {status:200,body:{...generated,identity:identity.key,revision:saved?.revision??null,draftText:saved?.text??null}};
+    } catch(error) {
+      const message=error instanceof Error?error.message:'';
+      const safe=['Post text changed in another window. Reopen it before saving.','This post changed. Reopen the editor before saving.','Enter Discord post text.','Use Discord notification settings for mentions.','Discord post text is too long.'];
+      return {status:409,body:{error:safe.includes(message)?message:'Post text could not be loaded or saved. Your last saved text is unchanged.'}};
+    }
   }
   if(input.pathname.endsWith('/category-move')){
     try{
@@ -98,7 +131,7 @@ export async function dispatchAnalysisReviewRequest(input: {
       if(input.method!=='POST')return {status:405,body:{error:'Method not allowed.'}};
       const body=input.body as Record<string,unknown>;
       if(!body||typeof body.symbol!=='string'||typeof body.id!=='string'||typeof body.to!=='string'||typeof body.notify!=='boolean'||(body.messageId!==undefined&&typeof body.messageId!=='string'))return {status:400,body:{error:'Invalid move request.'}};
-      const move=await manager.moveCategory({symbol:body.symbol,id:body.id,to:body.to,notify:body.notify,actor:input.actor,messageId:body.messageId as string|undefined,discordText:body.discordText as string|undefined});
+      const move=await manager.moveCategory({symbol:body.symbol,id:body.id,to:body.to,notify:body.notify,actor:input.actor,messageId:body.messageId as string|undefined,discordText:savedText(body.symbol,'move',body.to,body.discordText)});
       return {status:200,body:{ok:true,move}};
     }catch{return {status:400,body:{error:'Move could not complete. Refresh the ticker list and check move delivery status before retrying.'}};}
   }
@@ -202,7 +235,7 @@ export async function dispatchAnalysisReviewRequest(input: {
     }
     if (action === "publish-without-analysis" && fields.notifyUsers !== undefined && typeof fields.notifyUsers !== "boolean") throw new Error("Invalid review request.");
     if (action === "publish-without-analysis") return { status: 200, body: { review: await manager.publishTickerWithoutAnalysis({
-      symbol, cycleId, expectedHead: revision("expectedHead"), actor: input.actor, notifyUsers: fields.notifyUsers as boolean | undefined, discordText: fields.discordText as string | undefined,
+      symbol, cycleId, expectedHead: revision("expectedHead"), actor: input.actor, notifyUsers: fields.notifyUsers as boolean | undefined, discordText: savedText(symbol,'listing','',fields.discordText),
     }) } };
     if (action === "save") return { status: 200, body: manager.saveTradersLinkAiReadOwnerEdit({
       symbol, cycleId, expectedHead: revision("expectedHead"), patch: fields.patch, actor: input.actor,
@@ -220,7 +253,7 @@ export async function dispatchAnalysisReviewRequest(input: {
       // Legacy clients may supply this display token; it is not approval authority.
       const previewHash = typeof fields.previewHash === "string" ? fields.previewHash : "";
       return { status: 200, body: { review: await manager.approveTradersLinkAiRead({ symbol, cycleId,
-        expectedHead: revision("expectedHead"), draftRevision: revision("draftRevision"), previewHash, actor: input.actor, notifyUsers: fields.notifyUsers as boolean | undefined, discordText: fields.discordText as string | undefined,
+        expectedHead: revision("expectedHead"), draftRevision: revision("draftRevision"), previewHash, actor: input.actor, notifyUsers: fields.notifyUsers as boolean | undefined, discordText: savedText(symbol,'analysis','',fields.discordText),
       }) } };
     }
     return { status: 200, body: { review: await manager.publishApprovedTradersLinkAiReadToDiscord({ symbol, cycleId, approvalRevision: revision("approvalRevision") }) } };

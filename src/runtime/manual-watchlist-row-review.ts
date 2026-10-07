@@ -53,16 +53,16 @@ li.watchlist-control-row { display:flex; flex-direction:column; align-items:stre
   const pending = new Set(), errors = new Map(), notificationChoices = new Map();
   const notesDrafts = new Map();
   const freeChatChoices = new Map();
-  const discordTextDrafts=new Map();
+
   window.watchlistDiscordText={
-    get:key=>discordTextDrafts.get(key),
+    get:()=>undefined,
     open:async(key,symbol,kind,to='')=>{
       const dialog=document.createElement('dialog');dialog.style.cssText='width:min(600px,92vw);max-height:85vh;overflow:auto';
       const title=document.createElement('h2');title.textContent=symbol+' — Edit Discord post';
       const text=document.createElement('textarea');text.rows=8;text.style.width='100%';text.setAttribute('aria-label','Discord post text');text.disabled=true;
       const fixed=document.createElement('p');fixed.style.whiteSpace='pre-wrap';
       const status=document.createElement('p');status.setAttribute('role','status');
-      const use=document.createElement('button');use.type='button';use.textContent='Use text';use.disabled=true;
+      const use=document.createElement('button');use.type='button';use.textContent='Save text';use.disabled=true;
       const reset=document.createElement('button');reset.type='button';reset.textContent='Reset to generated text';reset.disabled=true;
       const close=document.createElement('button');close.type='button';close.textContent='Close';close.onclick=()=>dialog.close();
       dialog.append(title,text,fixed,status,use,reset,close);document.body.append(dialog);dialog.showModal();
@@ -72,12 +72,19 @@ li.watchlist-control-row { display:flex; flex-direction:column; align-items:stre
       try{
         const generated=await request('/discord-text?symbol='+encodeURIComponent(symbol)+'&kind='+kind+'&to='+encodeURIComponent(to));
         if(!dialog.isConnected)return;
-        text.value=discordTextDrafts.get(key)??generated.text;text.maxLength=generated.maxLength;
+        let revision=generated.revision;
+        text.value=generated.draftText??generated.text;text.maxLength=generated.maxLength;
         fixed.textContent='Links and notification tags stay unchanged:'+generated.suffix;
         const validate=()=>{status.textContent=text.value.length+' / '+generated.maxLength+' characters. This does not send a post.';use.disabled=!text.value.trim()||text.value.length>generated.maxLength||/@(everyone|here)\b|<@/i.test(text.value);};
-        text.disabled=reset.disabled=false;text.oninput=()=>{discordTextDrafts.set(key,text.value);validate();};
-        reset.onclick=()=>{discordTextDrafts.delete(key);text.value=generated.text;validate();};
-        use.onclick=()=>{discordTextDrafts.set(key,text.value);dialog.close();};validate();position();
+        text.disabled=reset.disabled=false;text.oninput=()=>{validate();status.textContent+=' Unsaved changes—select Save text.';};
+        const save=async(value)=>{
+          use.disabled=reset.disabled=text.disabled=true;status.textContent='Saving post text…';
+          try{const result=await request('/discord-text',{symbol,kind,to,identity:generated.identity,revision,text:value});revision=result.revision;text.value=result.draftText??result.text;validate();status.textContent='Saved. This text will be used when you notify users.';}
+          catch(error){status.textContent=String(error.message||error);}
+          finally{text.disabled=reset.disabled=false;use.disabled=!text.value.trim()||text.value.length>generated.maxLength||/@(everyone|here)\b|<@/i.test(text.value);}
+        };
+        reset.onclick=()=>save(null);
+        use.onclick=()=>save(text.value);validate();position();
       }catch(error){status.textContent=String(error.message||error);}
     }
   };
