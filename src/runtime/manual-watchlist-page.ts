@@ -2528,7 +2528,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
                 payload.move.notice || "Moved " + entry.symbol + " to " + moveSelect.options[moveSelect.selectedIndex].text,
               );
                 if(payload.move.destination==='confirmed'||payload.move.destination==='skipped'){moveRequests.delete(entry.symbol);moveNotifyChoices.delete(entry.symbol);}
-                pendingMoveGroups.delete(entry.symbol);
+                window.watchlistMoveDeliveryCache?.clear();pendingMoveGroups.delete(entry.symbol);
                 movingSymbols.delete(entry.symbol);
                 await loadEntries();
                 await loadRuntimeStatus();
@@ -2545,31 +2545,37 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           actionGroups.move.appendChild(moveButton);
           actionGroups.move.append(notifyLabel);
             const editMovePost=document.createElement('button');editMovePost.type='button';editMovePost.textContent='Edit move post';editMovePost.onclick=()=>window.watchlistDiscordText?.open(entry.publicationReview?.cycleId+':move:'+moveSelect.value,entry.symbol,'move',moveSelect.value);actionGroups.move.append(editMovePost);
-          const moveDetails=document.createElement('button');moveDetails.type='button';moveDetails.className='secondary';moveDetails.textContent='Move delivery details';
-          moveDetails.onclick=async()=>{
-            const dialog=document.createElement('dialog');dialog.style.maxWidth='min(520px,92vw)';
-            const heading=document.createElement('h2');heading.textContent=entry.symbol+' — Move delivery';
-            const message=document.createElement('p');message.setAttribute('role','status');message.textContent='Loading…';
-            const retry=document.createElement('button');retry.type='button';retry.textContent='Retry move delivery';retry.hidden=true;
-            const receipt=document.createElement('input');receipt.placeholder='Discord message ID';receipt.setAttribute('aria-label','Existing Discord message ID');receipt.hidden=true;
-            const verify=document.createElement('button');verify.type='button';verify.textContent='Confirm existing Discord post';verify.hidden=true;
-            const refresh=document.createElement('button');refresh.type='button';refresh.textContent='Refresh status';
-            const close=document.createElement('button');close.type='button';close.textContent='Close';close.onclick=()=>dialog.close();
-            dialog.append(heading,message,retry,receipt,verify,refresh,close);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove());dialog.showModal();
-            const position=()=>{if(window.parent===window||!window.frameElement)return;const frame=window.frameElement.getBoundingClientRect(),top=Math.max(0,-frame.top),bottom=Math.min(window.innerHeight,window.parent.innerHeight-frame.top);dialog.style.position='fixed';dialog.style.margin='0 auto';dialog.style.left='0';dialog.style.right='0';dialog.style.top=(top+12)+'px';dialog.style.maxHeight=Math.max(120,bottom-top-24)+'px';};position();
-            let latest,busy=false;
-            const load=async(body)=>{if(busy)return;busy=true;retry.disabled=verify.disabled=refresh.disabled=true;
-              try{const response=await fetch('/api/watchlist/analysis-review/category-move'+(body?'':'?symbol='+encodeURIComponent(entry.symbol)),{method:body?'POST':'GET',cache:'no-store',headers:body?{'Content-Type':'application/json','x-traderlink-journal-admin-request':'1'}:{},body:body?JSON.stringify(body):undefined});const result=await response.json();if(!response.ok)throw Error(result.error||'Move status unavailable.');
-                if(body){message.textContent=result.move.notice;return;}
-                latest=result.moves.at(-1);message.textContent=latest?(latest.notice||'Move delivery is pending.'):'No move delivery recorded.';
-                retry.hidden=!latest||!latest.current||!latest.notify||!latest.published||['sending','uncertain','skipped'].includes(latest.destination)||latest.destination==='confirmed'&&!latest.cleanupFailed&&latest.notification==='confirmed';
-                retry.textContent=latest?.destination==='confirmed'?'Retry cleanup':'Retry move delivery';receipt.hidden=verify.hidden=!latest||!latest.current||!['sending','uncertain'].includes(latest.destination);
-              }catch(error){message.textContent=String(error.message||error);}finally{busy=false;retry.disabled=verify.disabled=refresh.disabled=false;position();}
-            };
-            retry.onclick=async()=>{if(latest){await load({symbol:entry.symbol,id:latest.id,to:latest.to,notify:latest.notify});await load();}};
-            verify.onclick=async()=>{if(latest&&/^\d{17,20}$/.test(receipt.value.trim())){await load({symbol:entry.symbol,id:latest.id,to:latest.to,notify:latest.notify,messageId:receipt.value.trim()});await load();}};
-            refresh.onclick=()=>load();await load();
-          };actionGroups.move.append(moveDetails);
+          const deliveryStatus=document.createElement('p');deliveryStatus.setAttribute('role','status');deliveryStatus.hidden=true;
+          const retryDelivery=document.createElement('button');retryDelivery.type='button';retryDelivery.className='secondary';retryDelivery.textContent='Retry';retryDelivery.hidden=true;
+          actionGroups.move.append(deliveryStatus,retryDelivery);
+          const deliveryKey=entry.symbol+':'+(entry.publicationReview?.cycleId||'')+':'+entry.watchlistGroup;
+          const cache=window.watchlistMoveDeliveryCache||(window.watchlistMoveDeliveryCache=new Map());
+          let latestMove,deliveryBusy=false;
+          const showDelivery=(move)=>{
+            latestMove=move;deliveryStatus.hidden=!move||!move.current;retryDelivery.hidden=true;
+            if(deliveryStatus.hidden)return;
+            if(!move.notify||move.destination==='skipped')deliveryStatus.textContent='Moved. No notifications requested.';
+            else if(move.destination==='confirmed'&&move.notification==='confirmed')deliveryStatus.textContent='Move notification sent.';
+            else if(['sending','uncertain'].includes(move.destination))deliveryStatus.textContent='Moved. Notification delivery is not yet confirmed.';
+            else {deliveryStatus.textContent='Moved. Notification delivery needs another attempt.';retryDelivery.hidden=!move.published;}
+          };
+          const loadDelivery=async(force=false)=>{
+            if(deliveryBusy)return;const saved=cache.get(deliveryKey);
+            if(!force&&saved&&Date.now()-saved.at<30000){showDelivery(saved.move);return;}
+            deliveryBusy=true;retryDelivery.disabled=true;
+            try{const response=await fetch('/api/watchlist/analysis-review/category-move?symbol='+encodeURIComponent(entry.symbol),{cache:'no-store'});const result=await response.json();if(!response.ok)throw Error();const move=result.moves.at(-1);cache.set(deliveryKey,{at:Date.now(),move});showDelivery(move);}
+            catch{latestMove=undefined;retryDelivery.hidden=true;deliveryStatus.hidden=false;deliveryStatus.textContent='Unable to check move notification status.';}
+            finally{deliveryBusy=false;retryDelivery.disabled=false;}
+          };
+          retryDelivery.onclick=async()=>{
+            if(deliveryBusy||!latestMove?.current)return;deliveryBusy=true;retryDelivery.disabled=true;
+            try{const response=await fetch('/api/watchlist/analysis-review/category-move',{method:'POST',headers:{'Content-Type':'application/json','x-traderlink-journal-admin-request':'1'},body:JSON.stringify({symbol:entry.symbol,id:latestMove.id,to:latestMove.to,notify:latestMove.notify})});if(!response.ok)throw Error();cache.delete(deliveryKey);}
+            catch{deliveryStatus.textContent='Notification could not be sent. Try again.';}
+            finally{deliveryBusy=false;retryDelivery.disabled=false;await loadDelivery(true);}
+          };
+          const morePanel=actionGroups.move.closest('details');
+          if(morePanel){morePanel.addEventListener('toggle',()=>{if(morePanel.open)void loadDelivery();});if(morePanel.open)void loadDelivery();}
+
         }
 
         const removeFromListButton = document.createElement("button");
