@@ -74,7 +74,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   const editor = byId("editor"), status = byId("status"), previewContent = byId("preview-content");
   const actions = byId("actions"), ticker = byId("symbol");
   const keys = ["currentRead", "bias", "confidence", "needsToHold", "cautionBelow", "momentumFailure", "mustClear", "breakoutContinuation", "targets", "downsideCheckpoints", "pullbackPlans", "failureRecovery", "catalystRealityCheck", "dilutionRisk", "listingStatus", "riskSummary", "ownerHiddenSections"];
-  const sectionLabels = { currentRead: "Analysis", needsToHold: "Support to watch", cautionBelow: "Caution below", momentumFailure: "Momentum failure", mustClear: "Must clear", breakoutContinuation: "Breakout continuation", targets: "Where the trade could go next", downsideCheckpoints: "Downside levels", shallow: "Shallow pullback", deep: "Deep pullback", failureRecovery: "Failure and recovery", catalystRealityCheck: "Catalyst / recent news", dilutionRisk: "Dilution risk", listingStatus: "Listing status", riskSummary: "Risk notes" };
+  const sectionLabels = { currentRead: "Analysis", needsToHold: "Structure Weakens", cautionBelow: "Caution below", momentumFailure: "Momentum failure", mustClear: "Must clear", breakoutContinuation: "Breakout continuation", targets: "Where the trade could go next", downsideCheckpoints: "Downside levels", shallow: "Shallow pullback", deep: "Deep pullback", failureRecovery: "Failure and recovery", catalystRealityCheck: "Catalyst / recent news", dilutionRisk: "Dilution risk", listingStatus: "Listing status", riskSummary: "Risk notes" };
   const fieldLabels = { label: "Label", price: "Price", rationale: "Rationale", condition: "Condition", zoneLow: "Area low", zoneHigh: "Area high", confirmationPrice: "Confirmation price", confirmation: "Confirmation", invalidationPrice: "Invalidation price", firstObjectivePrice: "Next level", recoveryZoneLow: "Recovery area low", recoveryZoneHigh: "Recovery area high", firstReclaimPrice: "First reclaim", setupRestorePrice: "Recovery setup established above", summary: "Summary", dayTradeRelevance: "Day-trading relevance" };
   const levelFields = ["label", "price", "rationale"];
   const pullbackFields = ["zoneLow", "zoneHigh", "confirmationPrice", "confirmation", "rationale"];
@@ -387,7 +387,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
           " — omitted: " + issue.reason.slice(0, 600));
       });
       if ((result.stage === "core_evidence" || result.stage === "must_clear_evidence") && Array.isArray(result.issues)) {
-        const names = { needsToHold: "Support to watch", cautionBelow: "Caution below", momentumFailure: "Momentum failure", mustClear: "Must-clear level" };
+        const names = { needsToHold: "Structure Weakens", cautionBelow: "Caution below", momentumFailure: "Momentum failure", mustClear: "Must-clear level" };
         if (result.issues.length) result.issues.forEach(issue => {
           if (typeof issue !== "string") return;
           const key = Object.keys(names).find(name => issue.startsWith(name + " "));
