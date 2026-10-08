@@ -74,7 +74,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   const editor = byId("editor"), status = byId("status"), previewContent = byId("preview-content");
   const actions = byId("actions"), ticker = byId("symbol");
   const keys = ["currentRead", "bias", "confidence", "needsToHold", "cautionBelow", "momentumFailure", "mustClear", "breakoutContinuation", "targets", "downsideCheckpoints", "pullbackPlans", "failureRecovery", "catalystRealityCheck", "dilutionRisk", "listingStatus", "riskSummary", "ownerHiddenSections"];
-  const sectionLabels = { currentRead: "Analysis", needsToHold: "Structure Weakens", cautionBelow: "Caution below", momentumFailure: "Momentum failure", mustClear: "Must clear", breakoutContinuation: "Breakout continuation", targets: "Where the trade could go next", downsideCheckpoints: "Downside levels", shallow: "Shallow pullback", deep: "Deep pullback", failureRecovery: "Failure and recovery", catalystRealityCheck: "Catalyst / recent news", dilutionRisk: "Dilution risk", listingStatus: "Listing status", riskSummary: "Risk notes" };
+  const sectionLabels = { currentRead: "Analysis", needsToHold: "Structure Weakens", cautionBelow: "Caution below", momentumFailure: "Momentum failure", mustClear: "Must clear", breakoutContinuation: "Breakout continuation", targets: "Potential Targets (Volume Dependent)", downsideCheckpoints: "Downside levels", shallow: "Shallow pullback", deep: "Deep pullback", failureRecovery: "Failure and recovery", catalystRealityCheck: "Catalyst / recent news", dilutionRisk: "Dilution risk", listingStatus: "Listing status", riskSummary: "Risk notes" };
   const fieldLabels = { label: "Label", price: "Price", rationale: "Rationale", condition: "Condition", zoneLow: "Area low", zoneHigh: "Area high", confirmationPrice: "Confirmation price", confirmation: "Confirmation", invalidationPrice: "Invalidation price", firstObjectivePrice: "Next level", recoveryZoneLow: "Recovery area low", recoveryZoneHigh: "Recovery area high", firstReclaimPrice: "First reclaim", setupRestorePrice: "Recovery setup established above", summary: "Summary", dayTradeRelevance: "Day-trading relevance" };
   const levelFields = ["label", "price", "rationale"];
   const pullbackFields = ["zoneLow", "zoneHigh", "confirmationPrice", "confirmation", "rationale"];
@@ -185,7 +185,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     if (patch.simpleAnalysis) {
       const simple=patch.simpleAnalysis;
       input(section("currentRead"),"Analysis",simple,"setup",false);
-      [["pullbacks","Pullback",2],["upside","Where it could go next",5]].forEach(([key,title,limit])=>{
+      [["pullbacks","Pullback",2],["upside","Potential Targets (Volume Dependent)",5]].forEach(([key,title,limit])=>{
         const parent=node("details",undefined,editor); node("summary",title,parent);
         const list=node("div",undefined,parent);
         const render=()=>{
@@ -352,7 +352,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
       node("p", "A zero means no record is available here. It does not prove that a request was never sent or that a stage never occurred.", container);
     }
     const checks = [];
-    const sectionNames = { "pullbackPlans.shallow": "Shallow pullback", "pullbackPlans.deep": "Deep pullback", failureRecovery: "Failure / recovery", breakoutContinuation: "Breakout continuation", mustClear: "Must-clear level", targets: "Where the trade could go next", downsideCheckpoints: "Downside checkpoints" };
+    const sectionNames = { "pullbackPlans.shallow": "Shallow pullback", "pullbackPlans.deep": "Deep pullback", failureRecovery: "Failure / recovery", breakoutContinuation: "Breakout continuation", mustClear: "Must-clear level", targets: "Potential Targets (Volume Dependent)", downsideCheckpoints: "Downside checkpoints" };
     const reasons = { invalid_number: "a required price is missing or invalid", low_confidence: "generation confidence is low", zone_order: "zone prices are reversed", reference_order: "price ordering does not fit the analysis price", missing_evidence: "no supporting observation was cited", unknown_evidence: "a cited observation was not in the packet", zone_evidence_mismatch: "zone prices do not match the cited base", invalidation_order: "invalidation does not sit below the zone", confirmation_order: "confirmation prices are out of order", objective_order: "the optional objective is out of order", momentum_failed: "the analysis price is already at or below momentum failure", failure_order: "invalidation conflicts with momentum failure", reclaim_order: "reclaim does not clear the recovery zone", restore_order: "setup restoration does not clear reclaim", zone_overlap: "the zones overlap or lack separation" };
     const diagnosticEvents = Array.isArray(audit.diagnostic && audit.diagnostic.events) ? audit.diagnostic.events : [];
     const savedValidationEvents = (Array.isArray(audit.selectedEvents) ? audit.selectedEvents : []).flatMap(event =>

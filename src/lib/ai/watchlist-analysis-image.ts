@@ -42,7 +42,7 @@ export function analysisImageSections(read: TradersLinkAiReadPayload, dipVisible
       value(area(plan.low, plan.high)), body(plan.explanation),
       body(plan.confirmation.trim() ? `Required confirmation: ${plan.confirmation}` : ""),
     ]));
-    add("targets", "Where it could go next", simple.upside.flatMap(level => [value(area(level.low, level.high)), body(level.explanation)]));
+    add("targets", "Potential Targets (Volume Dependent)", simple.upside.flatMap(level => [value(area(level.low, level.high)), body(level.explanation)]));
     return sections;
   }
   // Future contracts need their own projection; do not silently misrepresent them.
@@ -53,7 +53,7 @@ export function analysisImageSections(read: TradersLinkAiReadPayload, dipVisible
     const level = read[key];
     if (level) add(key, title, [value(price(level.price)), body(level.rationale)]);
   }
-  add("targets", "Where the trade could go next", read.targets.flatMap(level => [value(level.price === null ? level.label : price(level.price)), body(level.condition)]));
+  add("targets", "Potential Targets (Volume Dependent)", read.targets.flatMap(level => [value(level.price === null ? level.label : price(level.price)), body(level.condition)]));
   let count = 0;
   for (const key of ["shallow", "deep"] as const) {
     const plan = read.pullbackPlans[key];

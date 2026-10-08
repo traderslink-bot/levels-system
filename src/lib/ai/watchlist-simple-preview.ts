@@ -26,7 +26,7 @@ export function renderSimpleAnalysisPreviewCard({symbol,reference,read}: SimpleA
     pullbacks.map((plan,index)=>section(index === 0 ? 'Pullback' : 'Deeper pullback',
       `<strong>${area(plan.low,plan.high)}</strong>` + text(plan.explanation) +
       `<p><b>Confirmation:</b> ${escape(plan.confirmation)}</p>`)).join('') +
-    (read.upside.length ? section('Where it could go next',`<ol>${read.upside.map(level=>
+    (read.upside.length ? section('Potential Targets (Volume Dependent)',`<ol>${read.upside.map(level=>
       `<li><strong>${area(level.low,level.high)}</strong>${text(level.explanation)}</li>`).join('')}</ol>`) : '') +
     '</article>';
 }
