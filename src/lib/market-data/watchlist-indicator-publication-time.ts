@@ -3,7 +3,7 @@ import type { ReviewState } from "../ai/traderslink-ai-read-review-store.js";
 const timestamp = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 
-/** Match Platform's firstPostedAt without changing the post or its approval. */
+/** Publication eligibility only; this timestamp is not the indicator cache identity. */
 export function watchlistIndicatorPublicationTime(
   activatedAt: number | undefined,
   reviewRequired: boolean,
@@ -32,4 +32,9 @@ export function watchlistIndicatorPublicationTime(
     return timestamp(card.updatedAt) ? [card.updatedAt] : [];
   });
   return times.length ? Math.min(...times) : null;
+}
+
+/** Saved opaque activation identity; never manufacture one during a refresh. */
+export function watchlistIndicatorPublicationIdentity(value: unknown): string | undefined {
+  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value) ? value : undefined;
 }

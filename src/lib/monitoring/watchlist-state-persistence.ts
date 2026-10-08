@@ -1,3 +1,4 @@
+import { watchlistIndicatorPublicationIdentity } from "../market-data/watchlist-indicator-publication-time.js";
 import { isTopWatchesGroup } from "../live-watchlist/top-watches-group.js";
 import { normalizeOvernightLevelReference } from "../live-watchlist/overnight-level-reference.js";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -369,6 +370,7 @@ function validateEntry(value: unknown): WatchlistEntry | null {
           ? "active"
           : "inactive",
     activatedAt: normalizeOptionalTimestamp(value.activatedAt),
+    indicatorPublicationIdentity: watchlistIndicatorPublicationIdentity(value.indicatorPublicationIdentity),
     manualDeactivatedAt: normalizeOptionalTimestamp(value.manualDeactivatedAt),
     lastLevelPostAt: normalizeOptionalTimestamp(value.lastLevelPostAt),
     lastExtensionPostAt: normalizeOptionalTimestamp(value.lastExtensionPostAt),
@@ -482,6 +484,7 @@ function buildPersistedState(entries: WatchlistEntry[], now = Date.now()): Persi
       discordThreadId: entry.discordThreadId?.trim() || null,
       lifecycle: entry.lifecycle ?? (entry.active ? "active" : "inactive"),
       activatedAt: normalizeOptionalTimestamp(entry.activatedAt),
+      indicatorPublicationIdentity: watchlistIndicatorPublicationIdentity(entry.indicatorPublicationIdentity),
       manualDeactivatedAt: normalizeOptionalTimestamp(entry.manualDeactivatedAt),
       lastLevelPostAt: normalizeOptionalTimestamp(entry.lastLevelPostAt),
       lastExtensionPostAt: normalizeOptionalTimestamp(entry.lastExtensionPostAt),

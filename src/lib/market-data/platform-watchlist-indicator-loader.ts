@@ -1,7 +1,7 @@
 import type { Candle } from "./candle-types.js";
 
 export type SharedIndicatorCandles = Readonly<{ handled: boolean; provider: "moomoo" | "yahoo" | null; candles: readonly Candle[] }>;
-export type WatchlistIndicatorCandleLoader = (input: Readonly<{ symbol: string; activatedAt: number; asOfTimeMs: number }>) => Promise<SharedIndicatorCandles>;
+export type WatchlistIndicatorCandleLoader = (input: Readonly<{ symbol: string; indicatorPublicationIdentity: string; asOfTimeMs: number }>) => Promise<SharedIndicatorCandles>;
 
 /** Existing publisher authorization only. Provider OAuth never leaves Platform. */
 export function createPlatformWatchlistIndicatorLoader(environment: NodeJS.ProcessEnv = process.env): WatchlistIndicatorCandleLoader | null {
@@ -14,11 +14,11 @@ export function createPlatformWatchlistIndicatorLoader(environment: NodeJS.Proce
     endpoint.search = ""; endpoint.hash = "";
   } catch { return null; }
   if (!token) return null;
-  return async ({ symbol, activatedAt, asOfTimeMs }) => {
+  return async ({ symbol, indicatorPublicationIdentity, asOfTimeMs }) => {
     const unavailable = { handled: false, provider: null, candles: [] } as const;
     try {
       const response = await fetch(endpoint, { method: "POST", redirect: "error", cache: "no-store", signal: AbortSignal.timeout(10_000),
-        headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ symbol, activatedAt }) });
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ symbol, indicatorPublicationIdentity }) });
       if (!response.ok) return unavailable;
       const reader = response.body?.getReader();
       if (!reader) return unavailable;

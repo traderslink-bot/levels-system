@@ -1,3 +1,4 @@
+import { watchlistIndicatorPublicationIdentity } from "../market-data/watchlist-indicator-publication-time.js";
 import { isTopWatchesGroup } from "../live-watchlist/top-watches-group.js";
 import { normalizeOvernightLevelReference } from "../live-watchlist/overnight-level-reference.js";
 // 2026-04-14 09:28 PM America/Toronto
@@ -162,6 +163,7 @@ export class WatchlistStore {
       lifecycle,
       refreshPending: entry.refreshPending ?? false,
       ...(activatedAt !== undefined ? { activatedAt } : {}),
+      indicatorPublicationIdentity: watchlistIndicatorPublicationIdentity(entry.indicatorPublicationIdentity),
       ...(manualDeactivatedAt !== undefined ? { manualDeactivatedAt } : {}),
       ...(lastLevelPostAt !== undefined ? { lastLevelPostAt } : {}),
       ...(lastExtensionPostAt !== undefined ? { lastExtensionPostAt } : {}),
@@ -230,6 +232,7 @@ export class WatchlistStore {
     active: boolean;
     lifecycle?: WatchlistLifecycleState;
     activatedAt?: number;
+    indicatorPublicationIdentity?: string;
     manualDeactivatedAt?: number | null;
     lastLevelPostAt?: number;
     lastExtensionPostAt?: number;
@@ -276,6 +279,7 @@ export class WatchlistStore {
           ? input.discordThreadId?.trim() || null
           : existing?.discordThreadId ?? null,
       lifecycle: input.lifecycle ?? existing?.lifecycle ?? (input.active ? "active" : "inactive"),
+      indicatorPublicationIdentity: watchlistIndicatorPublicationIdentity(input.indicatorPublicationIdentity ?? existing?.indicatorPublicationIdentity),
       activatedAt:
         normalizeFiniteTimestamp(input.activatedAt) ??
         existing?.activatedAt ??

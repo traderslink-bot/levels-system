@@ -27,7 +27,7 @@ import { resolveTradersLinkAiReadReferenceQuote } from "../ai/traderslink-ai-rea
 import { CandleFetchService, type HistoricalFetchRequest } from "../market-data/candle-fetch-service.js";
 import type { MoomooAiReadCandleLoader } from "../market-data/platform-moomoo-ai-read-candle-loader.js";
 import type { WatchlistIndicatorCandleLoader } from "../market-data/platform-watchlist-indicator-loader.js";
-import { watchlistIndicatorPublicationTime } from "../market-data/watchlist-indicator-publication-time.js";
+import { watchlistIndicatorPublicationTime, watchlistIndicatorPublicationIdentity } from "../market-data/watchlist-indicator-publication-time.js";
 import { NasdaqTradingHaltService, type NasdaqTradingHaltLookup } from "../auto-watchlist/nasdaq-trading-halt-service.js";
 import type { Candle, CandleProviderResponse, CandleTimeframe } from "../market-data/candle-types.js";
 import type {
@@ -5066,7 +5066,7 @@ export class ManualWatchlistRuntimeManager {
       analysisImageVersion: input.actor === "runtime:automatic-boundary" ? undefined : preview.publication.analysisImageVersion,
       discordChunks: attributeOwnerApprovedDiscord(preview.publication.discordChunks, input.actor).map((chunk,index)=>index===0?applyDiscordOwnerText(chunk,input.discordText):chunk),
       website: { ...preview.publication.website, watchlistGroup: entry.watchlistGroup,
-        ...(!alreadyListed ? { firstPostedAt: this.options.now?.() ?? Date.now(), publicationPrice: this.publicationPrice(symbol) } : {}),
+        ...(!alreadyListed ? { firstPostedAt: this.options.now?.() ?? Date.now(), publicationPrice: this.publicationPrice(symbol), indicatorPublicationIdentity: watchlistIndicatorPublicationIdentity(entry.indicatorPublicationIdentity) } : {}),
       },
       notifyUsers: alreadyListed ? input.notifyUsers === true : input.notifyUsers !== false,
       notificationKind: alreadyListed ? "analysis" : "listing",
@@ -5147,6 +5147,7 @@ export class ManualWatchlistRuntimeManager {
     if (!alreadyListed) {
       snapshot.firstPostedAt = this.options.now?.() ?? Date.now();
       snapshot.publicationPrice = this.publicationPrice(symbol);
+      snapshot.indicatorPublicationIdentity = watchlistIndicatorPublicationIdentity(entry.indicatorPublicationIdentity);
     }
     const audience = currentDiscordAudience();
     const approval = store.approveListingOnly(input.cycleId,store.read(input.cycleId)!.head,input.actor, {
@@ -7758,8 +7759,10 @@ export class ManualWatchlistRuntimeManager {
           entry.publicationReview?.required ? this.getTradersLinkAiReadReview(symbol) : null)
         : null;
       if (this.options.indicatorCandleLoader && publicationTime === null) return;
-      const shared = publicationTime !== null
-        ? await this.options.indicatorCandleLoader?.({ symbol, activatedAt: publicationTime, asOfTimeMs: endTimeMs })
+      const identity = watchlistIndicatorPublicationIdentity(entry.indicatorPublicationIdentity);
+      if (this.options.indicatorCandleLoader && !identity) return;
+      const shared = publicationTime !== null && identity
+        ? await this.options.indicatorCandleLoader?.({ symbol, indicatorPublicationIdentity: identity, asOfTimeMs: endTimeMs })
         : undefined;
       if (shared?.handled && !shared.candles.length) return;
       // Compatibility fallback only when the new Platform bridge itself is unavailable.
@@ -13063,6 +13066,7 @@ export class ManualWatchlistRuntimeManager {
       ...patch,
       firstPostedAt: timestamp,
       publicationPrice: this.publicationPrice(symbol),
+      indicatorPublicationIdentity: watchlistIndicatorPublicationIdentity(this.watchlistStore.getEntry(symbol)?.indicatorPublicationIdentity),
       watchlistGroup: getWatchlistEntrySessionGroup(
         this.watchlistStore.getEntry(symbol) ?? {
           activatedAt: timestamp,
@@ -13837,6 +13841,7 @@ export class ManualWatchlistRuntimeManager {
     this.watchlistStore.upsertManualEntry({
       symbol, tags: watchlistTagsForActivation(input), watchlistGroup: watchlistGroupForActivation(input),
       note: input.note, active: true, lifecycle: "active", activatedAt: now, discordThreadId: null,
+      indicatorPublicationIdentity: randomUUID(),
       lastError: null,
       publicationReview: { cycleId, required: true }, refreshPending: false,
       aiReadAdmission: { ...this.captureAiReadAdmission(input), ...(input.generateAnalysis === false ? { initialGenerationEnabled: false } : {}) },
@@ -14038,6 +14043,7 @@ export class ManualWatchlistRuntimeManager {
       active: false,
       lifecycle: "activating",
       activatedAt: activationInput.preservedActivatedAt ?? queuedAt,
+      indicatorPublicationIdentity: randomUUID(),
       refreshPending: true,
       lastError: null,
       operationStatus: "queued for activation",

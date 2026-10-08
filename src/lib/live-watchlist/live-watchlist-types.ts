@@ -61,6 +61,7 @@ export type LiveWatchlistCardPatch = {
   status?: LiveWatchlistStatus;
   updatedAt: number;
   firstPostedAt?: number | null;
+  indicatorPublicationIdentity?: string;
   /** Present only on a first public listing, never on an analysis refresh. */
   publicationPrice?: number | null;
   watchlistGroup?: LiveWatchlistGroup;

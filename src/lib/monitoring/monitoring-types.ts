@@ -335,6 +335,8 @@ export type WatchlistTradersLinkAiReadFailure = {
 export type WatchlistGroup = "top_regular" | "main" | "postmarket" | "general" | "private" | "swings" | `top_watches:${string}`;
 
 export type WatchlistEntry = {
+  /** New UUID per true activation; preserved across retries and restarts. */
+  indicatorPublicationIdentity?: string;
   overnightLevelReference?: import("../live-watchlist/overnight-level-reference.js").OvernightLevelReference;
   overnightQuoteAttemptedAt?: number;
   automaticAnalysisEnabled?: boolean;
