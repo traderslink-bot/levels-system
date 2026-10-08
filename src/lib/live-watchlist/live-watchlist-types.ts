@@ -188,7 +188,7 @@ export type TradersLinkAiReadPullbackScenario = {
   zoneHigh: number;
   confirmationPrice: number;
   confirmation: string;
-  invalidationPrice: number;
+  invalidationPrice: number | null;
   firstObjectivePrice: number | null;
   rationale: string;
   evidenceIds: string[];

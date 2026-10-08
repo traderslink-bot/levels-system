@@ -77,7 +77,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   const sectionLabels = { currentRead: "Analysis", needsToHold: "Support to watch", cautionBelow: "Caution below", momentumFailure: "Momentum failure", mustClear: "Must clear", breakoutContinuation: "Breakout continuation", targets: "Where the trade could go next", downsideCheckpoints: "Downside levels", shallow: "Shallow pullback", deep: "Deep pullback", failureRecovery: "Failure and recovery", catalystRealityCheck: "Catalyst / recent news", dilutionRisk: "Dilution risk", listingStatus: "Listing status", riskSummary: "Risk notes" };
   const fieldLabels = { label: "Label", price: "Price", rationale: "Rationale", condition: "Condition", zoneLow: "Area low", zoneHigh: "Area high", confirmationPrice: "Confirmation price", confirmation: "Confirmation", invalidationPrice: "Invalidation price", firstObjectivePrice: "Next level", recoveryZoneLow: "Recovery area low", recoveryZoneHigh: "Recovery area high", firstReclaimPrice: "First reclaim", setupRestorePrice: "Recovery setup established above", summary: "Summary", dayTradeRelevance: "Day-trading relevance" };
   const levelFields = ["label", "price", "rationale"];
-  const pullbackFields = ["zoneLow", "zoneHigh", "confirmationPrice", "confirmation", "invalidationPrice", "firstObjectivePrice", "rationale"];
+  const pullbackFields = ["zoneLow", "zoneHigh", "confirmationPrice", "confirmation", "rationale"];
   const recoveryFields = ["recoveryZoneLow", "recoveryZoneHigh", "firstReclaimPrice", "setupRestorePrice", "firstObjectivePrice", "rationale"];
   let review = null, patch = null, preview = null, dirty = false, busy = false, controlsLoaded = false;
   let historical = false;
@@ -192,7 +192,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
           list.replaceChildren();
           simple[key].forEach((item,index)=>{
             const row=node("fieldset",undefined,list);node("legend",title+" "+(index+1),row);
-            ["low","high","explanation",...(key==="pullbacks"?["confirmation","invalidation"]:[])].forEach(name=>
+            ["low","high","explanation",...(key==="pullbacks"?["confirmation"]:[])].forEach(name=>
               input(row,({low:"Area low",high:"Area high",explanation:"Explanation",confirmation:"Confirmation",invalidation:"Invalidation price"})[name],item,name,["low","high","invalidation"].includes(name)));
             const remove=node("button","Remove",row);remove.type="button";remove.onclick=()=>{simple[key].splice(index,1);changed();render();};
           });
@@ -203,11 +203,6 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
         };
       });
       ["shallow","deep","targets"].forEach(key=>section(key));
-      const invalidation=section("momentumFailure");
-      const addFailure=node("button",simple.invalidation?"Remove invalidation":"Add invalidation",invalidation);addFailure.type="button";
-      const body=node("div",undefined,invalidation);
-      const showFailure=()=>{body.replaceChildren();addFailure.textContent=simple.invalidation?"Remove invalidation":"Add invalidation";if(simple.invalidation){input(body,"Price",simple.invalidation,"price",true);input(body,"Explanation",simple.invalidation,"explanation",false);}};
-      addFailure.onclick=()=>{simple.invalidation=simple.invalidation?null:{price:null,explanation:""};changed();showFailure();};showFailure();
       renderReviewHistory(review.events,editor);return;
     }
     node("p", review.symbol + " · Saved version " + draft.revision + " · Analysis price $" + draft.body.payload.currentPrice, editor);

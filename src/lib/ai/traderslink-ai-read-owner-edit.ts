@@ -5,7 +5,7 @@ export const OWNER_ANALYSIS_SECTIONS = ["currentRead", "needsToHold", "cautionBe
 type Shape = Record<string, "text" | "price">;
 const level: Shape = { label: "text", price: "price", rationale: "text" };
 const target: Shape = { label: "text", price: "price", condition: "text" };
-const pullback: Shape = { zoneLow: "price", zoneHigh: "price", confirmationPrice: "price", confirmation: "text", invalidationPrice: "price", firstObjectivePrice: "price", rationale: "text" };
+const pullback: Shape = { zoneLow: "price", zoneHigh: "price", confirmationPrice: "price", confirmation: "text", rationale: "text" };
 const recovery: Shape = { recoveryZoneLow: "price", recoveryZoneHigh: "price", firstReclaimPrice: "price", setupRestorePrice: "price", firstObjectivePrice: "price", rationale: "text" };
 
 function record(value: unknown): Record<string, unknown> {
@@ -74,8 +74,11 @@ export function applyOwnerAnalysisEdit(original: TradersLinkAiReadPayload, rawPa
       if (Object.keys(plans).some((name) => name !== "shallow" && name !== "deep")) throw new Error("Unexpected pullback field.");
       for (const name of ["shallow", "deep"] as const) {
         if (!Object.hasOwn(plans, name)) continue;
-        result.pullbackPlans[name] = plans[name] === null ? null : {
-          ...shape(plans[name], pullback, false), evidenceIds: [],
+        // Retired fields from older editor windows remain readable but are no longer edited.
+        const activePlan = plans[name] === null ? null : { ...record(plans[name]) };
+        if (activePlan) { delete activePlan.invalidationPrice; delete activePlan.firstObjectivePrice; }
+        result.pullbackPlans[name] = activePlan === null ? null : {
+          ...shape(activePlan, pullback, false), invalidationPrice: original.pullbackPlans[name]?.invalidationPrice ?? null, firstObjectivePrice: original.pullbackPlans[name]?.firstObjectivePrice ?? null, evidenceIds: [],
         } as unknown as NonNullable<TradersLinkAiReadPayload["pullbackPlans"]["shallow"]>;
       }
     } else if (key === "failureRecovery") output[key] = value === null ? null : { ...shape(value, recovery, false), evidenceIds: [] };
@@ -95,7 +98,7 @@ export function applyOwnerAnalysisEdit(original: TradersLinkAiReadPayload, rawPa
   for (const [name, plan] of Object.entries(result.pullbackPlans)) {
     if (!plan) continue;
     if (plan.zoneLow > plan.zoneHigh) warnings.push(`${name} pullback low is above its high.`);
-    if (plan.invalidationPrice >= plan.zoneLow) warnings.push(`${name} pullback invalidation is at or above its zone.`);
+    if (plan.invalidationPrice != null && plan.invalidationPrice >= plan.zoneLow) warnings.push(`${name} pullback invalidation is at or above its zone.`);
     if (plan.zoneHigh >= result.currentPrice) warnings.push(`${name} pullback is not below the analysis reference price.`);
   }
   if (result.needsToHold.price !== null && result.momentumFailure.price !== null && result.momentumFailure.price > result.needsToHold.price) warnings.push("Momentum failure is above the needs-to-hold price.");

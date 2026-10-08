@@ -136,18 +136,18 @@ export function validatePullbackSection(
   const add = (code: AnalysisSectionIssue["code"], field: string, action: AnalysisSectionIssue["action"] = "omit_section") =>
     issues.push({ path: `${path}.${field}`, code, action });
   const tolerance = numericOrderingTolerance(context.referencePrice);
-  for (const field of ["zoneLow", "zoneHigh", "invalidationPrice", "confirmationPrice"] as const) {
+  for (const field of ["zoneLow", "zoneHigh", "confirmationPrice"] as const) {
     if (!positive(scenario[field])) add("invalid_number", field);
   }
   if (!positive(context.referencePrice)) add("invalid_number", "referencePrice");
   if (context.confidence === "low") add("low_confidence", "confidence");
   if (scenario.zoneLow > scenario.zoneHigh) add("zone_order", "zone");
   if (scenario.zoneHigh >= context.referencePrice - tolerance) add("reference_order", "zoneHigh");
-  if (scenario.invalidationPrice >= scenario.zoneLow - tolerance) add("invalidation_order", "invalidationPrice");
+  if (scenario.invalidationPrice !== null && scenario.invalidationPrice >= scenario.zoneLow - tolerance) add("invalidation_order", "invalidationPrice");
   if (scenario.confirmationPrice < scenario.zoneLow - tolerance) add("confirmation_order", "confirmationPrice");
   if (context.momentumFailure !== null) {
     if (context.referencePrice <= context.momentumFailure + tolerance) add("momentum_failed", "zone");
-    if (name === "deep" && scenario.invalidationPrice < context.momentumFailure - tolerance) add("failure_order", "invalidationPrice");
+    if (name === "deep" && scenario.invalidationPrice !== null && scenario.invalidationPrice < context.momentumFailure - tolerance) add("failure_order", "invalidationPrice");
   }
   if (scenario.firstObjectivePrice !== null &&
     (!positive(scenario.firstObjectivePrice) || scenario.firstObjectivePrice <= scenario.zoneHigh + tolerance)) {

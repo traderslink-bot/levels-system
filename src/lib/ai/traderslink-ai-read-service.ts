@@ -329,14 +329,6 @@ const PULLBACK_SCENARIO_SCHEMA = {
       description: "Reclaim or hold price at or above zoneLow; it must never be below the zone.",
     },
     confirmation: { type: "string" },
-    invalidationPrice: {
-      type: "number",
-      description: "Must be strictly below zoneLow. For a deep plan it must also be at or above momentumFailure.",
-    },
-    firstObjectivePrice: {
-      type: ["number", "null"],
-      description: "Null or a price strictly above zoneHigh.",
-    },
     rationale: { type: "string" },
     evidenceIds: EVIDENCE_IDS_SCHEMA,
   },
@@ -345,8 +337,6 @@ const PULLBACK_SCENARIO_SCHEMA = {
     "zoneHigh",
     "confirmationPrice",
     "confirmation",
-    "invalidationPrice",
-    "firstObjectivePrice",
     "rationale",
     "evidenceIds",
   ],
@@ -547,11 +537,6 @@ export const AI_READ_SCHEMA = {
       type: "array", items: CHECKPOINT_SCHEMA, maxItems: 2,
       description: "Independent observed resistance above reference price but below the main breakout, or a usable independent upside path when no breakout is supported. Empty when unavailable.",
     },
-    downsideCheckpoints: {
-      type: "array",
-      items: CHECKPOINT_SCHEMA,
-      maxItems: 4,
-    },
     failureRecovery: FAILURE_RECOVERY_SCHEMA,
     catalystRealityCheck: CATALYST_CONTEXT_SCHEMA,
     dilutionRisk: DILUTION_RISK_SCHEMA,
@@ -575,7 +560,6 @@ export const AI_READ_SCHEMA = {
     "mustClearEvidence",
     "breakoutCandidates",
     "approachCheckpoints",
-    "downsideCheckpoints",
     "failureRecovery",
     "catalystRealityCheck",
     "dilutionRisk",
@@ -618,16 +602,16 @@ Interpretation contract:
 - The tactical prices must be meaningfully spaced for the stock's observed volatility. Dense adjacent prices are acceptable only when the OHLCV record shows distinct consolidation, breakout, and acceptance structures at each one.
 - Every non-null tactical rationale must state the observable tape evidence that produced it: the relevant session, consolidation/rejection/reclaim behavior, repeated tests, range boundary, volume landmark, prior close, or recent daily high/low. Generic phrases such as "first resistance," "daily confluence," "4h structure," "support stack," or "next level" are invalid.
 - Use only timeframes actually present. The packet can include current and previous-session five-minute bars, recent one-minute detail, historical daily and four-hour bars, and Levels-system provenance. Inspect the recorded coverage; missing bars are not zero activity. A calculated level is contextual evidence, not a guaranteed reaction or a substitute for interpreting the price sequence.
-- pullbackPlans is not another momentum-entry ladder. shallow is a meaningful controlled pullback into an observed base, distinct from an immediate momentum retest inside ordinary candle noise; deep is an optional reset into a materially lower observed base after acceleration unwinds. Select zones only from supplied pullbackCandidates and cite their exact candidate IDs. Do not invent a zone, widen one candidate by combining unrelated structures, or use EMA, VWAP, a percentage, or a Fibonacci-style retracement to create a zone. Those measurements may explain extension only. Evaluate candidate bases and momentumFailure jointly before selecting the final plan: a tight provisional failure choice must not automatically exclude a structurally meaningful deeper base. Do not move failure merely to fit a desired percentage or force a pullback to qualify. When broaderSessionMove and its broader_move_origin candidate are present, retain that observed origin as a legitimate deeper possibility: it may be the deep reset only when its invalidation remains at or above the final evidence-backed momentumFailure; when it sits below that final failure boundary, use it only as the failureRecovery watch zone with a required new base and reclaim.
-- Each pullback scenario must sit below currentPrice and state a confirmation price/instruction, invalidation, and first objective. For both scenarios the exact numeric ordering is invalidationPrice < zoneLow <= zoneHigh < currentPrice, confirmationPrice >= zoneLow, and firstObjectivePrice > zoneHigh when an objective is supplied. Confirmation requires observed buyer defense, a higher low, or reclaim; first touch is never confirmation. Shallow invalidation may hand off to a separate deep setup. Deep must be entirely below and materially separated from shallow. For deep, momentumFailure <= invalidationPrice < zoneLow; omit deep when no price can satisfy that ordering or when there is no defensible second observed structure.
-- Resolve the complete dip-buy structure before finalizing the core failure boundary. For each selected candidate, distinguish the base's lower edge, the conditional buyer-confirmation price, and the price below the base that would invalidate that particular setup. An impulse origin inside the selected base is not that base's invalidation. Do not reuse such an interior price as invalidationPrice simply because it is observed or was chosen for another field. Reconcile the final broader momentumFailure with the supported shallow and deep scenarios together, and explain the structural reason for each boundary. A local continuation failure need not be failure of a lower defended base. Do not move any boundary solely to satisfy arithmetic: choose a coherent evidenced plan, not independently plausible prices that contradict each other.
+- pullbackPlans is not another momentum-entry ladder. shallow is a meaningful controlled pullback into an observed base, distinct from an immediate momentum retest inside ordinary candle noise; deep is an optional reset into a materially lower observed base after acceleration unwinds. Select zones only from supplied pullbackCandidates and cite their exact candidate IDs. Do not invent a zone, widen one candidate by combining unrelated structures, or use EMA, VWAP, a percentage, or a Fibonacci-style retracement to create a zone. Those measurements may explain extension only. Evaluate candidate bases and momentumFailure jointly before selecting the final plan: a tight provisional failure choice must not automatically exclude a structurally meaningful deeper base. Do not move failure merely to fit a desired percentage or force a pullback to qualify. When broaderSessionMove and its broader_move_origin candidate are present, retain that observed origin as a legitimate deeper possibility: evaluate it as a deeper conditional dip-buy area using its observed structure and required buyer confirmation.
+- Each pullback scenario must sit below currentPrice and state a confirmation price/instruction. For both scenarios use zoneLow <= zoneHigh < currentPrice and confirmationPrice >= zoneLow. Do not generate pullback invalidation or first-objective fields. Confirmation requires observed buyer defense, a higher low, or reclaim; first touch is never confirmation. Deep must be entirely below and materially separated from shallow. Retain deep when a defensible second observed structure supports it.
+- Resolve the complete dip-buy structure before finalizing the core failure boundary. For each selected candidate, distinguish the base's lower edge, the conditional buyer-confirmation price, and the structural role of each area. Do not add separate pullback invalidation or first-objective fields. Reconcile the final broader momentumFailure with the supported shallow and deep scenarios together, and explain the structural reason for each boundary. A local continuation failure need not be failure of a lower defended base. Do not move any boundary solely to satisfy arithmetic: choose a coherent evidenced plan, not independently plausible prices that contradict each other.
 - If the closest candidate is only a local momentum pause, leave shallow null and still evaluate the deeper candidates independently. A missing or unusable shallow setup is not a reason to omit a supported deep setup. Keep a supported deep setup in deep even when it is the only pullback. Low confidence must return both pullback scenarios as null. At or below momentumFailure neither scenario is active.
 - failureRecovery is the plan after the original momentum setup fails. Use a supplied lower candidate for the recovery-watch zone, require a future new base plus first reclaim, identify the higher evidence-backed reclaim that establishes a new bullish recovery setup, and provide the first recovery objective. Its exact numeric ordering is recoveryZoneLow <= recoveryZoneHigh < firstReclaimPrice < setupRestorePrice. After a full unwind to a materially lower broader-move origin, setupRestorePrice does not have to reach the failed plan's old momentumFailure or cautionBelow; use an observed prior breakout, acceptance boundary, or prior-plan pivot that would make the lower-base recovery structurally valid. Do not imply that this revives the old momentum plan—the new base and reclaim create a new recovery thesis. firstObjectivePrice must be greater than firstReclaimPrice and materially distinct from setupRestorePrice when an objective is supplied, and it must be above setupRestorePrice; otherwise leave the objective null. firstReclaimPrice must be strictly above recoveryZoneHigh, not equal to it and not rounded down to the zone boundary. Touching lower support alone never qualifies. This is a conditional plan, so the recovery sequence need not have happened at generation time; return null only when observed structure cannot support defensible recovery-watch and reclaim prices.
 - It is normal to leave fields null or return fewer targets when the tape does not support distinct boundaries. Do not manufacture a complete symmetrical staircase.
 - Prefer trader-usable zones and psychologically meaningful prices over false precision. For prices at or above $1, use cents unless a finer tick is essential; below $1, use no more than four decimals.
 - The required downside ordering applies to retained values: currentPrice >= needsToHold >= cautionBelow >= momentumFailure. Equal prices are allowed when one structural boundary serves two roles; null is better than inventing a distinction. momentumFailure is failure of the stated broader momentum structure, not every local dip or failed breakout attempt. Explain which scenario weakens or fails. When mustClear is present it is an independently meaningful earlier improvement pivot below breakoutContinuation; otherwise omit mustClear and retain the supported main breakout alone.
-- Candidate targets are ordered upside checkpoints AFTER that candidate's breakout. Separately, approachCheckpoints describe up to two meaningful observed resistance areas ABOVE currentPrice but BELOW the main breakout; a bounce or recovery can reach these before a breakout occurs. Root their dependsOn at the exact identifier currentPrice, optionally with an earlier approach checkpoint ID. Their conditions must be self-contained and must not require breakout confirmation. If no breakout is supported, an independently supported upside path can still use approachCheckpoints. Do not duplicate the breakout level or invent nearby steps to fill slots. downsideCheckpoints are ordered lower structural areas exposed after momentumFailure. These are conditional price paths, not mandatory entries or exits.
-- Give each downside checkpoint a unique id and explicit dependsOn IDs rooted at the EXACT identifier momentumFailure (not momentum-failure). Include earlier checkpoint IDs only when its condition requires them. Breakout candidate targets use their candidate identifier primary or alternate as the root, never breakoutContinuation or breakout-continuation. Do not reference future, unknown or opposite-side IDs. These IDs are internal, not visible analysis.
+- Candidate targets are ordered upside checkpoints AFTER that candidate's breakout. Separately, approachCheckpoints describe up to two meaningful observed resistance areas ABOVE currentPrice but BELOW the main breakout; a bounce or recovery can reach these before a breakout occurs. Root their dependsOn at the exact identifier currentPrice, optionally with an earlier approach checkpoint ID. Their conditions must be self-contained and must not require breakout confirmation. If no breakout is supported, an independently supported upside path can still use approachCheckpoints. Do not duplicate the breakout level or invent nearby steps to fill slots. Do not generate downsideCheckpoints or an If momentum fails section. These are conditional price paths, not mandatory entries or exits.
+- Breakout candidate targets use their candidate identifier primary or alternate as the root, never breakoutContinuation or breakout-continuation. Do not reference future, unknown or opposite-side IDs. These IDs are internal, not visible analysis.
 - momentumContextCandidates are brief local pauses, not selectable principal dip-buy zones. They may inform immediate momentum commentary. For pullbackPlans and failureRecovery, evidenceIds must contain only IDs from pullbackCandidates; do not mix breakoutEvidence IDs into this list. A deeper candidate may be the only meaningful pullback: keep that coverage instead of filling shallow with a tiny local pause.
 - Build an ordered upside route, not just a first objective and a distant endpoint. After selecting the breakout, review the supplied session and daily highs for meaningful intervening resistance, including repeated nearby supply and prior expansion highs. Use the available target slots for several distinct supported checkpoints when the tape provides them. A farther objective extends that route; it must not replace or leap over meaningful intermediate resistance merely to satisfy range coverage. Combine genuinely duplicate observations at one price, but do not discard distinct useful levels because their spacing is smaller than the jump to the outer objective. Explain the evidence for every selected checkpoint and its conditional progression.
 - Do not stop the upside map at a nearby first target when the supplied daily history shows a distinct, evidence-backed continuation boundary within roughly 50% of current price. Include that boundary as the final target when it remains practical and is not contradicted by intervening price action, while retaining the meaningful intermediate checkpoints before it. Return fewer targets only when fewer distinct levels are supported, not as a brevity shortcut. Do not invent levels to fill slots.
@@ -643,7 +627,7 @@ Interpretation contract:
 - Do not tell the reader to buy, sell, short, average down, or use a specific position size. This is preparation context, not personalized financial advice.
 - Avoid hype and false certainty. If evidence conflicts or is stale, lower confidence and say so.
 - Compare distanceInRecentMeanCandleRanges with distanceInMeanCandleRanges: the former uses the shared recent one-minute tape, the latter uses the candidate base's own bars. A quiet base can exaggerate the latter. recentTapeRange states the shared window and bar count; inspect its timing before treating it as current volatility. Neither measure is ATR or a minimum-entry rule.
-- Before returning JSON, self-audit retained values: currentPrice >= needsToHold >= cautionBelow >= momentumFailure; breakoutContinuation >= currentPrice, with each continuation target above breakoutContinuation. Only when mustClear is non-null also require currentPrice <= mustClear < breakoutContinuation. Missing optional levels are allowed. Then audit every candidate ID and pullback/recovery price against supplied candidate zones, including invalidationPrice < zoneLow for both pullbacks, momentumFailure <= invalidationPrice for deep, and recoveryZoneHigh < firstReclaimPrice < setupRestorePrice for failureRecovery. Ensure setupRestorePrice is evidence-backed and firstObjectivePrice is distinct from it. Use null rather than violating ordering or inventing a boundary.
+- Before returning JSON, self-audit retained values: currentPrice >= needsToHold >= cautionBelow >= momentumFailure; breakoutContinuation >= currentPrice, with each continuation target above breakoutContinuation. Only when mustClear is non-null also require currentPrice <= mustClear < breakoutContinuation. Missing optional levels are allowed. Then audit every candidate ID and pullback/recovery price against supplied candidate zones, including zoneLow <= zoneHigh < currentPrice for both pullbacks, and recoveryZoneHigh < firstReclaimPrice < setupRestorePrice for failureRecovery. Ensure setupRestorePrice is evidence-backed and firstObjectivePrice is distinct from it. Use null rather than violating ordering or inventing a boundary.
 - Keep currentRead to 2-4 short sentences describing the current regime and the actionable conditional paths. Keep each other rationale/condition to one concise sentence. Evidence explanations should identify the decisive observation briefly, not repeat the public rationale. Do not repeat unknown research limitations across multiple long paragraphs. Complete the JSON within the response budget.
 - For volatile micro/nano caps, do not choose a shallow pullback merely because it is the closest candidate. Compare observed base coverage, subsequent retests, distanceInMeanCandleRanges, wick behavior and retracementOfObservedMovePct across the whole session move. A nearby shelf inside ordinary candle noise can be immediate momentum context without being a useful shallow pullback. Select meaningful shallow and deep setups from observed structure, not universal minimum percentages; never invent or widen candidate prices to meet a percentage. Candidate ordering is an evidence heuristic, not a success probability. meanCandleRange is mean high-low range, not ATR; reportedVolumeFraction describes coverage, not zero-volume trading. Retain broader-origin and post-failure recovery context for different trading styles.
 - Return only the requested structured JSON.`;
@@ -776,8 +760,7 @@ function normalizePullbackScenario(value: unknown): TradersLinkAiReadPullbackSce
   if (
     zoneLow === null ||
     zoneHigh === null ||
-    confirmationPrice === null ||
-    invalidationPrice === null
+    confirmationPrice === null
   ) {
     return null;
   }
@@ -1801,8 +1784,8 @@ function assertTradersLinkAiTradeMap(
     if (!isSupportedPullbackZone(scenario.zoneLow, scenario.zoneHigh, supported)) {
       fail(`${label} pullback prices do not match a cited observed candidate zone`);
     }
-    if (isAbove(scenario.invalidationPrice, scenario.zoneLow) ||
-      Math.abs(scenario.invalidationPrice - scenario.zoneLow) <= tolerance) {
+    if (scenario.invalidationPrice !== null && (isAbove(scenario.invalidationPrice, scenario.zoneLow) ||
+      Math.abs(scenario.invalidationPrice - scenario.zoneLow) <= tolerance)) {
       fail(`${label} pullback invalidation must be below its zone`);
     }
     if (isBelow(scenario.confirmationPrice, scenario.zoneLow)) {
@@ -1826,6 +1809,7 @@ function assertTradersLinkAiTradeMap(
   if (
     deep &&
     read.momentumFailure.price !== null &&
+    deep.invalidationPrice !== null &&
     isBelow(deep.invalidationPrice, read.momentumFailure.price)
   ) {
     fail("deep pullback invalidation cannot be below momentumFailure");
@@ -2389,8 +2373,8 @@ function buildRequestBody(args: {
             correctionRules: [
               "Repair the exact validation error without inventing a price ladder.",
               "Re-check every tactical price against the raw price-action packet.",
-              "For every pullback use invalidationPrice < zoneLow <= zoneHigh < currentPrice.",
-              "For deep also use momentumFailure <= invalidationPrice; return deep as null when that ordering is impossible.",
+              "For every pullback use zoneLow <= zoneHigh < currentPrice and provide buyer confirmation.",
+              "Evaluate the deeper observed base independently; do not generate retired invalidation or first-objective fields.",
               "Do not add new research claims or source URLs during tactical correction.",
               "Return only the complete corrected JSON object.",
             ],

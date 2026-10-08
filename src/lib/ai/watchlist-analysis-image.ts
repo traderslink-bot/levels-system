@@ -40,10 +40,9 @@ export function analysisImageSections(read: TradersLinkAiReadPayload, dipVisible
       .filter(({ key }) => !hidden.has(key));
     plans.forEach(({ plan, key }, i) => add(key, i ? "Deeper pullback" : "Pullback", [
       value(area(plan.low, plan.high)), body(plan.explanation),
-      body(`Invalidation: ${price(plan.invalidation)}`), body(plan.confirmation.trim() ? `Required confirmation: ${plan.confirmation}` : ""),
+      body(plan.confirmation.trim() ? `Required confirmation: ${plan.confirmation}` : ""),
     ]));
     add("targets", "Where it could go next", simple.upside.flatMap(level => [value(area(level.low, level.high)), body(level.explanation)]));
-    if (simple.invalidation) add("momentumFailure", "Thesis invalidation", [value(price(simple.invalidation.price)), body(simple.invalidation.explanation)]);
     return sections;
   }
   // Future contracts need their own projection; do not silently misrepresent them.
@@ -62,8 +61,7 @@ export function analysisImageSections(read: TradersLinkAiReadPayload, dipVisible
     add(key, count++ ? "Deeper pullback" : "Pullback", [
       body(key === "shallow" ? "For traders seeking a controlled retest while momentum remains intact." : "For traders waiting for the accelerated move to unwind into its base."),
       value(area(plan.zoneLow, plan.zoneHigh)),
-      body(`Invalidation: ${price(plan.invalidationPrice)}`),
-      body(plan.firstObjectivePrice === null ? "" : `First objective: ${price(plan.firstObjectivePrice)}`), body(plan.rationale),
+      body(plan.rationale),
       body(`Required confirmation: ${price(plan.confirmationPrice)}. ${plan.confirmation}`)]);
   }
   add("downsideCheckpoints", "Downside after thesis failure", read.downsideCheckpoints.flatMap(level => [value(level.price === null ? level.label : price(level.price)), body(level.condition)]));

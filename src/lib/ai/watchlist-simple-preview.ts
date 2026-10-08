@@ -4,7 +4,7 @@ export type SimpleAnalysisPreview = {
   reference: number;
   read: {
     setup: string;
-    pullbacks: Array<{low: number; high: number; explanation: string; confirmation: string; invalidation: number}>;
+    pullbacks: Array<{low: number; high: number; explanation: string; confirmation: string; invalidation: number | null}>;
     upside: Array<{low: number; high: number; explanation: string}>;
     invalidation: {price: number; explanation: string} | null;
   };
@@ -25,10 +25,9 @@ export function renderSimpleAnalysisPreviewCard({symbol,reference,read}: SimpleA
     section('TradersLink Analysis',text(read.setup)) +
     pullbacks.map((plan,index)=>section(index === 0 ? 'Pullback' : 'Deeper pullback',
       `<strong>${area(plan.low,plan.high)}</strong>` + text(plan.explanation) +
-      `<p><b>Confirmation:</b> ${escape(plan.confirmation)}</p><p><b>Invalidation:</b> ${price(plan.invalidation)}</p>`)).join('') +
+      `<p><b>Confirmation:</b> ${escape(plan.confirmation)}</p>`)).join('') +
     (read.upside.length ? section('Where it could go next',`<ol>${read.upside.map(level=>
       `<li><strong>${area(level.low,level.high)}</strong>${text(level.explanation)}</li>`).join('')}</ol>`) : '') +
-    (read.invalidation ? section('Thesis invalidation',`<strong>${price(read.invalidation.price)}</strong>${text(read.invalidation.explanation)}`) : '') +
     '</article>';
 }
 

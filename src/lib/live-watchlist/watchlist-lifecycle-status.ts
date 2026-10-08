@@ -159,7 +159,7 @@ function scenarioLifecycleRead(
   currentPrice: number,
   updatedAt: number,
 ): LiveWatchlistLifecycleRead | null {
-  if (currentPrice <= scenario.invalidationPrice || currentPrice > scenario.zoneHigh) {
+  if ((scenario.invalidationPrice !== null && currentPrice <= scenario.invalidationPrice) || currentPrice > scenario.zoneHigh) {
     return null;
   }
   const name = scenarioName === "shallow" ? "shallow momentum" : "deep reset";

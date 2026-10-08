@@ -523,11 +523,11 @@ export function parseArchivedTradersLinkAiLifecyclePlan(
       if (value === null) return true;
       if (typeof value !== "object" || Array.isArray(value)) return false;
       const scenario = value as Record<string, unknown>;
-      if (!["zoneLow", "zoneHigh", "invalidationPrice"].every((key) =>
+      if (!["zoneLow", "zoneHigh"].every((key) =>
         typeof scenario[key] === "number" && Number.isFinite(scenario[key]) && Number(scenario[key]) > 0
       )) return false;
       return Number(scenario.zoneLow) <= Number(scenario.zoneHigh) &&
-        Number(scenario.invalidationPrice) < Number(scenario.zoneHigh);
+        (scenario.invalidationPrice == null || (typeof scenario.invalidationPrice === "number" && Number.isFinite(scenario.invalidationPrice) && scenario.invalidationPrice > 0 && scenario.invalidationPrice < Number(scenario.zoneHigh)));
     };
     const recovery = parsed.failureRecovery as Record<string, unknown> | null;
     const recoveryValid = recovery === null || (
