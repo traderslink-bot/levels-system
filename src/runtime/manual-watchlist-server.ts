@@ -3,6 +3,8 @@ import { getUsEquityTradingDay as topWatchesTradingDay } from "../lib/market-dat
 import { isTopWatchesGroup } from "../lib/live-watchlist/top-watches-group.js";
 import { isWatchlistModel, isWatchlistReasoningEffort } from "../lib/ai/watchlist-model-options.js";
 import "dotenv/config";
+import { PrivateWatchlistGenerationStore } from "./private-watchlist-generation-store.js";
+import { createPrivateWatchlistGenerationAdapter } from "./private-watchlist-generation-adapter.js";
 import { ANALYSIS_REVIEW_PATHS, dispatchAnalysisReviewRequest } from "./manual-watchlist-analysis-review-api.js";
 import { TradersLinkAiReadAuditStore } from "../lib/ai/traderslink-ai-read-audit.js";
 import { exportAnalysisReview } from "../lib/ai/traderslink-ai-read-review-export.js";
@@ -957,6 +959,17 @@ async function main(): Promise<void> {
       });
     },
   });
+  const privateWatchlistGeneration = new PrivateWatchlistGenerationStore(
+    join(durableDataDirectory, "member-private-watchlists"),
+    createPrivateWatchlistGenerationAdapter({
+      generateLevels: (request) => {
+        if (!dashboardEodhdHistoricalCandleService) throw new Error("Historical levels unavailable.");
+        return manager.generateLevelsWithWatchlistConfiguration({ ...request, historicalFetchService: dashboardEodhdHistoricalCandleService });
+      },
+      candles: sameDayCandleService,
+      settings: tradersLinkAiReadService,
+    }),
+  );
   const dayTradeAdapter = new DayTradeAdapterService(
     sameDayCandleService,
     (symbol) => manager.getDayTradeAdapterMarketContext(symbol),
@@ -1182,6 +1195,23 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (request.method === "POST" && ["/api/runtime/private-watchlist/quote", "/api/runtime/private-watchlist/generate", "/api/runtime/private-watchlist/receipt"].includes(url.pathname)) {
+      response.setHeader("Cache-Control", "private, no-store");
+      if (!runtimeAccessToken || !requestHasRuntimeAccess(request, runtimeAccessToken)) {
+        sendJson(response, 401, { error: "Runtime access token required." });
+        return;
+      }
+      try {
+        const body = await readJsonBody(request);
+        const result = url.pathname.endsWith("/quote") ? await privateWatchlistGeneration.quote(body)
+          : url.pathname.endsWith("/generate") ? await privateWatchlistGeneration.generate(body)
+          : await privateWatchlistGeneration.receipt(body);
+        sendJson(response, 200, result);
+      } catch {
+        sendJson(response, 422, { error: "Private Watchlist request unavailable. No automatic retry is permitted." });
+      }
+      return;
+    }
     if (request.method === "POST" && url.pathname === "/api/runtime/stock-levels") {
       if (!runtimeAccessToken || !requestHasRuntimeAccess(request, runtimeAccessToken)) {
         sendJson(response, 401, { error: "Runtime access token required." });
