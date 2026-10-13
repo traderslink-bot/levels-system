@@ -145,10 +145,7 @@ export function validatePullbackSection(
   if (scenario.zoneHigh >= context.referencePrice - tolerance) add("reference_order", "zoneHigh");
   if (scenario.invalidationPrice !== null && scenario.invalidationPrice >= scenario.zoneLow - tolerance) add("invalidation_order", "invalidationPrice");
   if (scenario.confirmationPrice < scenario.zoneLow - tolerance) add("confirmation_order", "confirmationPrice");
-  if (context.momentumFailure !== null) {
-    if (context.referencePrice <= context.momentumFailure + tolerance) add("momentum_failed", "zone");
-    if (name === "deep" && scenario.invalidationPrice !== null && scenario.invalidationPrice < context.momentumFailure - tolerance) add("failure_order", "invalidationPrice");
-  }
+  // Current momentum failure does not invalidate a separate lower conditional setup.
   if (scenario.firstObjectivePrice !== null &&
     (!positive(scenario.firstObjectivePrice) || scenario.firstObjectivePrice <= scenario.zoneHigh + tolerance)) {
     add("objective_order", "firstObjectivePrice", "omit_objective");
