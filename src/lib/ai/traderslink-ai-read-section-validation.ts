@@ -17,7 +17,7 @@ export type ScenarioValidationContext = {
   referencePrice: number;
   momentumFailure: number | null;
   confidence: "low" | "medium" | "high";
-  candidates: ReadonlyArray<{ id: string; zoneLow: number; zoneHigh: number }>;
+  candidates: ReadonlyArray<{ id: string; zoneLow: number; zoneHigh: number; observedPrices?: readonly number[] }>;
 };
 
 export type SectionValidationResult<T> = {
@@ -48,6 +48,13 @@ export function matchesObservedPrice(actual: number, observed: number): boolean 
 export function isSupportedPullbackZone(low: number, high: number,
   candidates: ScenarioValidationContext["candidates"]): boolean {
   if (!positive(low) || !positive(high) || low > high) return false;
+  // A model may select a structure directly from the supplied candles instead
+  // of an exhaustive preset catalog. Match actual OHLC anchors, not any price
+  // inside a candle's range. Distinct cited bars can anchor the two boundaries.
+  const observed = candidates.flatMap(c => c.observedPrices ?? [c.zoneLow, c.zoneHigh]);
+  if (candidates.some(c => c.observedPrices) &&
+      observed.some(price => matchesObservedPrice(low, price)) &&
+      observed.some(price => matchesObservedPrice(high, price))) return true;
   // Both boundaries must be observed in cited bases, and one cited base must
   // contain the entire interval. This allows a supported narrower zone, never
   // an invented boundary or a union spanning separate structures.
@@ -117,7 +124,8 @@ function evidenceIssues(
   const candidates = new Map(context.candidates.map((candidate) => [candidate.id, candidate]));
   if (ids.some((id) => !candidates.has(id))) add("unknown_evidence", "evidenceIds");
   const cited = ids.flatMap(id => candidates.has(id) ? [candidates.get(id)!] : []);
-  if (!(allowSupportedSubzone ? isSupportedPullbackZone(low, high, cited) : ids.some((id) => {
+  if (!(allowSupportedSubzone || cited.some(candidate => candidate.observedPrices)
+    ? isSupportedPullbackZone(low, high, cited) : ids.some((id) => {
     const candidate = candidates.get(id);
     return candidate && matchesObservedPrice(low, candidate.zoneLow) &&
       matchesObservedPrice(high, candidate.zoneHigh);
@@ -219,4 +227,27 @@ export function validateRecoverySection(
     issues, changedPaths: [`${path}.firstObjectivePrice`, `${path}.rationale`],
   };
   return { value: { ...recovery, evidenceIds: [...recovery.evidenceIds] }, issues, changedPaths: [] };
+}
+
+export function buildScenarioCandleEvidence(
+  groups: ReadonlyArray<{ timeframe: "1m" | "5m" | "daily" | "4h";
+    candles: ReadonlyArray<{ timestamp: number; open: number; high: number; low: number; close: number }> }>,
+  asOf: number,
+): ScenarioValidationContext["candidates"] {
+  if (!Number.isFinite(asOf)) return [];
+  const records = new Map<string, { id: string; zoneLow: number; zoneHigh: number; observedPrices: number[] }>();
+  const conflicts = new Set<string>();
+  for (const group of groups) for (const candle of group.candles) {
+    if (!Number.isFinite(candle.timestamp) || candle.timestamp > asOf ||
+        ![candle.open, candle.high, candle.low, candle.close].every(positive) ||
+        candle.high < Math.max(candle.open, candle.low, candle.close) ||
+        candle.low > Math.min(candle.open, candle.high, candle.close)) continue;
+    const id = `${group.timeframe}:${candle.timestamp}`;
+    const record = { id, zoneLow: candle.low, zoneHigh: candle.high,
+      observedPrices: [candle.open, candle.high, candle.low, candle.close] };
+    const previous = records.get(id);
+    if (previous && previous.observedPrices.some((price, index) => price !== record.observedPrices[index])) conflicts.add(id);
+    records.set(id, record);
+  }
+  return [...records.values()].filter(record => !conflicts.has(record.id));
 }

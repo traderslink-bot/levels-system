@@ -1,4 +1,4 @@
-import { revisePrompt, buildActiveMomentumContext } from "./watchlist-active-momentum.js";
+import { revisePrompt, buildActiveMomentumContext, withPullbackSelectionAudit, preparePullbackSelectionRequest, repairResponseCandleReferences } from "./watchlist-active-momentum.js";
 import { buildResistanceComparison } from "./watchlist-resistance-comparison.js";
 import { includeBreakoutCheckpoint } from "./watchlist-breakout-checkpoint.js";
 import { WATCHLIST_MODEL_PRICING, isWatchlistModel, isWatchlistReasoningEffort } from "./watchlist-model-options.js";
@@ -8,7 +8,7 @@ import { buildSimpleAnalysisTestRequest, SIMPLE_ANALYSIS_PROMPT, SIMPLE_ANALYSIS
 import { parseSimpleAnalysis } from "./watchlist-simple-content.js";
 import { supplementSimpleUpside, orderSimpleAnalysisPullbacks } from "./watchlist-simple-input.js";
 import { OWNER_REVIEW_DEVELOPER_PROMPT, OWNER_REVIEW_RESPONSE_SCHEMA } from "./traderslink-ai-read-owner-contract.js";
-import { numericOrderingTolerance, matchesObservedPrice, isSupportedPullbackZone } from "./traderslink-ai-read-section-validation.js";
+import { numericOrderingTolerance, matchesObservedPrice, isSupportedPullbackZone, buildScenarioCandleEvidence } from "./traderslink-ai-read-section-validation.js";
 import { compactAnalysisCandleTransport, datedPreviousRegularSession } from "./traderslink-ai-read-market-context.js";
 import { retainAnalysisCheckpoints } from "./traderslink-ai-read-checkpoint-dependencies.js";
 import { captureAnalysisCodeIdentity } from "./traderslink-ai-read-code-identity.js";
@@ -644,11 +644,11 @@ export function buildTradersLinkAiReadResponseSchema(ownerReview = false) {
   // Keep historical storage contracts readable, but stop requesting unsupported
   // research features from the model. Normalization supplies unknown legacy fields.
   const { dilutionRisk: _dilution, listingStatus: _listing, ...properties } = schema.properties;
-  return {
+  return withPullbackSelectionAudit({
     ...schema,
     properties,
     required: schema.required.filter((key) => key !== "dilutionRisk" && key !== "listingStatus"),
-  };
+  });
 }
 
 function normalizeSymbol(value: string): string {
@@ -1429,6 +1429,7 @@ type ModelPullbackCandidate = {
   id: string;
   zoneLow: number;
   zoneHigh: number;
+  observedPrices?: readonly number[];
 };
 
 function availablePullbackCandidates(
@@ -1438,14 +1439,9 @@ function availablePullbackCandidates(
 ): ModelPullbackCandidate[] {
   const packet = buildTradersLinkAiPriceActionPacket(priceAction, currentPrice, dataAsOf);
   const oneMinuteEvidence = packet.oneMinuteEvidence;
-  if (typeof oneMinuteEvidence !== "object" || oneMinuteEvidence === null) {
-    return [];
-  }
-  const rawCandidates = (oneMinuteEvidence as Record<string, unknown>).pullbackCandidates;
-  if (!Array.isArray(rawCandidates)) {
-    return [];
-  }
-  return rawCandidates.flatMap((value) => {
+  const rawCandidates = typeof oneMinuteEvidence === "object" && oneMinuteEvidence !== null
+    ? (oneMinuteEvidence as Record<string, unknown>).pullbackCandidates : [];
+  const catalog = (Array.isArray(rawCandidates) ? rawCandidates : []).flatMap((value) => {
     if (typeof value !== "object" || value === null) {
       return [];
     }
@@ -1456,6 +1452,18 @@ function availablePullbackCandidates(
       ? [{ id: candidate.id, zoneLow: candidate.zoneLow, zoneHigh: candidate.zoneHigh }]
       : [];
   });
+  const columns = Array.isArray(packet.candleColumns) ? packet.candleColumns as string[]
+    : ["timestamp", "open", "high", "low", "close", "volume"];
+  const suppliedCandles = (value: unknown) => Array.isArray(value)
+    ? value.map(bar => Array.isArray(bar) ? Object.fromEntries(columns.map((key, index) => [key, bar[index]])) : bar)
+      .filter((bar): bar is { timestamp: number; open: number; high: number; low: number; close: number } =>
+      typeof bar === "object" && bar !== null && !Array.isArray(bar)) : [];
+  return [...catalog, ...buildScenarioCandleEvidence([
+    { timeframe: "1m", candles: suppliedCandles((oneMinuteEvidence as Record<string, unknown> | null)?.recentOneMinuteBars) },
+    { timeframe: "5m", candles: suppliedCandles(packet.recentFiveMinuteBars) },
+    { timeframe: "daily", candles: suppliedCandles(packet.recentDailyBars) },
+    { timeframe: "4h", candles: suppliedCandles(packet.fourHourBars) },
+  ], dataAsOf)];
 }
 
 function tacticalTradeMapSpacing(
@@ -1761,7 +1769,9 @@ function assertTradersLinkAiTradeMap(
     zoneLow: number,
     zoneHigh: number,
     supported: ModelPullbackCandidate[],
-  ): boolean => supported.some((candidate) =>
+  ): boolean => supported.some(candidate => candidate.observedPrices)
+    ? isSupportedPullbackZone(zoneLow, zoneHigh, supported)
+    : supported.some((candidate) =>
     matchesObservedPrice(zoneLow, candidate.zoneLow) &&
     matchesObservedPrice(zoneHigh, candidate.zoneHigh)
   );
@@ -2509,10 +2519,11 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         dataAsOf,
         correction,
       });
+      preparePullbackSelectionRequest(requestBody);
       capture("request", { body: requestBody, bodySha256: createHash("sha256").update(JSON.stringify(requestBody)).digest("hex"),
         codeIdentity: ANALYSIS_CODE_IDENTITY,
-        promptSha256: createHash("sha256").update(input.analysisFormat === "simple" ? SIMPLE_ANALYSIS_PROMPT : buildTradersLinkAiReadDeveloperPrompt(input.ownerReviewRequired)).digest("hex"),
-        schemaSha256: createHash("sha256").update(JSON.stringify(input.analysisFormat === "simple" ? SIMPLE_ANALYSIS_SCHEMA : buildTradersLinkAiReadResponseSchema(input.ownerReviewRequired))).digest("hex") });
+        promptSha256: createHash("sha256").update(JSON.stringify(requestBody.input.find((item) => item.role === "developer")?.content ?? [])).digest("hex"),
+        schemaSha256: createHash("sha256").update(JSON.stringify(requestBody.text.format.schema)).digest("hex") });
       const response = await this.fetchImpl("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: {
@@ -2532,6 +2543,8 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         (error as Error & { responsePayload?: ResponsesApiResponse }).responsePayload = payload;
         throw error;
       }
+      const referenceAudit = repairResponseCandleReferences(payload, requestBody);
+      if (referenceAudit.corrections.length || referenceAudit.unresolved.length) capture("validation", { stage: "candle_reference_normalization", ...referenceAudit });
       (payload as TimedResponsesApiResponse).__tradersLinkRequestTiming = {
         clientRequestId,
         startedAt,
