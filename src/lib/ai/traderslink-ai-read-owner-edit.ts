@@ -40,15 +40,25 @@ export function applyOwnerAnalysisEdit(original: TradersLinkAiReadPayload, rawPa
 } {
   const patch = record(rawPatch);
   if (original.analysisFormat === "simple") {
-    if (Object.keys(patch).some(key=>key !== "simpleAnalysis" && key !== "ownerHiddenSections"))
+    if (Object.keys(patch).some(key=>!["simpleAnalysis","ownerHiddenSections","catalystRealityCheck","riskSummary"].includes(key)))
       throw new Error("Only Simple analysis sections can be edited in this format.");
     const simpleAnalysis = parseSimpleAnalysis(patch.simpleAnalysis ?? original.simpleAnalysis);
     if (!simpleAnalysis) throw new Error("Complete the Simple analysis prices and text before saving.");
     const hidden = patch.ownerHiddenSections ?? original.ownerHiddenSections ?? [];
-    if (!Array.isArray(hidden) || hidden.some(key=>!["currentRead","shallow","deep","targets","momentumFailure"].includes(key)))
+    if (!Array.isArray(hidden) || hidden.some(key=>!["currentRead","shallow","deep","targets","momentumFailure","breakoutContinuation","catalystRealityCheck","riskSummary"].includes(key)))
       throw new Error("Invalid hidden Simple analysis section.");
-    const payload = { ...structuredClone(original), simpleAnalysis, ownerHiddenSections:[...new Set(hidden)],
+    if (patch.simpleAnalysis && record(patch.simpleAnalysis).breakout != null) {
+      const breakout = record(record(patch.simpleAnalysis).breakout);
+      shape(breakout, {price:"price",explanation:"text",confirmation:"text"}, false);
+    }
+    const catalyst = patch.catalystRealityCheck === undefined ? original.catalystRealityCheck : {
+      ...original.catalystRealityCheck, ...shape(patch.catalystRealityCheck, {summary:"text",dayTradeRelevance:"text"}) };
+    const risks = patch.riskSummary ?? original.riskSummary;
+    if (!Array.isArray(risks) || risks.length > 20) throw new Error("At most 20 risk notes are supported.");
+    const payload = { ...structuredClone(original), catalystRealityCheck:catalyst, riskSummary:risks.map(text), simpleAnalysis, ownerHiddenSections:[...new Set(hidden)],
       currentRead:simpleAnalysis.setup,
+      breakoutContinuation:{label:"Breakout",price:simpleAnalysis.breakout?.price ?? null,
+        rationale:simpleAnalysis.breakout ? [simpleAnalysis.breakout.explanation,simpleAnalysis.breakout.confirmation].filter(Boolean).join(" ") : ""},
       momentumFailure:{label:"Thesis invalidation",price:simpleAnalysis.invalidation?.price ?? null,rationale:simpleAnalysis.invalidation?.explanation ?? ""},
       targets:simpleAnalysis.upside.map(area=>({label:"",price:area.high,condition:area.explanation})),
     };

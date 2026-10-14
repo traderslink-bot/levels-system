@@ -1,6 +1,7 @@
 /** Stored simple-format content. Internal model audit/evidence stays in request diagnostics. */
 export type SimpleAnalysis = {
   setup: string;
+  breakout?: { price: number; confirmation: string; explanation: string } | null;
   pullbacks: Array<{ low: number; high: number; explanation: string; confirmation: string; invalidation: number | null }>;
   upside: Array<{ low: number; high: number; explanation: string }>;
   invalidation: { price: number; explanation: string } | null;
@@ -19,6 +20,8 @@ export function parseSimpleAnalysis(value: unknown): SimpleAnalysis | null {
       !(record(value.invalidation) && price(value.invalidation.price) && text(value.invalidation.explanation)))) return null;
   return {
     setup: value.setup,
+    breakout: record(value.breakout) && price(value.breakout.price) && text(value.breakout.confirmation) && text(value.breakout.explanation)
+      ? { price: value.breakout.price, confirmation: value.breakout.confirmation, explanation: value.breakout.explanation } : null,
     pullbacks: value.pullbacks.map(item => ({ low:item.low, high:item.high, explanation:item.explanation,
       confirmation:item.confirmation, invalidation:price(item.invalidation) ? item.invalidation : null })),
     upside: value.upside.map(item => ({low:item.low, high:item.high, explanation:item.explanation})),

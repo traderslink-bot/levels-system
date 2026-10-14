@@ -87,7 +87,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   const changed = () => { dirty = true; preview = null; previewContent.replaceChildren(); byId("approve").disabled = true; };
   const pick = (value, names) => Object.fromEntries(names.map((key) => [key, value[key]]));
   function editable(payload) {
-    if (payload.analysisFormat === "simple") return {simpleAnalysis:structuredClone(payload.simpleAnalysis),ownerHiddenSections:[...(payload.ownerHiddenSections || [])]};
+    if (payload.analysisFormat === "simple") return {simpleAnalysis:structuredClone(payload.simpleAnalysis),catalystRealityCheck:pick(payload.catalystRealityCheck,["summary","dayTradeRelevance"]),riskSummary:[...(payload.riskSummary || [])],ownerHiddenSections:[...(payload.ownerHiddenSections || [])]};
     const result = Object.fromEntries(keys.filter((key) => Object.hasOwn(payload, key)).map((key) => [key, structuredClone(payload[key])]));
     for (const key of ["needsToHold", "cautionBelow", "momentumFailure", "mustClear", "breakoutContinuation"]) result[key] = pick(payload[key], levelFields);
     result.targets = payload.targets.map((item) => pick(item, ["label", "price", "condition"]));
@@ -203,6 +203,15 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
         };
       });
       ["shallow","deep","targets"].forEach(key=>section(key));
+      const breakoutParent=section("breakoutContinuation");
+      const breakoutFields=node("div",undefined,breakoutParent);
+      const renderBreakout=()=>{breakoutFields.replaceChildren();if(simple.breakout) ["price","explanation","confirmation"].forEach(key=>input(breakoutFields,key==="price"?"Breakout price":key,simple.breakout,key,key==="price"));};
+      const toggleBreakout=node("button",simple.breakout?"Remove breakout":"Add breakout",breakoutParent);toggleBreakout.type="button";
+      toggleBreakout.onclick=()=>{simple.breakout=simple.breakout?null:{price:null,explanation:"",confirmation:""};toggleBreakout.textContent=simple.breakout?"Remove breakout":"Add breakout";changed();renderBreakout();};renderBreakout();
+      fields(section("catalystRealityCheck"),patch.catalystRealityCheck,["summary","dayTradeRelevance"]);
+      const riskParent=section("riskSummary"),riskRows=node("div",undefined,riskParent);
+      const renderRisks=()=>{riskRows.replaceChildren();patch.riskSummary.forEach((risk,index)=>{const row=node("div",undefined,riskRows);input(row,"Risk note",patch.riskSummary,index,false);const remove=node("button","Remove",row);remove.type="button";remove.onclick=()=>{patch.riskSummary.splice(index,1);changed();renderRisks();};});};
+      const addRisk=node("button","Add risk note",riskParent);addRisk.type="button";addRisk.onclick=()=>{if(patch.riskSummary.length<20){patch.riskSummary.push("");changed();renderRisks();}};renderRisks();
       renderReviewHistory(review.events,editor);return;
     }
     node("p", review.symbol + " · Saved version " + draft.revision + " · Analysis price $" + draft.body.payload.currentPrice, editor);

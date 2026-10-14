@@ -2747,6 +2747,9 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         // Compatibility fields contain only the corresponding supplied content.
         // The separate card/editor reads simpleAnalysis; unused legacy sections stay empty.
         const legacy = normalizeModelRead({ currentRead: simpleAnalysis.setup,
+          catalystRealityCheck: raw.catalystRealityCheck, riskSummary: raw.riskSummary,
+          breakoutContinuation: {label:"Breakout", price:simpleAnalysis.breakout?.price ?? null,
+            rationale:simpleAnalysis.breakout ? [simpleAnalysis.breakout.explanation, simpleAnalysis.breakout.confirmation].filter(Boolean).join(" ") : ""},
           momentumFailure: {label:"Thesis invalidation", price:simpleAnalysis.invalidation?.price ?? null,
             rationale:simpleAnalysis.invalidation?.explanation ?? ""},
           targets:simpleAnalysis.upside.map(area=>({label:"",price:area.high,condition:area.explanation})),
