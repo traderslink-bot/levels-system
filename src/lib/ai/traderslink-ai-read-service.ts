@@ -2520,10 +2520,14 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         correction,
       });
       preparePullbackSelectionRequest(requestBody);
+      const auditRequestBody = requestBody as {
+        input: Array<{ role?: string; content?: unknown }>;
+        text: { format: { schema: unknown } };
+      };
       capture("request", { body: requestBody, bodySha256: createHash("sha256").update(JSON.stringify(requestBody)).digest("hex"),
         codeIdentity: ANALYSIS_CODE_IDENTITY,
-        promptSha256: createHash("sha256").update(JSON.stringify(requestBody.input.find((item) => item.role === "developer")?.content ?? [])).digest("hex"),
-        schemaSha256: createHash("sha256").update(JSON.stringify(requestBody.text.format.schema)).digest("hex") });
+        promptSha256: createHash("sha256").update(JSON.stringify(auditRequestBody.input.find((item) => item.role === "developer")?.content ?? [])).digest("hex"),
+        schemaSha256: createHash("sha256").update(JSON.stringify(auditRequestBody.text.format.schema)).digest("hex") });
       const response = await this.fetchImpl("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: {
