@@ -15,7 +15,7 @@ export function resolveMarketDataStatus(args: {
     return "starting";
   }
 
-  if (args.liveProviderName === "eodhd") {
+  if (args.liveProviderName === "eodhd" || args.liveProviderName === "moomoo") {
     if (args.priceFeedStatus === "closed") {
       return "closed";
     }

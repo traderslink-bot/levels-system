@@ -217,7 +217,7 @@ const DISCORD_CLEANUP_PAGE_LIMIT = 100;
 const DISCORD_CLEANUP_PARENT_MESSAGE_PAGE_LIMIT = 50;
 const DISCORD_CLEANUP_RETRY_DELAY_MS = 1000;
 const RUNTIME_HISTORICAL_PROVIDER_OPTIONS = ["ibkr", "eodhd"] as const;
-const RUNTIME_LIVE_PROVIDER_OPTIONS = ["ibkr", "eodhd"] as const;
+const RUNTIME_LIVE_PROVIDER_OPTIONS = ["ibkr", "eodhd", "moomoo"] as const;
 const PROVIDER_CONFIG_VERSION = 2;
 const AUTO_WATCHLIST_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresholds>(
   Object.keys(DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG) as Array<keyof AutoWatchlistSelectorThresholds>,
@@ -276,7 +276,7 @@ function parseRuntimeHistoricalProviderName(raw: unknown): RuntimeHistoricalProv
 
 function parseRuntimeLiveProviderName(raw: unknown): LivePriceProviderName | null {
   const normalized = typeof raw === "string" ? raw.trim().toLowerCase() : "";
-  return normalized === "ibkr" || normalized === "eodhd" ? normalized : null;
+  return normalized === "ibkr" || normalized === "eodhd" || normalized === "moomoo" ? normalized : null;
 }
 
 function parseSameDayCandleProviderName(raw: unknown): SameDayCandleProviderName | null {
@@ -1876,7 +1876,7 @@ async function main(): Promise<void> {
         );
         if (!requestedProvider) {
           sendJson(response, 400, {
-            error: "liveProvider must be ibkr or eodhd.",
+            error: "liveProvider must be ibkr, eodhd, or moomoo.",
           });
           return;
         }

@@ -606,6 +606,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           <select id="live-provider-select" name="live-provider">
             <option value="ibkr">IBKR</option>
             <option value="eodhd">EODHD</option>
+            <option value="moomoo">Moomoo</option>
           </select>
           <button id="apply-live-provider-button" type="button">Apply</button>
         </div>
@@ -1286,7 +1287,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     function renderLiveProviderControl(config) {
       const providers = Array.isArray(config.availableLiveProviders) && config.availableLiveProviders.length > 0
         ? config.availableLiveProviders
-        : ["ibkr", "eodhd"];
+        : ["ibkr", "eodhd", "moomoo"];
       const activeProvider = config.liveProvider || "ibkr";
       const priorSelection = liveProviderSelectEl.value;
       currentLiveProvider = activeProvider;

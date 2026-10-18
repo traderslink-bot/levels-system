@@ -34,6 +34,14 @@ The Railway shadow-runtime move is tracked in
 It is deliberately a non-publishing staging copy until runtime parity is
 verified; the desktop runtime remains the active publisher.
 
+## Moomoo live-price provider - 2026-10-17
+
+- [x] Add Moomoo as a separately selectable Watchlist live-price provider through the protected Platform quote bridge.
+- [x] Use the Moomoo premarket, regular, after-hours, or overnight quote by U.S. Eastern session time, without substituting a prior-session price.
+- [x] Use Yahoo only when Moomoo fails or lacks the active-session price; keep EODHD separate and selectable.
+- [ ] Restart the local runtime, select Moomoo, and confirm an active Watchlist symbol receives the session-specific price.
+- Progress: [Moomoo live-price provider](watchlist-moomoo-live-price-provider-progress-2026-10-17.md).
+
 ## Core idea
 
 The monitoring system should:
