@@ -1,4 +1,4 @@
-import { applyDiscordOwnerText, discordTextParts } from "../alerts/watchlist-discord-owner-text.js";
+import { applyDiscordOwnerText, discordTextParts, formatWatchlistDiscordHeading } from "../alerts/watchlist-discord-owner-text.js";
 import { categoryMoveCopy } from "../alerts/watchlist-category-move-receipts.js";
 import { CategoryMoveService } from "../alerts/watchlist-category-move-service.js";
 import { analysisUpdateContextForDraft } from "../ai/watchlist-analysis-update-context.js";
@@ -12024,7 +12024,7 @@ export class ManualWatchlistRuntimeManager {
     else if(kind==='listing')content=attributeOwnerApprovedDiscord([appendDiscordMentions(buildWatchlistDiscordLinkMessage(symbol),currentDiscordAudience())],actor)[0];
     else if(kind==='move'){const copy=categoryMoveCopy(symbol,to),linked=buildWatchlistDiscordLinkMessage(symbol);content=appendDiscordMentions(copy.title+'\n'+copy.body+linked.slice(linked.indexOf('\n\n')),currentDiscordAudience());}
     else throw Error('Invalid Discord preview.');
-    const parts=discordTextParts(content);return {...parts,maxLength:2000-parts.suffix.length};
+    const parts=discordTextParts(formatWatchlistDiscordHeading(content));return {...parts,maxLength:2000-parts.suffix.length};
   }
   getCategoryMoves(symbol:string){return this.categoryMoves().status(normalizeSymbol(symbol));}
   async moveCategory(input:{symbol:string;id:string;to:string;notify:boolean;actor:string;messageId?:string;discordText?:string}){

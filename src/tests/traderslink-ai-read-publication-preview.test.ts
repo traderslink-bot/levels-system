@@ -31,7 +31,7 @@ test("Current and Simple approval previews use the original linked notification 
       const read = {symbol:"ADBT", analysisFormat, currentRead:"PRIVATE ANALYSIS",
         simpleAnalysis:{setup:"PRIVATE SIMPLE"}} as unknown as TradersLinkAiReadPayload;
       const chunks = renderApprovedAnalysisDiscord(read);
-      assert.deepEqual(chunks, ["ADBT added to the watchlist.\n\nView the live watchlist: https://app.traderslink.pro/watchlist\nView ADBT ticker page: https://app.traderslink.pro/watchlist/ADBT"]);
+      assert.deepEqual(chunks, ["ADBT added to the watchlist.\n\nImages show part of the analysis. View full analysis in the app 👇\n\nView the live watchlist: https://app.traderslink.pro/watchlist\nView ADBT ticker page: https://app.traderslink.pro/watchlist/ADBT"]);
       assert.doesNotMatch(chunks.join(""), /PRIVATE|Analysis price|Pullback/);
       const publication = {website:{symbol:"ADBT"},discordChunks:chunks};
       assert.equal(publicationPreviewHash(publication),publicationPreviewHash(structuredClone(publication)));
