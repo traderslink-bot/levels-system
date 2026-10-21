@@ -78,9 +78,8 @@ export const ANALYSIS_UPDATE_EXPLANATION = "A follow-up to the original analysis
 export function analysisUpdateComparison(context?: AnalysisUpdateContext): string | null {
   const at = timestamp(context?.firstAnalysisAt);
   if (at === null) return null;
-  const date = new Intl.DateTimeFormat("en-US", {timeZone:"America/New_York",month:"short",day:"numeric"}).format(at);
   const time = new Intl.DateTimeFormat("en-US", {timeZone:"America/New_York",hour:"numeric",minute:"2-digit",hour12:true}).format(at);
-  const original = `Originally analyzed: ${date}, ${time} ET.`;
+  const original = `Originally analyzed: ${time}.`;
   const first = price(context?.firstAnalysisPrice), updated = price(context?.updatedAnalysisPrice);
   if (first === null || updated === null) return original;
   const percentage = (updated / first - 1) * 100;

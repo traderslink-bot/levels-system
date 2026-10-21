@@ -10,10 +10,10 @@ const approval = (revision:number, generatedAt:number, currentPrice:number, visi
 const delivered = (approvalRevision:number) => ({body:{kind:"delivery",channel:"website",status:"acknowledged",approvalRevision}});
 const review = () => ({events:[approval(1,originalAt-86400000,2,false),delivered(1),approval(3,originalAt,2),delivered(3),approval(5,originalAt+86400000,3),delivered(5)]});
 
-test("original generation date/time replaces only the original price phrase",()=>{
+test("original generation time replaces only the original price phrase without date or timezone label",()=>{
  const context=analysisUpdateContextForDraft(review(),4);
  assert.equal(context.firstAnalysisAt,originalAt);
- assert.equal(analysisUpdateComparison(context),"Originally analyzed: Oct 20, 9:25 AM ET. Now $4.00 (+100.0%).");
+ assert.equal(analysisUpdateComparison(context),"Originally analyzed: 9:25 AM. Now $4.00 (+100.0%).");
 });
 test("review history uses earliest acknowledged analysis, not listing, approval time or latest refresh",()=>{
  const context=analysisUpdateContextFromReview(review(),5);
@@ -37,7 +37,7 @@ test("missing or invalid timestamp never substitutes a quote or publication time
 });
 test("Eastern winter conversion has no seconds and preserves price/percent suffix",()=>{
  assert.equal(analysisUpdateComparison({automatic:false,firstAnalysisAt:Date.UTC(2026,0,5,14,25,59),firstAnalysisPrice:4,updatedAnalysisPrice:3}),
-  "Originally analyzed: Jan 5, 9:25 AM ET. Now $3.00 (-25.0%).");
+  "Originally analyzed: 9:25 AM. Now $3.00 (-25.0%).");
 });
 test("the rest of Discord update text, links, tags and attribution are unchanged",()=>{
  const context=analysisUpdateContextForDraft(review(),4);

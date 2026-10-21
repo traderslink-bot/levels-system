@@ -1,15 +1,16 @@
 # Original analysis time in update posts
 
-Owner-approved scope, Oct 20, 2026: replace `Originally analyzed at $…` with
-`Originally analyzed: Oct 20, 9:25 AM ET.` Leave the remainder unchanged.
+Owner-approved scope, Oct 20, 2026, amended before release: replace
+`Originally analyzed at $…` with `Originally analyzed: 9:25 AM.` Leave the
+remainder unchanged. Owner explicitly requests no date and no ET label.
 
 Implementation: `src/lib/ai/watchlist-analysis-update-context.ts` adds optional
 `firstAnalysisAt` to the frozen update context. It comes from `generatedAt` in
 the first website-acknowledged analysis approval in the current listing cycle,
 not the listing-only event, approval time, current quote or latest refresh.
 Older contexts can recover that time from their existing review history.
-Missing timestamps are never invented. Format is short month/date, 12-hour time,
-ET, without seconds; Eastern daylight/standard time is handled by Intl.
+Missing timestamps are never invented. Format is 12-hour time without date,
+timezone label or seconds; Eastern daylight/standard time is handled by Intl.
 The current-price/percentage suffix and all other message copy remain unchanged.
 Existing already-sent or frozen Discord chunks are not rewritten.
 
