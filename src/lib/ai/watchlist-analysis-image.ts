@@ -1,4 +1,5 @@
 import type { TradersLinkAiReadPayload } from "../live-watchlist/live-watchlist-types.js";
+import { sortPullbacksByPrice } from "./pullback-price-order.js";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
@@ -36,8 +37,8 @@ export function analysisImageSections(read: TradersLinkAiReadPayload, dipVisible
     const simple = read.simpleAnalysis;
     if (!simple) throw new Error("Missing simple analysis");
     add("currentRead", "Trade preparation", [body(simple.setup)]);
-    const plans = simple.pullbacks.map((plan, i) => ({ plan, index:i, key:`pullback-${i+1}` }))
-      .filter(({plan,index}) => !(plan.hidden ?? hidden.has(index===0?"shallow":index===1?"deep":"")));
+    const plans = sortPullbacksByPrice(simple.pullbacks.map((plan,index)=>({...plan,hidden:plan.hidden ?? hidden.has(index===0?"shallow":index===1?"deep":"")})))
+      .map((plan,index)=>({plan,index,key:`pullback-${index+1}`})).filter(({plan})=>!plan.hidden);
     if (dipVisible) plans.forEach(({ plan, key, index }) => add(key, `Pullback ${index+1}`, [
       value(area(plan.low, plan.high)), body(plan.explanation),
       body(plan.confirmation.trim() ? `Required confirmation: ${plan.confirmation}` : ""),
@@ -54,7 +55,7 @@ export function analysisImageSections(read: TradersLinkAiReadPayload, dipVisible
     if (level) add(key, title, [value(price(level.price)), body(level.rationale)]);
   }
   add("targets", "Potential Targets (Volume Dependent)", read.targets.flatMap(level => [value(level.price === null ? level.label : price(level.price)), body(level.condition)]));
-  const plans = read.ownerPullbacks ?? (["shallow","deep"] as const).flatMap(key=>read.pullbackPlans[key]?[{...read.pullbackPlans[key]!,hidden:hidden.has(key)}]:[]);
+  const plans = sortPullbacksByPrice(read.ownerPullbacks ?? (["shallow","deep"] as const).flatMap(key=>read.pullbackPlans[key]?[{...read.pullbackPlans[key]!,hidden:hidden.has(key)}]:[]),"zoneLow","zoneHigh");
   for (const [index,plan] of plans.entries()) {
     if (!dipVisible || plan.hidden) continue;
     add(`pullback-${index+1}`, `Pullback ${index+1}`, [
