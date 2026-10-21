@@ -40,7 +40,9 @@ test('audit storage preserves original, edited and approved versions through res
   const draft=store.saveDraft({cycleId:'rows',expectedHead:2,actor:'owner',payload:edited as unknown as Record<string,unknown>});
   store.approve('rows',3,draft.revision,'owner',{website:{cards:{tradersLinkAiRead:{body:JSON.stringify(edited)}}},discordChunks:['Existing links']});
   const restored=new TradersLinkAiReadReviewStore(dir).read('rows')!;
-  assert.equal((restored.draft!.body.payload as unknown as TradersLinkAiReadPayload).ownerPullbacks!.length,12);
+  const restoredDraft = restored.draft!.body;
+  if (restoredDraft.kind !== 'edit') throw new Error('Expected the saved owner edit after restart.');
+  assert.equal((restoredDraft.payload as unknown as TradersLinkAiReadPayload).ownerPullbacks!.length,12);
   assert.equal((restored.events.find(e=>e.body.kind==='original')!.body as any).payload.ownerPullbacks,undefined);
   assert.equal(restored.approved!.body.kind,'approve');
  }finally{rmSync(dir,{recursive:true,force:true});}
