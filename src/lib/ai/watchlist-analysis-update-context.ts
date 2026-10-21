@@ -3,6 +3,7 @@ export type AnalysisUpdateContext = Readonly<{
   hasPreviousAnalysis?: boolean;
   categoryMoveNote?: string;
   firstAnalysisPrice: number | null;
+  firstAnalysisAt?: number | null;
   updatedAnalysisPrice: number | null;
 }>;
 
@@ -10,6 +11,18 @@ const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const price = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+const timestamp = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) && value > 0 && Number.isFinite(new Date(value).getTime()) ? value : null;
+
+/** Generation time from the immutable approved analysis, never approval or quote time. */
+function analysisTime(event: Record<string, unknown>): number | null {
+  if (!containsPublishedAnalysis(event)) return null;
+  try {
+    const website = record(record(record(event.body).publication).website);
+    const card = record(record(website.cards).tradersLinkAiRead);
+    return timestamp(record(JSON.parse(String(card.body))).generatedAt);
+  } catch { return null; }
+}
 
 /** A listing-only approval is not an analysis, even if the ticker is public. */
 function containsPublishedAnalysis(event: Record<string, unknown>): boolean {
@@ -33,8 +46,10 @@ export function analysisUpdateContextFromReview(value: unknown, approvalRevision
     typeof event.revision === "number" && event.revision <= approvalRevision && delivered.has(event.revision))
     .sort((a, b) => Number(a.revision) - Number(b.revision));
   const current = approvals.find(event => event.revision === approvalRevision);
+  const firstPublished = approvals.find(containsPublishedAnalysis);
+  const firstAnalysisAt = firstPublished && firstPublished.revision !== approvalRevision ? analysisTime(firstPublished) : null;
   const frozen = parseAnalysisUpdateContext(record(record(current?.body).publication).analysisUpdateContext);
-  if (current && frozen) return { ...frozen, hasPreviousAnalysis: frozen.hasPreviousAnalysis ?? approvals.some(event => Number(event.revision) < approvalRevision && containsPublishedAnalysis(event)), automatic: current.actor === "runtime:automatic-boundary" };
+  if (current && frozen) return { ...frozen, firstAnalysisAt: frozen.firstAnalysisAt ?? firstAnalysisAt, hasPreviousAnalysis: frozen.hasPreviousAnalysis ?? approvals.some(event => Number(event.revision) < approvalRevision && containsPublishedAnalysis(event)), automatic: current.actor === "runtime:automatic-boundary" };
   const readPrice = (event: Record<string, unknown>) => {
     try {
       const publication = record(record(event.body).publication);
@@ -46,6 +61,7 @@ export function analysisUpdateContextFromReview(value: unknown, approvalRevision
   return {
     hasPreviousAnalysis: approvals.some(event => Number(event.revision) < approvalRevision && containsPublishedAnalysis(event)),
     automatic: current?.actor === "runtime:automatic-boundary",
+    firstAnalysisAt,
     firstAnalysisPrice: first && first.revision !== approvalRevision ? readPrice(first) : null,
     updatedAnalysisPrice: current ? readPrice(current) : null,
   };
@@ -54,19 +70,24 @@ export function analysisUpdateContextFromReview(value: unknown, approvalRevision
 export function parseAnalysisUpdateContext(value: unknown): AnalysisUpdateContext | undefined {
   const item = record(value);
   if (typeof item.automatic !== "boolean") return undefined;
-  return { ...(typeof item.hasPreviousAnalysis === "boolean" ? { hasPreviousAnalysis: item.hasPreviousAnalysis } : {}), ...(typeof item.categoryMoveNote === "string" && /^Now on (Overnight Watches|Main Session|Top Regular Hour Watches|Post-Market|General Watchlist|Swings)\.$/.test(item.categoryMoveNote) ? {categoryMoveNote:item.categoryMoveNote} : {}), automatic: item.automatic, firstAnalysisPrice: price(item.firstAnalysisPrice), updatedAnalysisPrice: price(item.updatedAnalysisPrice) };
+  return { ...(typeof item.hasPreviousAnalysis === "boolean" ? { hasPreviousAnalysis: item.hasPreviousAnalysis } : {}), ...(typeof item.categoryMoveNote === "string" && /^Now on (Overnight Watches|Main Session|Top Regular Hour Watches|Post-Market|General Watchlist|Swings)\.$/.test(item.categoryMoveNote) ? {categoryMoveNote:item.categoryMoveNote} : {}), automatic: item.automatic, firstAnalysisAt:timestamp(item.firstAnalysisAt), firstAnalysisPrice: price(item.firstAnalysisPrice), updatedAnalysisPrice: price(item.updatedAnalysisPrice) };
 }
 
 export const ANALYSIS_UPDATE_EXPLANATION = "A follow-up to the original analysis, with updated levels and setups for those holding a position or watching the trade develop.";
 
 export function analysisUpdateComparison(context?: AnalysisUpdateContext): string | null {
+  const at = timestamp(context?.firstAnalysisAt);
+  if (at === null) return null;
+  const date = new Intl.DateTimeFormat("en-US", {timeZone:"America/New_York",month:"short",day:"numeric"}).format(at);
+  const time = new Intl.DateTimeFormat("en-US", {timeZone:"America/New_York",hour:"numeric",minute:"2-digit",hour12:true}).format(at);
+  const original = `Originally analyzed: ${date}, ${time} ET.`;
   const first = price(context?.firstAnalysisPrice), updated = price(context?.updatedAnalysisPrice);
-  if (first === null || updated === null) return null;
+  if (first === null || updated === null) return original;
   const percentage = (updated / first - 1) * 100;
-  if (!Number.isFinite(percentage)) return null;
+  if (!Number.isFinite(percentage)) return original;
   const rounded = Math.round(percentage * 10) / 10;
   const format = (value: number) => value.toFixed(value >= 1 ? 2 : 4);
-  return `Originally analyzed at $${format(first)}. Now $${format(updated)} (${rounded > 0 ? "+" : ""}${rounded.toFixed(1)}%).`;
+  return `${original} Now $${format(updated)} (${rounded > 0 ? "+" : ""}${rounded.toFixed(1)}%).`;
 }
 
 /** Freeze the first acknowledged analysis price before a new draft is published. */
@@ -80,5 +101,6 @@ export function analysisUpdateContextForDraft(value: unknown, updatedPrice: unkn
     try { const publication=record(record(event.body).publication); const card=record(record(record(publication.website).cards).tradersLinkAiRead); firstAnalysisPrice=price(record(JSON.parse(String(card.body))).currentPrice); } catch { /* Listing without analysis. */ }
     if(firstAnalysisPrice !== null) break;
   }
-  return { hasPreviousAnalysis: approvals.some(containsPublishedAnalysis), automatic:false,firstAnalysisPrice,updatedAnalysisPrice:price(updatedPrice) };
+  const firstPublished = approvals.find(containsPublishedAnalysis);
+  return { hasPreviousAnalysis: approvals.some(containsPublishedAnalysis), automatic:false,firstAnalysisAt:firstPublished ? analysisTime(firstPublished) : null,firstAnalysisPrice,updatedAnalysisPrice:price(updatedPrice) };
 }
