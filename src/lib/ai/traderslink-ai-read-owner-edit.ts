@@ -1,5 +1,6 @@
 import type { TradersLinkAiReadPayload } from "../live-watchlist/live-watchlist-types.js";
 import { parseSimpleAnalysis } from "./watchlist-simple-content.js";
+import { sortPullbacksByPrice } from "./pullback-price-order.js";
 
 export const OWNER_ANALYSIS_SECTIONS = ["currentRead", "needsToHold", "cautionBelow", "momentumFailure", "mustClear", "breakoutContinuation", "targets", "downsideCheckpoints", "shallow", "deep", "failureRecovery", "catalystRealityCheck", "dilutionRisk", "listingStatus", "riskSummary"] as const;
 type Shape = Record<string, "text" | "price">;
@@ -44,6 +45,8 @@ export function applyOwnerAnalysisEdit(original: TradersLinkAiReadPayload, rawPa
       throw new Error("Only Simple analysis sections can be edited in this format.");
     const simpleAnalysis = parseSimpleAnalysis(patch.simpleAnalysis ?? original.simpleAnalysis);
     if (!simpleAnalysis) throw new Error("Complete the Simple analysis prices and text before saving.");
+    simpleAnalysis.pullbacks = sortPullbacksByPrice(simpleAnalysis.pullbacks.map((plan,index)=>({...plan,
+      hidden:plan.hidden ?? (original.ownerHiddenSections ?? []).includes(index===0?"shallow":index===1?"deep":"")})));
     const hidden = patch.ownerHiddenSections ?? original.ownerHiddenSections ?? [];
     if (!Array.isArray(hidden) || hidden.some(key=>!["currentRead","shallow","deep","targets","momentumFailure","breakoutContinuation","catalystRealityCheck","riskSummary"].includes(key)))
       throw new Error("Invalid hidden Simple analysis section.");
@@ -81,7 +84,7 @@ export function applyOwnerAnalysisEdit(original: TradersLinkAiReadPayload, rawPa
       output[key] = value.map((item) => shape(item, target));
     } else if (key === "ownerPullbacks") {
       if (!Array.isArray(value)) throw new Error("Pullbacks must be a list.");
-      result.ownerPullbacks = value.map(item => {
+      result.ownerPullbacks = sortPullbacksByPrice(value.map(item => {
         const input = { ...record(item) };
         const hidden = input.hidden;
         if (hidden !== undefined && typeof hidden !== "boolean") throw new Error("Invalid pullback visibility.");
@@ -89,7 +92,7 @@ export function applyOwnerAnalysisEdit(original: TradersLinkAiReadPayload, rawPa
         delete input.invalidationPrice; delete input.firstObjectivePrice; delete input.evidenceIds;
         return { ...shape(input,pullback,false), invalidationPrice:null, firstObjectivePrice:null, evidenceIds:[],
           ...(hidden === undefined ? {} : {hidden}) } as unknown as NonNullable<TradersLinkAiReadPayload["ownerPullbacks"]>[number];
-      });
+      }),"zoneLow","zoneHigh");
     } else if (key === "pullbackPlans") {
       const plans = record(value);
       if (Object.keys(plans).some((name) => name !== "shallow" && name !== "deep")) throw new Error("Unexpected pullback field.");

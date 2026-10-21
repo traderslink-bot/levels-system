@@ -8,6 +8,7 @@ import { parseSimpleAnalysis } from "../lib/ai/watchlist-simple-content.js";
 import { analysisImageSections, splitImageSections, renderAnalysisImages } from "../lib/ai/watchlist-analysis-image.js";
 import { TradersLinkAiReadReviewStore } from "../lib/ai/traderslink-ai-read-review-store.js";
 import type { TradersLinkAiReadPayload } from "../lib/live-watchlist/live-watchlist-types.js";
+import { ANALYSIS_REVIEW_PANEL } from "../runtime/manual-watchlist-analysis-review-panel.js";
 
 const base=()=>({version:3,symbol:"TEST",generationId:"original",currentPrice:10,currentRead:"Original",ownerHiddenSections:[],
   needsToHold:{label:"",price:8,rationale:""},momentumFailure:{label:"",price:5,rationale:""},
@@ -77,4 +78,28 @@ test('three owner pullbacks render to the existing two social images in both for
   for(const image of images) assert.deepEqual(Array.from(image.bytes.slice(0,8)),[137,80,78,71,13,10,26,10]);
   assert.equal(analysisImageSections(read,false).filter(s=>s.key.startsWith('pullback-')).length,0);
  }
+});
+test('owner saves order the third-added middle zone second in both formats and image headings',()=>{
+ const original={...base(),downsideCheckpoints:[]};
+ const zones=[{...plan(0),zoneLow:9,zoneHigh:9.2,rationale:'Highest'},
+  {...plan(1),zoneLow:7,zoneHigh:7.2,rationale:'Deepest'},
+  {...plan(0),zoneLow:8,zoneHigh:8.2,rationale:'Middle',hidden:true}];
+ const detail=applyOwnerAnalysisEdit(original,{ownerPullbacks:zones}).payload;
+ assert.deepEqual(detail.ownerPullbacks!.map(p=>p.zoneLow),[9,8,7]);assert.equal(detail.ownerPullbacks![1]!.hidden,true);
+ const simpleOriginal={...original,analysisFormat:'simple' as const,simpleAnalysis:simple(2)};
+ const saved=applyOwnerAnalysisEdit(simpleOriginal,{simpleAnalysis:{...simple(3),pullbacks:zones.map(p=>({low:p.zoneLow,high:p.zoneHigh,explanation:p.rationale,confirmation:'Wait',invalidation:null,hidden:p.hidden}))}}).payload;
+ assert.deepEqual(saved.simpleAnalysis!.pullbacks.map(p=>p.low),[9,8,7]);assert.equal(saved.simpleAnalysis!.pullbacks[1]!.hidden,true);
+ for(const read of [detail,saved]) {
+  const sections=analysisImageSections(read).filter(s=>s.key.startsWith('pullback-'));
+  assert.deepEqual(sections.map(s=>s.title),['Pullback 1','Pullback 3']);assert.match(JSON.stringify(sections[1]),/Deepest/);
+ }
+ assert.equal(zones[1]!.zoneLow,7);
+});
+test('the Runtime editor browser sorter matches price order and leaves unfinished rows last',()=>{
+ const script=ANALYSIS_REVIEW_PANEL.match(/<script>([\s\S]*?)<\/script>/)![1]!;
+ new Function(script);
+ const sorter=script.slice(script.indexOf('function orderPullbacks('),script.indexOf('function input('));
+ const rows=[{low:9,high:9.2,id:'top'},{low:7,high:7.2,id:'bottom'},{low:8,high:8.2,id:'middle',hidden:true},{low:null,high:null,id:'unfinished'}];
+ new Function('rows',sorter+';orderPullbacks(rows);')(rows);
+ assert.deepEqual(rows.map(p=>p.id),['top','middle','bottom','unfinished']);assert.equal(rows[1]!.hidden,true);
 });

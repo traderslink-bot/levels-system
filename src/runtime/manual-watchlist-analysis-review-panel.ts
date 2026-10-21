@@ -122,6 +122,10 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     try { await operation(); } catch (error) { message(error.message || "Review could not complete."); }
     finally { busy = false; controls.forEach((control) => { control.disabled = false; }); byId("approve").disabled = !preview || dirty; ["automatic", "required", "format", "auto-publish", "owner-notify", "owner-discord", "settings-save"].forEach((id) => { byId(id).disabled = !controlsLoaded; }); }
   }
+  function orderPullbacks(rows,lowKey="low",highKey="high") {
+    const range=row=>typeof row[lowKey]==="number"&&Number.isFinite(row[lowKey])&&row[lowKey]>0&&typeof row[highKey]==="number"&&Number.isFinite(row[highKey])&&row[highKey]>0?[row[lowKey],row[highKey]]:null;
+    rows.sort((a,b)=>{const left=range(a),right=range(b);return left&&right?right[0]-left[0]||right[1]-left[1]:left?-1:right?1:0;});
+  }
   function input(parent, label, object, key, numeric) {
     const wrapper = node("label", label, parent);
     const control = node(numeric ? "input" : "textarea", undefined, wrapper);
@@ -203,6 +207,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
             const remove=node("button","Remove",row);remove.type="button";remove.onclick=()=>{simple[key].splice(index,1);changed();render();};
           });
         };
+        if(key==="pullbacks") {orderPullbacks(simple[key]);parent.addEventListener("focusout",event=>{if(!parent.contains(event.relatedTarget)){orderPullbacks(simple[key]);render();}});}
         render();const add=node("button","Add",parent);add.type="button";add.onclick=()=>{
           simple[key].push({low:null,high:null,explanation:"",...(key==="pullbacks"?{confirmation:"",invalidation:null}:{})});changed();render();
         };
@@ -244,12 +249,14 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
       add.onclick = () => { if (key!=="targets"&&patch[key].length >= 20) { message("Up to 20 items can be saved in this section."); return; } patch[key].push(key === "riskSummary" ? "" : { label: "", price: null, condition: "" }); changed(); renderList(); };
     }
     const pullbackParent=node("details",undefined,editor);node("summary","Pullbacks",pullbackParent);
+    orderPullbacks(patch.ownerPullbacks,"zoneLow","zoneHigh");
     const pullbackRows=node("div",undefined,pullbackParent);
     const renderPullbacks=()=>{pullbackRows.replaceChildren();patch.ownerPullbacks.forEach((plan,index)=>{
       const row=node("fieldset",undefined,pullbackRows);node("legend","Pullback "+(index+1),row);
       const label=node("label","Show this pullback",row),show=node("input",undefined,label);show.type="checkbox";show.checked=!plan.hidden;show.onchange=()=>{plan.hidden=!show.checked;changed();};
       fields(row,plan,pullbackFields);const remove=node("button","Remove",row);remove.type="button";remove.onclick=()=>{patch.ownerPullbacks.splice(index,1);changed();renderPullbacks();};
     });};
+    pullbackParent.addEventListener("focusout",event=>{if(!pullbackParent.contains(event.relatedTarget)){orderPullbacks(patch.ownerPullbacks,"zoneLow","zoneHigh");renderPullbacks();}});
     const addPullback=node("button","Add pullback",pullbackParent);addPullback.type="button";addPullback.onclick=()=>{patch.ownerPullbacks.push(Object.fromEntries(pullbackFields.map(name=>[name,/Price$|Low$|High$/.test(name)?null:""])));changed();renderPullbacks();};renderPullbacks();
     for (const key of ["failureRecovery"]) {
       const parent = section(key), object = key === "failureRecovery" ? patch : patch.pullbackPlans;
