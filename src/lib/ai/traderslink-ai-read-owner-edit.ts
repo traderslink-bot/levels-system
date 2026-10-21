@@ -77,8 +77,19 @@ export function applyOwnerAnalysisEdit(original: TradersLinkAiReadPayload, rawPa
       output[key] = value;
     } else if (["needsToHold", "cautionBelow", "momentumFailure", "mustClear", "breakoutContinuation"].includes(key)) output[key] = shape(value, level);
     else if (key === "targets" || key === "downsideCheckpoints") {
-      if (!Array.isArray(value) || value.length > 20) throw new Error("At most 20 analysis levels are supported.");
+      if (!Array.isArray(value) || (key === "downsideCheckpoints" && value.length > 20)) throw new Error("Invalid analysis levels.");
       output[key] = value.map((item) => shape(item, target));
+    } else if (key === "ownerPullbacks") {
+      if (!Array.isArray(value)) throw new Error("Pullbacks must be a list.");
+      result.ownerPullbacks = value.map(item => {
+        const input = { ...record(item) };
+        const hidden = input.hidden;
+        if (hidden !== undefined && typeof hidden !== "boolean") throw new Error("Invalid pullback visibility.");
+        delete input.hidden;
+        delete input.invalidationPrice; delete input.firstObjectivePrice; delete input.evidenceIds;
+        return { ...shape(input,pullback,false), invalidationPrice:null, firstObjectivePrice:null, evidenceIds:[],
+          ...(hidden === undefined ? {} : {hidden}) } as unknown as NonNullable<TradersLinkAiReadPayload["ownerPullbacks"]>[number];
+      });
     } else if (key === "pullbackPlans") {
       const plans = record(value);
       if (Object.keys(plans).some((name) => name !== "shallow" && name !== "deep")) throw new Error("Unexpected pullback field.");
@@ -105,7 +116,7 @@ export function applyOwnerAnalysisEdit(original: TradersLinkAiReadPayload, rawPa
     if (JSON.stringify(output[key]) !== JSON.stringify((original as unknown as Record<string, unknown>)[key])) changedPaths.push(key);
   }
   const warnings: string[] = [];
-  for (const [name, plan] of Object.entries(result.pullbackPlans)) {
+  for (const [name, plan] of Object.entries(result.ownerPullbacks ?? result.pullbackPlans)) {
     if (!plan) continue;
     if (plan.zoneLow > plan.zoneHigh) warnings.push(`${name} pullback low is above its high.`);
     if (plan.invalidationPrice != null && plan.invalidationPrice >= plan.zoneLow) warnings.push(`${name} pullback invalidation is at or above its zone.`);

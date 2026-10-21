@@ -319,6 +319,8 @@ export type TradersLinkAiReadPayload = {
   analysisFormat?: "current" | "simple";
   simpleAnalysis?: import("../ai/watchlist-simple-content.js").SimpleAnalysis;
   ownerHiddenSections?: string[];
+  /** Owner-authored ordered replacement; absence preserves legacy AI scenarios. */
+  ownerPullbacks?: Array<TradersLinkAiReadPullbackScenario & { hidden?: boolean }>;
   version: 3;
   /** Immutable id assigned before the first provider attempt for this read. */
   generationId: string;

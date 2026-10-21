@@ -17,10 +17,10 @@ const simple = (): TradersLinkAiReadPayload => ({ version: 3, analysisFormat: "s
     upside: [{ low: 4.73, high: 4.88, explanation: "Prior resistance" }], invalidation: { price: 3.4, explanation: "Base fails" },
   } } as unknown as TradersLinkAiReadPayload);
 
-test("simple visibility matches selected sections and promotes deep-only Pullback", () => {
+test("simple visibility matches selected sections and retains saved pullback numbering", () => {
   const read = simple(); read.ownerHiddenSections = ["currentRead", "shallow", "targets", "momentumFailure"];
   const sections = analysisImageSections(read);
-  assert.equal(sections.length, 1); assert.equal(sections[0]!.title, "Pullback");
+  assert.equal(sections.length, 1); assert.equal(sections[0]!.title, "Pullback 2");
   assert.match(JSON.stringify(sections), /3.66/); assert.doesNotMatch(JSON.stringify(sections), /3.86|4.73|Base fails/);
 });
 test("two images follow the owner-selected semantic order", () => {

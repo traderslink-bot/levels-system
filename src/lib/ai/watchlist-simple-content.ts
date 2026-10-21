@@ -2,7 +2,7 @@
 export type SimpleAnalysis = {
   setup: string;
   breakout?: { price: number; confirmation: string; explanation: string } | null;
-  pullbacks: Array<{ low: number; high: number; explanation: string; confirmation: string; invalidation: number | null }>;
+  pullbacks: Array<{ low: number; high: number; explanation: string; confirmation: string; invalidation: number | null; hidden?: boolean }>;
   upside: Array<{ low: number; high: number; explanation: string }>;
   invalidation: { price: number; explanation: string } | null;
 };
@@ -13,9 +13,9 @@ const price = (value: unknown): value is number => typeof value === "number" && 
 /** Shape only: never reject a whole read because of an optional area's trading interpretation. */
 export function parseSimpleAnalysis(value: unknown): SimpleAnalysis | null {
   if (!record(value) || !text(value.setup) || !Array.isArray(value.pullbacks) ||
-      value.pullbacks.length > 2 || !Array.isArray(value.upside) || value.upside.length > 5) return null;
+      !Array.isArray(value.upside)) return null;
   const area = (item: unknown) => record(item) && price(item.low) && price(item.high) && text(item.explanation);
-  if (!value.pullbacks.every(item => area(item) && text(item.confirmation)) ||
+  if (!value.pullbacks.every(item => area(item) && text(item.confirmation) && (item.hidden === undefined || typeof item.hidden === "boolean")) ||
       !value.upside.every(area) || (value.invalidation != null &&
       !(record(value.invalidation) && price(value.invalidation.price) && text(value.invalidation.explanation)))) return null;
   return {
@@ -23,7 +23,8 @@ export function parseSimpleAnalysis(value: unknown): SimpleAnalysis | null {
     breakout: record(value.breakout) && price(value.breakout.price) && text(value.breakout.confirmation) && text(value.breakout.explanation)
       ? { price: value.breakout.price, confirmation: value.breakout.confirmation, explanation: value.breakout.explanation } : null,
     pullbacks: value.pullbacks.map(item => ({ low:item.low, high:item.high, explanation:item.explanation,
-      confirmation:item.confirmation, invalidation:price(item.invalidation) ? item.invalidation : null })),
+      confirmation:item.confirmation, invalidation:price(item.invalidation) ? item.invalidation : null,
+      ...(item.hidden === undefined ? {} : { hidden:item.hidden }) })),
     upside: value.upside.map(item => ({low:item.low, high:item.high, explanation:item.explanation})),
     invalidation: value.invalidation == null ? null : {
       price:value.invalidation.price as number, explanation:value.invalidation.explanation as string },

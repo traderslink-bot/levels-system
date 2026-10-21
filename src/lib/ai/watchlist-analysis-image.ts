@@ -36,9 +36,9 @@ export function analysisImageSections(read: TradersLinkAiReadPayload, dipVisible
     const simple = read.simpleAnalysis;
     if (!simple) throw new Error("Missing simple analysis");
     add("currentRead", "Trade preparation", [body(simple.setup)]);
-    const plans = simple.pullbacks.map((plan, i) => ({ plan, key: i === 0 ? "shallow" : "deep" }))
-      .filter(({ key }) => !hidden.has(key));
-    plans.forEach(({ plan, key }, i) => add(key, i ? "Deeper pullback" : "Pullback", [
+    const plans = simple.pullbacks.map((plan, i) => ({ plan, index:i, key:`pullback-${i+1}` }))
+      .filter(({plan,index}) => !(plan.hidden ?? hidden.has(index===0?"shallow":index===1?"deep":"")));
+    if (dipVisible) plans.forEach(({ plan, key, index }) => add(key, `Pullback ${index+1}`, [
       value(area(plan.low, plan.high)), body(plan.explanation),
       body(plan.confirmation.trim() ? `Required confirmation: ${plan.confirmation}` : ""),
     ]));
@@ -54,12 +54,10 @@ export function analysisImageSections(read: TradersLinkAiReadPayload, dipVisible
     if (level) add(key, title, [value(price(level.price)), body(level.rationale)]);
   }
   add("targets", "Potential Targets (Volume Dependent)", read.targets.flatMap(level => [value(level.price === null ? level.label : price(level.price)), body(level.condition)]));
-  let count = 0;
-  for (const key of ["shallow", "deep"] as const) {
-    const plan = read.pullbackPlans[key];
-    if (!dipVisible || hidden.has(key) || !plan) continue;
-    add(key, count++ ? "Deeper pullback" : "Pullback", [
-      body(key === "shallow" ? "For traders seeking a controlled retest while momentum remains intact." : "For traders waiting for the accelerated move to unwind into its base."),
+  const plans = read.ownerPullbacks ?? (["shallow","deep"] as const).flatMap(key=>read.pullbackPlans[key]?[{...read.pullbackPlans[key]!,hidden:hidden.has(key)}]:[]);
+  for (const [index,plan] of plans.entries()) {
+    if (!dipVisible || plan.hidden) continue;
+    add(`pullback-${index+1}`, `Pullback ${index+1}`, [
       value(area(plan.zoneLow, plan.zoneHigh)),
       body(plan.rationale),
       body(`Required confirmation: ${price(plan.confirmationPrice)}. ${plan.confirmation}`)]);
@@ -85,8 +83,7 @@ export function analysisImageSections(read: TradersLinkAiReadPayload, dipVisible
 export function splitImageSections(heights: readonly number[], keys: readonly string[], _comfortable = 1900, maximum = 4200): number[][] {
   if (!heights.length || heights.some(h => !Number.isFinite(h) || h <= 0)) throw new Error("Empty image content");
   if (heights.length !== keys.length) throw new Error("Image section mismatch");
-  const groups = [["targets"], ["shallow","deep"]];
-  const pages = groups.map(group => group.flatMap(key => keys.flatMap((found,i) => found === key ? [i] : []))).filter(page => page.length);
+  const pages = [keys.flatMap((key,i)=>key==="targets"?[i]:[]),keys.flatMap((key,i)=>key==="shallow"||key==="deep"||/^pullback-\d+$/.test(key)?[i]:[])].filter(page=>page.length);
   if (!pages.length || pages.some(page => page.reduce((sum,i) => sum + heights[i]!,0) > maximum)) throw new Error("Analysis exceeds readable section groups");
   return pages;
 }
@@ -98,7 +95,7 @@ export async function renderAnalysisImages(read: TradersLinkAiReadPayload, dipVi
   const boldfile = fileURLToPath(new URL("../../../assets/watchlist-fonts/Lato-Bold.ttf", import.meta.url));
   await sharp({ text: { text: ".", font: "Lato Bold 1", fontfile: boldfile, rgba: true } }).png().toBuffer();
   const included = new Set(["targets","shallow","deep"]);
-  const sections = analysisImageSections(read, dipVisible).filter(section => included.has(section.key));
+  const sections = analysisImageSections(read, dipVisible).filter(section => included.has(section.key)||/^pullback-\d+$/.test(section.key));
   const plainSize = sections.reduce((sum, section) => sum + section.title.length + section.blocks.reduce((n, b) => n + b.text.length, 0), 0);
   if (plainSize > 40000 || !/^[A-Z][A-Z0-9.-]{0,15}$/.test(read.symbol) || !Number.isFinite(read.generatedAt)
     || !Number.isFinite(read.currentPrice) || read.currentPrice <= 0) throw new Error("Invalid image content");

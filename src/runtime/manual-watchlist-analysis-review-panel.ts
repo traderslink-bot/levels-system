@@ -87,12 +87,17 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
   const changed = () => { dirty = true; preview = null; previewContent.replaceChildren(); byId("approve").disabled = true; };
   const pick = (value, names) => Object.fromEntries(names.map((key) => [key, value[key]]));
   function editable(payload) {
-    if (payload.analysisFormat === "simple") return {simpleAnalysis:structuredClone(payload.simpleAnalysis),catalystRealityCheck:pick(payload.catalystRealityCheck,["summary","dayTradeRelevance"]),riskSummary:[...(payload.riskSummary || [])],ownerHiddenSections:[...(payload.ownerHiddenSections || [])]};
+    if (payload.analysisFormat === "simple") {
+      const simple=structuredClone(payload.simpleAnalysis),hidden=payload.ownerHiddenSections || [];
+      simple.pullbacks=simple.pullbacks.map((plan,index)=>({...plan,hidden:plan.hidden ?? hidden.includes(index===0?"shallow":index===1?"deep":"")}));
+      return {simpleAnalysis:simple,catalystRealityCheck:pick(payload.catalystRealityCheck,["summary","dayTradeRelevance"]),riskSummary:[...(payload.riskSummary || [])],ownerHiddenSections:hidden.filter(key=>key!=="shallow"&&key!=="deep")};
+    }
     const result = Object.fromEntries(keys.filter((key) => Object.hasOwn(payload, key)).map((key) => [key, structuredClone(payload[key])]));
     for (const key of ["needsToHold", "cautionBelow", "momentumFailure", "mustClear", "breakoutContinuation"]) result[key] = pick(payload[key], levelFields);
     result.targets = payload.targets.map((item) => pick(item, ["label", "price", "condition"]));
     result.downsideCheckpoints = payload.downsideCheckpoints.map((item) => pick(item, ["label", "price", "condition"]));
-    result.pullbackPlans = Object.fromEntries(["shallow", "deep"].map((key) => [key, payload.pullbackPlans[key] ? pick(payload.pullbackPlans[key], pullbackFields) : null]));
+    result.ownerPullbacks = payload.ownerPullbacks ? payload.ownerPullbacks.map(plan=>({...pick(plan,pullbackFields),hidden:plan.hidden===true})) : ["shallow","deep"].flatMap(key=>payload.pullbackPlans[key]?[{...pick(payload.pullbackPlans[key],pullbackFields),hidden:(payload.ownerHiddenSections||[]).includes(key)}]:[]);
+    delete result.pullbackPlans;
     result.failureRecovery = payload.failureRecovery ? pick(payload.failureRecovery, recoveryFields) : null;
     for (const key of ["catalystRealityCheck", "dilutionRisk", "listingStatus"]) result[key] = pick(payload[key], ["summary", "dayTradeRelevance"]);
     result.ownerHiddenSections = payload.ownerHiddenSections || [];
@@ -185,24 +190,24 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     if (patch.simpleAnalysis) {
       const simple=patch.simpleAnalysis;
       input(section("currentRead"),"Analysis",simple,"setup",false);
-      [["pullbacks","Pullback",2],["upside","Potential Targets (Volume Dependent)",5]].forEach(([key,title,limit])=>{
+      [["pullbacks","Pullback"],["upside","Potential Targets (Volume Dependent)"]].forEach(([key,title])=>{
         const parent=node("details",undefined,editor); node("summary",title,parent);
         const list=node("div",undefined,parent);
         const render=()=>{
           list.replaceChildren();
           simple[key].forEach((item,index)=>{
             const row=node("fieldset",undefined,list);node("legend",title+" "+(index+1),row);
+            if(key==="pullbacks") {const label=node("label","Show this pullback",row),show=node("input",undefined,label);show.type="checkbox";show.checked=!item.hidden;show.onchange=()=>{item.hidden=!show.checked;changed();};}
             ["low","high","explanation",...(key==="pullbacks"?["confirmation"]:[])].forEach(name=>
               input(row,({low:"Area low",high:"Area high",explanation:"Explanation",confirmation:"Confirmation",invalidation:"Invalidation price"})[name],item,name,["low","high","invalidation"].includes(name)));
             const remove=node("button","Remove",row);remove.type="button";remove.onclick=()=>{simple[key].splice(index,1);changed();render();};
           });
         };
         render();const add=node("button","Add",parent);add.type="button";add.onclick=()=>{
-          if(simple[key].length>=limit)return;
           simple[key].push({low:null,high:null,explanation:"",...(key==="pullbacks"?{confirmation:"",invalidation:null}:{})});changed();render();
         };
       });
-      ["shallow","deep","targets"].forEach(key=>section(key));
+      section("targets");
       const breakoutParent=section("breakoutContinuation");
       const breakoutFields=node("div",undefined,breakoutParent);
       const renderBreakout=()=>{breakoutFields.replaceChildren();if(simple.breakout) ["price","explanation","confirmation"].forEach(key=>input(breakoutFields,key==="price"?"Breakout price":key,simple.breakout,key,key==="price"));};
@@ -236,9 +241,17 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
         });
       };
       renderList(); const add = node("button", "Add", parent); add.type = "button";
-      add.onclick = () => { if (patch[key].length >= 20) { message("Up to 20 items can be saved in this section."); return; } patch[key].push(key === "riskSummary" ? "" : { label: "", price: null, condition: "" }); changed(); renderList(); };
+      add.onclick = () => { if (key!=="targets"&&patch[key].length >= 20) { message("Up to 20 items can be saved in this section."); return; } patch[key].push(key === "riskSummary" ? "" : { label: "", price: null, condition: "" }); changed(); renderList(); };
     }
-    for (const key of ["shallow", "deep", "failureRecovery"]) {
+    const pullbackParent=node("details",undefined,editor);node("summary","Pullbacks",pullbackParent);
+    const pullbackRows=node("div",undefined,pullbackParent);
+    const renderPullbacks=()=>{pullbackRows.replaceChildren();patch.ownerPullbacks.forEach((plan,index)=>{
+      const row=node("fieldset",undefined,pullbackRows);node("legend","Pullback "+(index+1),row);
+      const label=node("label","Show this pullback",row),show=node("input",undefined,label);show.type="checkbox";show.checked=!plan.hidden;show.onchange=()=>{plan.hidden=!show.checked;changed();};
+      fields(row,plan,pullbackFields);const remove=node("button","Remove",row);remove.type="button";remove.onclick=()=>{patch.ownerPullbacks.splice(index,1);changed();renderPullbacks();};
+    });};
+    const addPullback=node("button","Add pullback",pullbackParent);addPullback.type="button";addPullback.onclick=()=>{patch.ownerPullbacks.push(Object.fromEntries(pullbackFields.map(name=>[name,/Price$|Low$|High$/.test(name)?null:""])));changed();renderPullbacks();};renderPullbacks();
+    for (const key of ["failureRecovery"]) {
       const parent = section(key), object = key === "failureRecovery" ? patch : patch.pullbackPlans;
       const names = key === "failureRecovery" ? recoveryFields : pullbackFields;
       const wrapper = node("label", "Include this setup", parent), toggle = node("input", undefined, wrapper);
