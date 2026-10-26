@@ -271,7 +271,13 @@ function attachX(entry, actions, state, more = actions) {
       if (window.parent === window) { status.textContent = 'Open Watchlist Admin in the dashboard to edit the analysis card.'; return; }
       window.parent.postMessage({ source: 'traderslink-watchlist-admin', type: 'edit-analysis', symbol: entry.symbol }, window.location.origin);
     };
-    actions.append(edit,notes);
+    const history = document.createElement('button'); history.type = 'button'; history.className = 'secondary';
+    history.textContent = 'Previous analyses'; history.disabled = !state?.cycleId;
+    history.onclick = () => {
+      if (window.parent === window) { status.textContent = 'Open Watchlist Admin in the dashboard to view previous analysis cards.'; return; }
+      window.parent.postMessage({ source: 'traderslink-watchlist-admin', type: 'previous-analyses', symbol: entry.symbol, cycleId: state.cycleId }, window.location.origin);
+    };
+    actions.append(edit,history,notes);
     if (state?.canPublishWithoutAnalysis) {
       const choice = document.createElement('label'); const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.style.width = 'auto';
       const key = state.cycleId + ':listing'; checkbox.checked = notificationChoices.get(key) !== false;
