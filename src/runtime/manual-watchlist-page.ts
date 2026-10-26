@@ -2296,6 +2296,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 
     const pendingMoveGroups = new Map();
     const moveNotifyChoices = new Map();
+    const moveFreeChatChoices = new Map();
+    const moveDeleteChoices = new Map();
     const moveRequests = new Map();
     const movingSymbols = new Set();
     let moveSelectionEntries = [];
@@ -2499,8 +2501,17 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           }
           const notifyLabel=document.createElement('label'),notifyMove=document.createElement('input');
           notifyMove.type='checkbox';notifyMove.style.width='auto';notifyMove.checked=moveNotifyChoices.get(entry.symbol)===true;
-          notifyMove.onchange=()=>moveNotifyChoices.set(entry.symbol,notifyMove.checked);
+          notifyMove.onchange=()=>{moveNotifyChoices.set(entry.symbol,notifyMove.checked);if(!notifyMove.checked){freeMove.checked=false;moveFreeChatChoices.delete(entry.symbol);}freeMove.disabled=!notifyMove.checked||moveSelect.value==='private';};
           notifyLabel.append(notifyMove,document.createTextNode(' Post to destination and notify'));
+          const freeLabel=document.createElement('label'),freeMove=document.createElement('input');
+          freeMove.type='checkbox';freeMove.style.width='auto';freeMove.checked=moveFreeChatChoices.get(entry.symbol)===true;freeMove.disabled=!notifyMove.checked||moveSelect.value==='private';
+          freeMove.onchange=()=>moveFreeChatChoices.set(entry.symbol,freeMove.checked);
+          freeLabel.append(freeMove,document.createTextNode(' Also post to Free Chat'));
+          const deleteLabel=document.createElement('label'),deleteMove=document.createElement('input');
+          deleteMove.type='checkbox';deleteMove.style.width='auto';deleteMove.checked=moveDeleteChoices.get(entry.symbol)===true;
+          deleteMove.onchange=()=>moveDeleteChoices.set(entry.symbol,deleteMove.checked);
+          deleteLabel.append(deleteMove,document.createTextNode(' Delete posts from previous channel'));
+          moveSelect.addEventListener('change',()=>{if(moveSelect.value==='private'){freeMove.checked=false;moveFreeChatChoices.delete(entry.symbol);}freeMove.disabled=!notifyMove.checked||moveSelect.value==='private';});
           // Append the notification choice after the destination and Move button.
           const moveButton = document.createElement("button");
             moveButton.textContent = "Move to List";
@@ -2514,7 +2525,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             moveSelect.disabled = true;
             try {
               let request=moveRequests.get(entry.symbol);
-              if(!request||request.to!==moveSelect.value||request.notify!==notifyMove.checked){request={symbol:entry.symbol,id:crypto.randomUUID(),to:moveSelect.value,notify:notifyMove.checked,discordText:window.watchlistDiscordText?.get(entry.publicationReview?.cycleId+':move:'+moveSelect.value)};moveRequests.set(entry.symbol,request);}
+              const freeChat=notifyMove.checked&&freeMove.checked&&moveSelect.value!=='private';
+              if(!request||request.to!==moveSelect.value||request.notify!==notifyMove.checked||request.freeChat!==freeChat||request.deleteSource!==deleteMove.checked){request={symbol:entry.symbol,cycleId:entry.publicationReview?.cycleId,id:crypto.randomUUID(),to:moveSelect.value,notify:notifyMove.checked,freeChat,deleteSource:deleteMove.checked,discordText:window.watchlistDiscordText?.get(entry.publicationReview?.cycleId+':move:'+moveSelect.value)};moveRequests.set(entry.symbol,request);}
               const response = await fetch("/api/watchlist/analysis-review/category-move", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "x-traderlink-journal-admin-request":"1" },
@@ -2526,9 +2538,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
                 return;
               }
               setStatus(
-                payload.move.notice || "Moved " + entry.symbol + " to " + moveSelect.options[moveSelect.selectedIndex].text,
+                (payload.move.notice || "Moved " + entry.symbol + " to " + moveSelect.options[moveSelect.selectedIndex].text)+(payload.freeChatWarning?' '+payload.freeChatWarning:''),
               );
-                if(payload.move.destination==='confirmed'||payload.move.destination==='skipped'){moveRequests.delete(entry.symbol);moveNotifyChoices.delete(entry.symbol);}
+                if(payload.move.destination==='confirmed'||payload.move.destination==='skipped'){moveRequests.delete(entry.symbol);moveNotifyChoices.delete(entry.symbol);moveFreeChatChoices.delete(entry.symbol);moveDeleteChoices.delete(entry.symbol);}
                 window.watchlistMoveDeliveryCache?.clear();pendingMoveGroups.delete(entry.symbol);
                 movingSymbols.delete(entry.symbol);
                 await loadEntries();
@@ -2544,7 +2556,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           });
           actionGroups.move.appendChild(moveSelect);
           actionGroups.move.appendChild(moveButton);
-          actionGroups.move.append(notifyLabel);
+          actionGroups.move.append(notifyLabel,freeLabel,deleteLabel);
             const editMovePost=document.createElement('button');editMovePost.type='button';editMovePost.textContent='Edit move post';editMovePost.onclick=()=>window.watchlistDiscordText?.open(entry.publicationReview?.cycleId+':move:'+moveSelect.value,entry.symbol,'move',moveSelect.value);actionGroups.move.append(editMovePost);
           const deliveryStatus=document.createElement('p');deliveryStatus.setAttribute('role','status');deliveryStatus.hidden=true;
           const retryDelivery=document.createElement('button');retryDelivery.type='button';retryDelivery.className='secondary';retryDelivery.textContent='Retry';retryDelivery.hidden=true;
@@ -2559,6 +2571,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             else if(move.destination==='confirmed'&&move.notification==='confirmed')deliveryStatus.textContent='Move notification sent.';
             else if(['sending','uncertain'].includes(move.destination))deliveryStatus.textContent='Moved. Notification delivery is not yet confirmed.';
             else {deliveryStatus.textContent='Moved. Notification delivery needs another attempt.';retryDelivery.hidden=!move.published;}
+            if(move.deleteSource){deliveryStatus.textContent=move.notice||deliveryStatus.textContent;if(move.cleanupFailed)retryDelivery.hidden=false;}
+            if(move.freeChat)deliveryStatus.textContent+=' Free Chat also requested; see Post to Free Chat for delivery status.';
+            retryDelivery.textContent=move.freeChat&&move.destination==='confirmed'?'Retry missing delivery':'Retry';
+            if(move.freeChat&&move.destination==='confirmed')retryDelivery.hidden=false;
           };
           const loadDelivery=async(force=false)=>{
             if(deliveryBusy)return;const saved=cache.get(deliveryKey);
@@ -2570,7 +2586,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           };
           retryDelivery.onclick=async()=>{
             if(deliveryBusy||!latestMove?.current)return;deliveryBusy=true;retryDelivery.disabled=true;
-            try{const response=await fetch('/api/watchlist/analysis-review/category-move',{method:'POST',headers:{'Content-Type':'application/json','x-traderlink-journal-admin-request':'1'},body:JSON.stringify({symbol:entry.symbol,id:latestMove.id,to:latestMove.to,notify:latestMove.notify})});if(!response.ok)throw Error();cache.delete(deliveryKey);}
+            try{const response=await fetch('/api/watchlist/analysis-review/category-move',{method:'POST',headers:{'Content-Type':'application/json','x-traderlink-journal-admin-request':'1'},body:JSON.stringify({symbol:entry.symbol,cycleId:latestMove.cycleId,id:latestMove.id,to:latestMove.to,notify:latestMove.notify,deleteSource:latestMove.deleteSource===true,freeChat:latestMove.freeChat===true})});if(!response.ok)throw Error();cache.delete(deliveryKey);}
             catch{deliveryStatus.textContent='Notification could not be sent. Try again.';}
             finally{deliveryBusy=false;retryDelivery.disabled=false;await loadDelivery(true);}
           };

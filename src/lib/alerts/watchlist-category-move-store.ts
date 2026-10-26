@@ -36,6 +36,8 @@ export class CategoryMoveStore {
       const previous=moves[index]!;
       for(const key of ["symbol","cycleId","from","to","createdAt","content","actor","notify","published","approvalRevision"] as const)
         if(previous[key]!==move[key])throw Error("Saved move identity changed.");
+      for(const key of ["deleteSource","freeChat"] as const) if(Boolean(previous[key])!==Boolean(move[key]))throw Error("Saved move choices changed.");
+      if(previous.activationAt!==move.activationAt)throw Error("Saved move activation changed.");
       moves[index]=structuredClone(move);
     }else moves.push(structuredClone(move));
     mkdirSync(directory(),{recursive:true});

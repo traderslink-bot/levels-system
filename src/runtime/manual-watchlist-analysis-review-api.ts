@@ -131,7 +131,8 @@ export async function dispatchAnalysisReviewRequest(input: {
       if(input.method!=='POST')return {status:405,body:{error:'Method not allowed.'}};
       const body=input.body as Record<string,unknown>;
       if(!body||typeof body.symbol!=='string'||typeof body.id!=='string'||typeof body.to!=='string'||typeof body.notify!=='boolean'||(body.messageId!==undefined&&typeof body.messageId!=='string'))return {status:400,body:{error:'Invalid move request.'}};
-      const move=await manager.moveCategory({symbol:body.symbol,id:body.id,to:body.to,notify:body.notify,actor:input.actor,messageId:body.messageId as string|undefined,discordText:savedText(body.symbol,'move',body.to,body.discordText)});
+      if((body.deleteSource!==undefined&&typeof body.deleteSource!=='boolean')||(body.freeChat!==undefined&&typeof body.freeChat!=='boolean')||(body.cycleId!==undefined&&(typeof body.cycleId!=='string'||body.cycleId.length>200)))return {status:400,body:{error:'Invalid move choices.'}};
+      const move=await manager.moveCategory({symbol:body.symbol,id:body.id,to:body.to,notify:body.notify,cycleId:body.cycleId as string|undefined,deleteSource:body.deleteSource===true,freeChat:body.notify&&body.freeChat===true,actor:input.actor,messageId:body.messageId as string|undefined,discordText:savedText(body.symbol,'move',body.to,body.discordText)});
       return {status:200,body:{ok:true,move}};
     }catch{return {status:400,body:{error:'Move could not complete. Refresh the ticker list and check move delivery status before retrying.'}};}
   }

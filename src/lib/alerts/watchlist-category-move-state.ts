@@ -10,6 +10,9 @@ export type CategoryMove = {
   createdAt: number;
   published: boolean;
   notify: boolean;
+  deleteSource?: boolean;
+  freeChat?: boolean;
+  activationAt?: number;
   placement: "pending" | "complete";
   destination: "pending" | "sending" | "confirmed" | "failed" | "uncertain" | "skipped";
   destinationReceipt?: MoveReceipt;
@@ -23,7 +26,7 @@ export function newCategoryMove(input: Omit<CategoryMove,"placement"|"destinatio
   const send = input.notify && input.published && input.from !== input.to;
   const unique = new Map(sourceReceipts.map(receipt => [`${receipt.channelId}:${receipt.messageId}`,receipt]));
   return { ...input, placement:"pending", destination:send ? "pending" : "skipped", notification:send ? "pending" : "skipped",
-    cleanup:send ? [...unique.values()].map(receipt => ({receipt:{...receipt},state:"pending"})) : [], notice:"" };
+    cleanup:input.from!==input.to?[...unique.values()].map(receipt => ({receipt:{...receipt},state:"pending"})):[], notice:"" };
 }
 
 export type MovePorts = {
@@ -54,7 +57,22 @@ export async function advanceCategoryMove(move: CategoryMove, ports: MovePorts):
     state.placement="complete";
     save();
   }
-  if (state.destination === "skipped") {state.notice="Ticker moved. No notifications sent.";save();return state;}
+  const cleanup = async () => {
+    if (!state.deleteSource || !ports.current()) return;
+    for (const job of state.cleanup) {
+      if (job.state === "deleted") continue;
+      if (!ports.current()) break;
+      try {await ports.remove(job.receipt);job.state="deleted";} catch {job.state="failed";}
+      save();
+    }
+  };
+  if (state.destination === "skipped") {
+    await cleanup();
+    state.notice=state.deleteSource
+      ? state.cleanup.some(job=>job.state==="failed")?"Ticker moved. Some previous-channel posts could not be deleted; retry cleanup.":state.cleanup.length?"Ticker moved. Previous-channel posts deleted. No notifications sent.":"Ticker moved. No saved previous-channel posts were available to delete."
+      :"Ticker moved. No notifications sent.";
+    save();return state;
+  }
   if (!ports.current()) {
     state.notice="Ticker placement changed again. This earlier move will not send another post.";
     save();
@@ -103,8 +121,10 @@ export async function advanceCategoryMove(move: CategoryMove, ports: MovePorts):
     state.notification="confirmed";
     save();
   }
-  // Retain source receipts for eventual ticker removal; moves never delete posts.
-  state.notice="Ticker moved. Original posts retained. Discord post sent and member notifications queued.";
+  await cleanup();
+  state.notice=state.deleteSource
+    ? state.cleanup.some(job=>job.state==="failed")?"Ticker moved and destination post sent. Some previous-channel posts could not be deleted; retry cleanup.":state.cleanup.length?"Ticker moved. Previous-channel posts deleted. Discord post sent and member notifications queued.":"Ticker moved and destination post sent. No saved previous-channel posts were available to delete."
+    :"Ticker moved. Original posts retained. Discord post sent and member notifications queued.";
   save();
   return state;
 }
