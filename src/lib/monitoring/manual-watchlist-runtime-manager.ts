@@ -12027,12 +12027,13 @@ export class ManualWatchlistRuntimeManager {
     const parts=discordTextParts(formatWatchlistDiscordHeading(content));return {...parts,maxLength:2000-parts.suffix.length};
   }
   getCategoryMoves(symbol:string){return this.categoryMoves().status(normalizeSymbol(symbol));}
-  async moveCategory(input:{symbol:string;id:string;to:string;notify:boolean;actor:string;messageId?:string;discordText?:string}){
+  async moveCategory(input:{symbol:string;id:string;to:string;notify:boolean;cycleId?:string;deleteSource?:boolean;freeChat?:boolean;actor:string;messageId?:string;discordText?:string}){
     const symbol=normalizeSymbol(input.symbol),entry=this.watchlistStore.getEntry(symbol);
+    if(input.cycleId&&entry?.publicationReview?.cycleId!==input.cycleId&&!(input.to==='private'&&this.getCategoryMoves(symbol).some(move=>move.id===input.id&&move.current&&move.cycleId===input.cycleId)))throw new Error('Ticker activation changed. Reload its controls.');
     if(watchlistGroupForActivation({symbol,watchlistGroup:input.to as WatchlistGroup})!==input.to)throw new Error("Invalid Watchlist category.");
-    if(input.to!=="private"&&entry?.watchlistGroup!=="private")return this.categoryMoves().execute(input);
+    if(input.to==="private"||entry?.watchlistGroup!=="private")return this.categoryMoves().execute(input);
     await this.moveSymbolToWatchlistGroup(symbol,input.to as WatchlistGroup);
-    return {notice:input.to==="private"?"Moved to Private. Only you can see this ticker.":"Moved. Review and publish when ready.",destination:"skipped"};
+    return {notice:"Moved. Review and publish when ready.",destination:"skipped"};
   }
 
   async moveSymbolToWatchlistGroup(
