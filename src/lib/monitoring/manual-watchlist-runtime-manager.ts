@@ -1,7 +1,7 @@
 import { applyDiscordOwnerText, discordTextParts, formatWatchlistDiscordHeading } from "../alerts/watchlist-discord-owner-text.js";
 import { categoryMoveCopy } from "../alerts/watchlist-category-move-receipts.js";
 import { CategoryMoveService } from "../alerts/watchlist-category-move-service.js";
-import { analysisUpdateContextForDraft } from "../ai/watchlist-analysis-update-context.js";
+import { analysisUpdateContextForDraft, analysisUpdateContextFromReview } from "../ai/watchlist-analysis-update-context.js";
 import { queueDiscordRemoval, queueCategoryMoveRemovals } from "../alerts/watchlist-discord-removal.js";
 import { DiscordPreparationFailure } from "../alerts/discord-preparation-failure.js";
 import { isTopWatchesGroup } from "../live-watchlist/top-watches-group.js";
@@ -3591,7 +3591,11 @@ export class ManualWatchlistRuntimeManager {
           review: { symbol: entry.symbol, cycleId: review.cycleId, cancelled: false, events: [
             { revision: event.revision, actor: event.actor, at: event.at, body: { kind: "approve",
               draftRevision: event.body.draftRevision, publication: { notificationKind: event.body.publication?.notificationKind,
-                notifyUsers: event.body.publication?.notifyUsers } } },
+                notifyUsers: event.body.publication?.notifyUsers,
+                // The bounded event feed omits older approvals and card bodies.
+                // Freeze classification from the full acknowledged history here;
+                // the receiver cannot reconstruct it from this projection alone.
+                analysisUpdateContext: analysisUpdateContextFromReview(review, event.revision) } } },
             ...review.events.filter(e => e.body.kind === "delivery" && e.body.channel === "website" &&
               e.body.status === "acknowledged" && e.body.approvalRevision === event.revision),
           ] },
