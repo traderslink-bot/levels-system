@@ -190,7 +190,7 @@ function attachX(entry, actions, state, more = actions) {
       cancel.onclick = async () => { cancel.disabled = true; try { await request('/cancel-generation',{symbol:entry.symbol,runId:run.runId}); status.textContent = 'Analysis cancelled. Previous approved analysis is unchanged.'; } catch(error) { status.textContent = String(error.message || error); cancel.disabled = false; } };
       actions.append(status,cancel);
     }
-    const gainPost = document.createElement('button'); gainPost.type = 'button'; gainPost.className = 'secondary'; gainPost.textContent = 'Post potential gain';
+    const gainPost = document.createElement('button'); gainPost.type = 'button'; gainPost.className = 'secondary'; gainPost.textContent = 'Post Gain';
     gainPost.onclick = () => {
       if (window.parent === window) { window.alert('Open Watchlist Admin in the dashboard to preview and post the card.'); return; }
       window.parent.postMessage({ source: 'traderslink-watchlist-admin', type: 'post-potential-gain', symbol: entry.symbol }, window.location.origin);
