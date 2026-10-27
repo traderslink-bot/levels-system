@@ -75,20 +75,6 @@ export function parseAnalysisUpdateContext(value: unknown): AnalysisUpdateContex
 
 export const ANALYSIS_UPDATE_EXPLANATION = "A follow-up to the original analysis, with updated levels and setups for those holding a position or watching the trade develop.";
 
-export function analysisUpdateComparison(context?: AnalysisUpdateContext): string | null {
-  const at = timestamp(context?.firstAnalysisAt);
-  if (at === null) return null;
-  const time = new Intl.DateTimeFormat("en-US", {timeZone:"America/New_York",hour:"numeric",minute:"2-digit",hour12:true}).format(at);
-  const original = `Originally analyzed: ${time}.`;
-  const first = price(context?.firstAnalysisPrice), updated = price(context?.updatedAnalysisPrice);
-  if (first === null || updated === null) return original;
-  const percentage = (updated / first - 1) * 100;
-  if (!Number.isFinite(percentage)) return original;
-  const rounded = Math.round(percentage * 10) / 10;
-  const format = (value: number) => value.toFixed(value >= 1 ? 2 : 4);
-  return `${original} Now $${format(updated)} (${rounded > 0 ? "+" : ""}${rounded.toFixed(1)}%).`;
-}
-
 /** Freeze the first acknowledged analysis price before a new draft is published. */
 export function analysisUpdateContextForDraft(value: unknown, updatedPrice: unknown): AnalysisUpdateContext {
   const review = record(value);

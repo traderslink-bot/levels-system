@@ -1,4 +1,4 @@
-import { analysisUpdateComparison, ANALYSIS_UPDATE_EXPLANATION, type AnalysisUpdateContext } from "./watchlist-analysis-update-context.js";
+import { ANALYSIS_UPDATE_EXPLANATION, type AnalysisUpdateContext } from "./watchlist-analysis-update-context.js";
 import { createHash } from "node:crypto";
 import { appendDiscordMentions, type WatchlistDiscordAudience } from "../alerts/watchlist-discord-mentions.js";
 import { buildWatchlistDiscordLinkMessage } from "../alerts/watchlist-discord-link-message.js";
@@ -47,7 +47,7 @@ export function splitApprovedAnalysisText(text: string): string[] {
 export function renderApprovedAnalysisDiscord(read: TradersLinkAiReadPayload, analysisUpdate = false, audience?: WatchlistDiscordAudience, context?: AnalysisUpdateContext): string[] {
   const linked = buildWatchlistDiscordLinkMessage(read.symbol).replace("\n\n", "\n\nImages show part of the analysis. View full analysis in the app 👇\n\n");
   const firstAnalysis = analysisUpdate && context?.hasPreviousAnalysis === false;
-  return [appendDiscordMentions(firstAnalysis ? `${read.symbol} Analysis published\nThe first analysis is now available. View the setups and levels in the app.` + linked.slice(linked.indexOf("\n\n")) : analysisUpdate ? [`${read.symbol} Analysis updated`, analysisUpdateComparison(context), ANALYSIS_UPDATE_EXPLANATION].filter(Boolean).join("\n") + linked.slice(linked.indexOf("\n\n")) : linked, audience ?? { everyone: false, roles: [] })];
+  return [appendDiscordMentions(firstAnalysis ? `${read.symbol} Analysis published\nThe first analysis is now available. View the setups and levels in the app.` + linked.slice(linked.indexOf("\n\n")) : analysisUpdate ? [`${read.symbol} Analysis updated`, ANALYSIS_UPDATE_EXPLANATION].join("\n") + linked.slice(linked.indexOf("\n\n")) : linked, audience ?? { everyone: false, roles: [] })];
 }
 
 /** Apply only when freezing a new, authenticated owner approval. */
