@@ -22,3 +22,10 @@ test('Post Loss is a separate manual action with only the ticker and no automati
 test('ticker divider is one scoped top border including the first ticker, with no spacing changes', () => {
   assert.match(WATCHLIST_ROW_REVIEW, /li\.watchlist-control-row, li\.watchlist-control-row:first-child \{ border-top:2px solid #64748B; \}/);
 });
+
+test('orange applies only to the admin row ticker symbol, not badges, controls or public pages', () => {
+  assert.match(WATCHLIST_ROW_REVIEW, /li\.watchlist-control-row > \.entry-main > \.entry-title > strong:first-child \{ color:#EA580C; \}/);
+  const orangeRules = WATCHLIST_ROW_REVIEW.match(/[^{}]+\{[^{}]*#EA580C[^{}]*\}/g);
+  assert.equal(orangeRules?.length, 1);
+  assert.doesNotMatch(orangeRules![0]!, /padding|margin|border|font-size|gap|background/);
+});
