@@ -44,6 +44,7 @@ import type {
   TradersLinkAiReadPayload,
 } from "./live-watchlist-types.js";
 
+import { isSyntheticResistance, NO_HIGHER_RESISTANCE } from "./resistance-evidence.js";
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_RETRY_ATTEMPTS = 1;
 const DEFAULT_RETRY_DELAY_MS = 750;
@@ -948,7 +949,7 @@ export function buildLiveWatchlistLevelMap(args: {
   const zones = [
     ...appendUniqueDisplayZones(args.supportZones, gapRiskZones)
       .map((zone): LevelMapInputZone => ({ ...zone, originalSide: "support" })),
-    ...appendUniqueDisplayZones(args.resistanceZones, gapResistanceZones)
+    ...appendUniqueDisplayZones(args.resistanceZones.filter(zone => !isSyntheticResistance(zone)), gapResistanceZones)
       .map((zone): LevelMapInputZone => ({ ...zone, originalSide: "resistance" })),
   ];
   const roleFlipConfirmationPct = deriveRoleFlipConfirmationPct(args.currentPrice, args.roleFlipContext);
@@ -1055,7 +1056,7 @@ function formatPotentialPathLevelsCardBody(levelMap: LiveWatchlistLevelMap): str
     : "- No mapped support within 50%";
   const resistancePath = levelMap.resistanceLevels.length > 0
     ? levelMap.resistanceLevels.map((level) => `- ${level.label}`).join("\n")
-    : "- No mapped resistance within 50%";
+    : `- ${levelMap.dataQuality?.status === "unavailable" ? "Historical resistance data is unavailable." : NO_HIGHER_RESISTANCE}`;
   return `Support path:\n${supportPath}\n\nResistance path:\n${resistancePath}`;
 }
 
@@ -1417,6 +1418,11 @@ export type LiveWatchlistPotentialPathPresentation = Readonly<{
 export function buildLiveWatchlistPotentialPathPresentation(
   payload: LevelSnapshotPayload,
 ): LiveWatchlistPotentialPathPresentation {
+  // Cached snapshots can predate the correction. Keep factual levels only.
+  payload = { ...payload,
+    resistanceZones: payload.resistanceZones.filter(zone => !isSyntheticResistance(zone)),
+    ...(payload.ladderResistanceZones ? { ladderResistanceZones: payload.ladderResistanceZones.filter(zone => !isSyntheticResistance(zone)) } : {}),
+  };
   const updatedAt = payload.timestamp;
   const gapRiskZones = buildLiveWatchlistExtremeGapRiskZones({
     currentPrice: payload.currentPrice,
@@ -1472,10 +1478,17 @@ export function buildLiveWatchlistPotentialPathPresentation(
     fullLadderCard: ladder
       ? buildCard({
           title: ladderTitle,
-          body: cleanFullLadderBody(ladder, ladderTitle),
+          body: cleanFullLadderBody(ladder, ladderTitle).replace(/Resistance:\nnone(?=\n|$)/, `Resistance:\n${payload.levelDataQuality?.status === "unavailable" ? "Historical resistance data is unavailable." : NO_HIGHER_RESISTANCE}`),
           updatedAt,
           priceWhenPosted: payload.currentPrice,
           source: "level_snapshot",
+          metadata: {
+            resistanceEvidence: JSON.stringify(closestResistanceZones.map(zone => ({
+              price: zone.representativePrice, sourceLabel: zone.sourceLabel,
+              touchCount: zone.touchCount, sourceEvidenceCount: zone.sourceEvidenceCount,
+              marketDataProvenance: zone.marketDataProvenance,
+            }))),
+          },
         })
       : null,
     nearestSupportResistanceCard: levelMap

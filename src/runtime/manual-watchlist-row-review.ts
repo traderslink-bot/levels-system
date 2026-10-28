@@ -2,6 +2,7 @@
 export const WATCHLIST_ROW_REVIEW = String.raw`
 <style>
 li.watchlist-control-row { display:flex; flex-direction:column; align-items:stretch; }
+li.watchlist-control-row, li.watchlist-control-row:first-child { border-top:2px solid #64748B; }
 .watchlist-control-row > .entry-main { width:100%; }
 .entry-actions.watchlist-grouped-actions { display:flex; flex-direction:column; align-items:stretch; gap:8px; width:100%; min-width:0; }
 .watchlist-action-group { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:8px; min-width:0; }

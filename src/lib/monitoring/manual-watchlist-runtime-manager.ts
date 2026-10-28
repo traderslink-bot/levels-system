@@ -2,6 +2,7 @@ import { applyDiscordOwnerText, discordTextParts, formatWatchlistDiscordHeading 
 import { categoryMoveCopy } from "../alerts/watchlist-category-move-receipts.js";
 import { CategoryMoveService } from "../alerts/watchlist-category-move-service.js";
 import { analysisUpdateContextForDraft, analysisUpdateContextFromReview } from "../ai/watchlist-analysis-update-context.js";
+import { isSyntheticResistance } from "../live-watchlist/resistance-evidence.js";
 import { queueDiscordRemoval, queueCategoryMoveRemovals } from "../alerts/watchlist-discord-removal.js";
 import { DiscordPreparationFailure } from "../alerts/discord-preparation-failure.js";
 import { isTopWatchesGroup } from "../live-watchlist/top-watches-group.js";
@@ -5576,7 +5577,7 @@ export class ManualWatchlistRuntimeManager {
       ...surfacedResistanceZones,
       ...(levelsOutput?.fullLadderLevels?.resistance ?? []),
       ...extensionResistanceCandidates,
-    ];
+    ].filter(zone => !isSyntheticResistance(zone));
     const displayableSupportBase = fullLadderSupportCandidates.filter((zone) =>
       isSnapshotZoneDisplayableForSide(zone, normalizedPrice, tolerance, "support"),
     );
@@ -5637,13 +5638,6 @@ export class ManualWatchlistRuntimeManager {
       tolerance,
       maxForwardResistancePrice,
     });
-    const resistanceCandidatesWithContinuationMap = addSnapshotContinuationResistanceMap({
-      zones: resistanceCandidatesWithOuterAnchor,
-      currentPrice: normalizedPrice,
-      maxForwardResistancePrice,
-      symbol,
-      timestamp,
-    });
     const supportProvenancePolicy = applySnapshotLevelProvenancePolicy({
       zones: supportCandidatesWithYahooFallback,
       currentPrice: normalizedPrice,
@@ -5652,7 +5646,7 @@ export class ManualWatchlistRuntimeManager {
       mode: this.levelProvenanceMode,
     });
     const resistanceProvenancePolicy = applySnapshotLevelProvenancePolicy({
-      zones: resistanceCandidatesWithContinuationMap,
+      zones: resistanceCandidatesWithOuterAnchor,
       currentPrice: normalizedPrice,
       timestamp,
       side: "resistance",

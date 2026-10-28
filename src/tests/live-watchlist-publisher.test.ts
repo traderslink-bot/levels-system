@@ -1226,7 +1226,7 @@ describe("live watchlist publisher", () => {
     assert.equal(levelMap?.resistanceLevels.some((level) => level.price === 0.7432), false);
   });
 
-  it("reserves one Potential Path slot for the nearest checkpoint over 30 percent", () => {
+  it("reserves the outer Potential Path slot for observed structure, not a planning-only rounded level", () => {
     const levelMap = buildLiveWatchlistLevelMap({
       currentPrice: 10,
       supportZones: [],
@@ -1259,8 +1259,9 @@ describe("live watchlist publisher", () => {
 
     assert.deepEqual(
       levelMap?.resistanceLevels.map((level) => level.price),
-      [10.3, 10.6, 10.9, 11.2, 11.5, 11.8, 12.1, 13.5],
+      [10.3, 10.6, 10.9, 11.2, 11.5, 11.8, 12.1, 14.2],
     );
+    assert.equal(levelMap?.resistanceLevels.some(level => level.price === 13.5), false);
   });
 
   it("keeps TGHL-style strong resistance near 88 percent in Full Ladder only", () => {

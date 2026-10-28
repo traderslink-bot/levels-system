@@ -690,7 +690,6 @@ export function rankLevelZones(params: {
     forwardPlanningRangePct,
     maxExtensionPerSide,
     preservePracticalResistanceCoverage: maxExtensionPerSide > DEFAULT_EXTENSION_LEVELS_PER_SIDE,
-    allowSyntheticResistanceExtensions: true,
   });
 
   return {

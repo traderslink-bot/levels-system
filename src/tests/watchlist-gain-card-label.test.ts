@@ -18,3 +18,7 @@ test('Post Loss is a separate manual action with only the ticker and no automati
   assert.doesNotMatch(action, /price|Date\.now|fetch\(|request\(/);
   new Script(WATCHLIST_ROW_REVIEW.match(/<script>([\s\S]*?)<\/script>/)![1]!);
 });
+
+test('ticker divider is one scoped top border including the first ticker, with no spacing changes', () => {
+  assert.match(WATCHLIST_ROW_REVIEW, /li\.watchlist-control-row, li\.watchlist-control-row:first-child \{ border-top:2px solid #64748B; \}/);
+});

@@ -2038,7 +2038,7 @@ test("buildLevelExtensions can preserve the full practical resistance ladder for
   assert.ok(!extensions.resistance.some((extension) => extension.representativePrice > 1.755));
 });
 
-test("buildLevelExtensions adds weak continuation extensions when historical resistance is exhausted", () => {
+test("buildLevelExtensions keeps observed outer resistance without fabricating rounded coverage", () => {
   const zone = (id: string, representativePrice: number): FinalLevelZone => ({
     id,
     symbol: "XTLB",
@@ -2082,18 +2082,8 @@ test("buildLevelExtensions adds weak continuation extensions when historical res
   });
 
   assert.ok(extensions.resistance.some((extension) => extension.id === "historical-forward"));
-  assert.ok(
-    extensions.resistance.some(
-      (extension) =>
-        extension.isExtension &&
-        extension.sourceEvidenceCount === 0 &&
-        extension.representativePrice >= 4.5,
-    ),
-  );
-  assert.ok(
-    Math.max(...extensions.resistance.map((extension) => extension.representativePrice)) >=
-      3.46 * 1.3,
-  );
+  assert.equal(extensions.resistance.some(extension => extension.sourceEvidenceCount === 0), false);
+  assert.deepEqual(extensions.resistance.map(extension => extension.representativePrice), [3.93]);
 });
 
 test("scoreLevelZones promotes mixed higher-timeframe confluence above similar 5m-only reaction structure", () => {

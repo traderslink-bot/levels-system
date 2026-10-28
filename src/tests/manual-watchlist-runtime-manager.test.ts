@@ -6,6 +6,7 @@ import { TradersLinkAiReadReviewStore } from "../lib/ai/traderslink-ai-read-revi
 import { TradersLinkAiReadRunLedger } from "../lib/ai/traderslink-ai-read-run-ledger.js";
 import { DiscordConfirmedRejection } from "../lib/alerts/discord-confirmed-rejection.js";
 import { DurableLiveWatchlistPublisher } from "../lib/live-watchlist/live-watchlist-publish-outbox.js";
+import { buildLiveWatchlistPotentialPathPresentation } from "../lib/live-watchlist/live-watchlist-publisher.js";
 import test from "node:test";
 
 import type { DiscordThreadRoutingResult } from "../lib/alerts/alert-types.js";
@@ -6204,7 +6205,7 @@ test("ManualWatchlistRuntimeManager posts extension levels when price reaches th
   });
 });
 
-test("ManualWatchlistRuntimeManager shows a deeper upside ladder for low-priced small-cap runners", async () => {
+test("ManualWatchlistRuntimeManager preserves observed deeper levels without filling rounded checkpoints", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
   const persistence = new FakeWatchlistStatePersistence();
@@ -6273,13 +6274,13 @@ test("ManualWatchlistRuntimeManager shows a deeper upside ladder for low-priced 
   const snapshot = discordAlertRouter.levelSnapshots.at(-1)?.payload;
   assert.deepEqual(
     snapshot?.resistanceZones.map((zone: any) => zone.representativePrice),
-    [1.19, 1.3, 1.4, 1.5, 1.55, 1.6, 2.03],
+    [1.19, 1.55, 2.03],
   );
   assert.deepEqual(
     snapshot?.resistanceZones
       .filter((zone: any) => zone.sourceLabel === "continuation map")
       .map((zone: any) => zone.representativePrice),
-    [1.3, 1.4, 1.5, 1.6],
+    [],
   );
 
   await manager.stop();
@@ -9252,7 +9253,7 @@ test("ManualWatchlistRuntimeManager preserves near, intermediate, and far resist
   assert.equal(discordAlertRouter.levelSnapshots.at(-1)?.payload.resistanceZones.length, 6);
 });
 
-test("ManualWatchlistRuntimeManager adds continuation-map resistance checkpoints inside wide small-cap gaps", async () => {
+test("ManualWatchlistRuntimeManager preserves actual resistance across wide gaps without continuation inventions", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
   const persistence = new FakeWatchlistStatePersistence();
@@ -9365,7 +9366,7 @@ test("ManualWatchlistRuntimeManager adds continuation-map resistance checkpoints
     snapshot.resistanceZones
       .filter((zone: any) => zone.sourceLabel === "continuation map")
       .map((zone: any) => zone.representativePrice),
-    [2.25, 2.5, 2.75, 3],
+    [],
   );
   assert.equal(
     snapshot.resistanceZones
@@ -9382,7 +9383,7 @@ test("ManualWatchlistRuntimeManager adds continuation-map resistance checkpoints
   assert.equal(snapshot.audit?.omittedResistanceCount, 0);
 });
 
-test("ManualWatchlistRuntimeManager fills a runner resistance path when only one nearby overhead level remains", async () => {
+test("ManualWatchlistRuntimeManager keeps the one observed overhead level without inventing coverage", async () => {
   const monitor = new FakeMonitor();
   const discordAlertRouter = new FakeDiscordAlertRouter();
   const persistence = new FakeWatchlistStatePersistence();
@@ -9399,6 +9400,7 @@ test("ManualWatchlistRuntimeManager fills a runner resistance path when only one
     watchlistStatePersistence: persistence as any,
     liveWatchlistPublisher,
     pullbackReadEnabled: false,
+    recentWebsiteArticlesExecFileImpl: async () => ({ stdout: JSON.stringify({ ticker: "VEEE", businessDays: 5, count: 0, articles: [] }), stderr: "" }),
     seedSymbolLevels: async (symbol: string) => {
       levelStore.setLevels(buildLevelOutput(symbol, {
         metadata: {
@@ -9467,11 +9469,11 @@ test("ManualWatchlistRuntimeManager fills a runner resistance path when only one
   assert.equal(snapshot.symbol, "VEEE");
   assert.deepEqual(
     snapshot.resistanceZones.map((zone: any) => zone.representativePrice),
-    [23.051, 24, 25, 27.5, 30],
+    [23.051],
   );
   assert.deepEqual(
     snapshot.resistanceZones.map((zone: any) => zone.sourceLabel),
-    ["extension", "continuation map", "continuation map", "continuation map", "continuation map"],
+    ["extension"],
   );
   assert.equal(
     snapshot.ladderResistanceZones.some((zone: any) => zone.representativePrice === 38.665),
@@ -9479,20 +9481,15 @@ test("ManualWatchlistRuntimeManager fills a runner resistance path when only one
   );
   assert.equal(snapshot.audit?.omittedResistanceCount, 1);
 
-  liveWatchlistPublisher.cardPatches = [];
-  await manager.setLiveTraderReadCardVisible(true);
-  await waitForAsyncWork();
-
-  const pathLevelsBody = liveWatchlistPublisher.cardPatches.at(-1)?.cards.nearestSupportResistance?.body ?? "";
+  const presentation = buildLiveWatchlistPotentialPathPresentation(snapshot);
+  const pathLevelsBody = presentation.nearestSupportResistanceCard?.body ?? "";
   assert.match(pathLevelsBody, /23\.05/);
-  assert.match(pathLevelsBody, /24\.00/);
-  assert.match(pathLevelsBody, /25\.00/);
-  assert.match(pathLevelsBody, /27\.50/);
-  assert.match(pathLevelsBody, /30\.00/);
+  assert.doesNotMatch(pathLevelsBody, /24\.00|25\.00|27\.50|30\.00/);
   assert.deepEqual(
-    liveWatchlistPublisher.cardPatches.at(-1)?.levelMap?.resistanceLevels.map((level) => level.price),
-    [23.051, 24, 25, 27.5, 30],
+    presentation.levelMap?.resistanceLevels.map((level) => level.price),
+    [23.051],
   );
+  await manager.stop();
 });
 
 test("ManualWatchlistRuntimeManager preserves a meaningful isolated intermediate wick-high when capping resistance display zones", async () => {

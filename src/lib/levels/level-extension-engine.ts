@@ -690,6 +690,7 @@ export function buildLevelExtensions(params: {
   referencePrice?: number;
   forwardPlanningRangePct?: number;
   preservePracticalResistanceCoverage?: boolean;
+  /** @deprecated Kept for older callers; unobserved resistance is never generated. */
   allowSyntheticResistanceExtensions?: boolean;
 }): LevelLadderExtension {
   const maxExtensionPerSide = params.maxExtensionPerSide ?? 3;
@@ -741,17 +742,7 @@ export function buildLevelExtensions(params: {
       forwardPlanningRangePct,
       preservePracticalResistanceCoverage: params.preservePracticalResistanceCoverage,
     });
-  const resistance = params.allowSyntheticResistanceExtensions
-    ? extendSyntheticResistanceCoverage({
-        symbol: params.resistanceZones[0]?.symbol ?? params.surfacedResistance[0]?.symbol ?? "",
-        selectedResistance,
-        surfacedResistance: params.surfacedResistance,
-        referencePrice: params.referencePrice,
-        forwardPlanningRangePct,
-        maxCount: maxExtensionPerSide,
-        spacingPct,
-      })
-    : selectedResistance;
+  const resistance = selectedResistance;
 
   return {
     support,
