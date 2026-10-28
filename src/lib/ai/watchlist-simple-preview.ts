@@ -1,8 +1,10 @@
 /** Isolated, offline preview. It has no publication, provider or live-card imports. */
+import { upsidePresentation, type UpsideCoverage } from './watchlist-upside-coverage.js';
 export type SimpleAnalysisPreview = {
   symbol: string;
   reference: number;
   read: {
+    upsideCoverage?: UpsideCoverage;
     setup: string;
     pullbacks: Array<{low: number; high: number; explanation: string; confirmation: string; invalidation: number | null}>;
     upside: Array<{low: number; high: number; explanation: string}>;
@@ -21,12 +23,13 @@ export function renderSimpleAnalysisPreviewCard({symbol,reference,read}: SimpleA
   const text = (value: string) => `<p>${escape(value)}</p>`;
   const section = (title: string, body: string) => `<section><h3>${title}</h3>${body}</section>`;
   const pullbacks = [...read.pullbacks].sort((a,b)=>b.high-a.high);
+  const message=upsidePresentation({...read,analysisFormat:'simple',simpleAnalysis:read}).message;
   return `<article><header><h2>${escape(symbol)}</h2><span>Analysis price: ${price(reference)}</span></header>` +
     section('TradersLink Analysis',text(read.setup)) +
     pullbacks.map((plan,index)=>section(index === 0 ? 'Pullback' : 'Deeper pullback',
       `<strong>${area(plan.low,plan.high)}</strong>` + text(plan.explanation) +
       `<p><b>Confirmation:</b> ${escape(plan.confirmation)}</p>`)).join('') +
-    (read.upside.length ? section('Potential Targets (Volume Dependent)',`<ol>${read.upside.map(level=>
+    (message ? section('Potential Targets (Volume Dependent)',text(message)) : read.upside.length ? section('Potential Targets (Volume Dependent)',`<ol>${read.upside.map(level=>
       `<li><strong>${area(level.low,level.high)}</strong>${text(level.explanation)}</li>`).join('')}</ol>`) : '') +
     '</article>';
 }

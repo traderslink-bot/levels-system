@@ -287,6 +287,7 @@ export type TradersLinkAiReadPendingBoundaryCross = {
 };
 
 export type TradersLinkAiReadBoundaryState = {
+  upsideCoverage?: import('../ai/watchlist-upside-coverage.js').UpsideCoverage;
   generatedAt: number;
   currentPrice: number;
   upperBoundary: number | null;

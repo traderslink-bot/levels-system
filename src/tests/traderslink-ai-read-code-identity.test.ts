@@ -12,10 +12,12 @@ test("analysis identity fingerprints only explicit source or compiled modules wi
     const first = captureAnalysisCodeIdentity(options);
     assert.equal(first.complete, true);
     assert.equal(first.deployedCommit, "a".repeat(40));
-    assert.equal(first.modules.length, 8);
+    assert.equal(first.modules.length, 11);
+    assert.ok(first.modules.some(module => module.name === "watchlist-upside-coverage"));
     assert.match(first.sha256!, /^[a-f0-9]{64}$/);
     assert.equal(first.sha256, captureAnalysisCodeIdentity(options).sha256);
-    assert.ok(requested.every(path => path.startsWith("/private/runtime/ai/traderslink-ai-read-") && path.endsWith(`.${extension}`)));
+    assert.ok(requested.every(path => path.startsWith("/private/runtime/ai/") &&
+      /\/(traderslink-ai-read-|watchlist-)/.test(path) && path.endsWith(`.${extension}`)));
     assert.doesNotMatch(JSON.stringify(first), /private|synthetic/);
     const changed = captureAnalysisCodeIdentity({ ...options, readModule: () => Buffer.from("changed source") });
     assert.notEqual(changed.sha256, first.sha256);

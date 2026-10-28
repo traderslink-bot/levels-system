@@ -1,4 +1,5 @@
 import { watchlistIndicatorPublicationIdentity } from "../market-data/watchlist-indicator-publication-time.js";
+import { parseUpsideCoverage } from '../ai/watchlist-upside-coverage.js';
 import { isTopWatchesGroup } from "../live-watchlist/top-watches-group.js";
 import { normalizeOvernightLevelReference } from "../live-watchlist/overnight-level-reference.js";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -64,7 +65,7 @@ function normalizeOptionalTimestamp(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-function normalizeAiReadBoundaryState(value: unknown): TradersLinkAiReadBoundaryState | undefined {
+export function normalizeAiReadBoundaryState(value: unknown): TradersLinkAiReadBoundaryState | undefined {
   if (
     !isRecord(value) ||
     typeof value.generatedAt !== "number" ||
@@ -149,6 +150,7 @@ function normalizeAiReadBoundaryState(value: unknown): TradersLinkAiReadBoundary
   return {
     generatedAt: value.generatedAt,
     currentPrice: value.currentPrice,
+    ...(parseUpsideCoverage(value.upsideCoverage) ? {upsideCoverage:parseUpsideCoverage(value.upsideCoverage)} : {}),
     upperBoundary: normalizeBoundary(value.upperBoundary),
     lowerBoundary: normalizeBoundary(value.lowerBoundary),
     ...(boundaries.length > 0 ? { boundaries } : {}),

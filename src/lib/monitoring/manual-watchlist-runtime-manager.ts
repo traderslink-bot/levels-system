@@ -3,6 +3,7 @@ import { categoryMoveCopy } from "../alerts/watchlist-category-move-receipts.js"
 import { CategoryMoveService } from "../alerts/watchlist-category-move-service.js";
 import { analysisUpdateContextForDraft, analysisUpdateContextFromReview } from "../ai/watchlist-analysis-update-context.js";
 import { isSyntheticResistance } from "../live-watchlist/resistance-evidence.js";
+import { evaluateUpsideCoverage, advanceUpsideCoverage, parseUpsideCoverage, ownerTargetCoverage } from '../ai/watchlist-upside-coverage.js';
 import { queueDiscordRemoval, queueCategoryMoveRemovals } from "../alerts/watchlist-discord-removal.js";
 import { DiscordPreparationFailure } from "../alerts/discord-preparation-failure.js";
 import { isTopWatchesGroup } from "../live-watchlist/top-watches-group.js";
@@ -399,6 +400,7 @@ export function buildTradersLinkAiReadRefreshState(
     | "mustClear"
     | "targets"
     | "downsideCheckpoints"
+    | "upsideCoverage"
   >,
 ): TradersLinkAiReadRefreshState {
   const positivePrice = (price: number | null): number | null =>
@@ -443,6 +445,7 @@ export function buildTradersLinkAiReadRefreshState(
   return {
     generatedAt: read.generatedAt,
     currentPrice: read.currentPrice,
+    ...(parseUpsideCoverage(read.upsideCoverage) ? {upsideCoverage:parseUpsideCoverage(read.upsideCoverage)} : {}),
     upperBoundary: upsidePrices.length > 0 ? Math.max(...upsidePrices) : null,
     lowerBoundary: downsidePrices.length > 0 ? Math.min(...downsidePrices) : null,
     ...(boundaries.length > 0 ? { boundaries } : {}),
@@ -498,8 +501,9 @@ export function parseArchivedTradersLinkAiReadRefreshState(
       mustClear: archivedLevel(parsed.mustClear, "Archived must clear"),
       targets: archivedTargets(targets),
       downsideCheckpoints: archivedTargets(downsideCheckpoints),
+      upsideCoverage: parseUpsideCoverage(parsed.upsideCoverage),
     });
-    return recovered.upperBoundary !== null || recovered.lowerBoundary !== null
+    return recovered.upperBoundary !== null || recovered.lowerBoundary !== null || recovered.upsideCoverage
       ? recovered
       : null;
   } catch {
@@ -598,20 +602,23 @@ export function decideTradersLinkAiReadRefresh(args: {
   const mappedDownsidePrices = (previous.boundaries ?? [])
     .filter((boundary) => boundary.side === "downside" && boundary.price < previous.currentPrice)
     .map((boundary) => boundary.price);
-  const effectiveUpperBoundary = previous.upperBoundary ??
+  const coverage = parseUpsideCoverage(previous.upsideCoverage);
+  const upperPaused = coverage?.upperRefreshPolicy === 'WAIT_FOR_NEW_STRUCTURE' ||
+    (coverage?.operationalRearm === true && coverage.consumedEvidenceKey === coverage.evidenceKey);
+  const effectiveUpperBoundary = coverage?.operationalRearm ? coverage.upperPrice : previous.upperBoundary ??
     (mappedUpsidePrices.length > 0 ? Math.max(...mappedUpsidePrices) : null);
   const effectiveLowerBoundary = previous.lowerBoundary ??
     (mappedDownsidePrices.length > 0 ? Math.min(...mappedDownsidePrices) : null);
   const extensionBoundary = previous.currentPrice * (1 + TRADERSLINK_AI_READ_EXTENSION_REFRESH_PCT);
   const crossedExtensionBoundary =
-    effectiveUpperBoundary === null && args.currentPrice >= extensionBoundary;
+    !upperPaused && effectiveUpperBoundary === null && args.currentPrice >= extensionBoundary;
   const crossedUpperBoundary =
-    (effectiveUpperBoundary !== null && args.currentPrice > effectiveUpperBoundary) ||
+    (!upperPaused && effectiveUpperBoundary !== null && args.currentPrice > effectiveUpperBoundary) ||
     crossedExtensionBoundary;
   const crossedLowerBoundary = effectiveLowerBoundary !== null &&
     args.currentPrice < effectiveLowerBoundary;
   const crossedAnalysisBoundary = crossedUpperBoundary || crossedLowerBoundary;
-  if (args.force) {
+  if (args.force && !(args.requestedTrigger === 'automatic' && upperPaused && !crossedLowerBoundary)) {
     const direction = crossedUpperBoundary ? "upper" : crossedLowerBoundary ? "lower" : null;
     const boundary = direction === "upper"
       ? effectiveUpperBoundary ?? extensionBoundary
@@ -4311,6 +4318,38 @@ export class ManualWatchlistRuntimeManager {
       return null;
     }
 
+    // Cheap operational reassessment from the already-shared feed only. Never
+    // fetch candles, generate a read, or rewrite the published analysis here.
+    const priorCoverageState = this.aiReadState.get(symbol);
+    if (priorCoverageState && priorCoverageState.generatedAt >= (entry.activatedAt ?? 0)) {
+      let priorCoverage = priorCoverageState.upsideCoverage;
+      if (!priorCoverage && entry.publicationReview && this.options.tradersLinkAiReadReviewStore) {
+        const saved = this.options.tradersLinkAiReadReviewStore.read(entry.publicationReview.cycleId);
+        const approved = saved?.approved?.body;
+        const draft = approved?.kind === 'approve' ? saved?.events.find(e=>e.revision===approved.draftRevision) : undefined;
+        if (draft?.body.kind === 'edit') {
+          const original = saved?.events.filter(e=>e.revision<draft.revision && e.body.kind==='original').at(-1);
+          if (original?.body.kind==='original') priorCoverage = ownerTargetCoverage(original.body.payload,draft.body.payload);
+        }
+      }
+      const series = this.chartThesisSeriesMapBySymbol.get(symbol);
+      const nextCoverage = evaluateUpsideCoverage({symbol,currentPrice:snapshot.currentPrice,dataAsOf,
+        priceAction:{recentDailyBars:series?.daily.candles ?? [],fourHourBars:series?.['4h'].candles ?? [],
+          recentFiveMinuteBars:this.technicalContextCandleStore.getCandles(symbol)} });
+      const retainUnreached = !priorCoverage && priorCoverageState.upperBoundary!==null && priorCoverageState.upperBoundary>snapshot.currentPrice &&
+        nextCoverage?.status==='NO_HIGHER_RESISTANCE_IN_SUPPLIED_HISTORY';
+      const coverage = retainUnreached ? undefined : advanceUpsideCoverage(priorCoverage,nextCoverage);
+      const signature = (c: typeof coverage) => c ? JSON.stringify([c.status,c.upperRefreshPolicy,c.upperPrice,c.evidenceKey,c.provenance,c.operationalRearm,c.consumedEvidenceKey]) : '';
+      if (coverage && signature(coverage)!==signature(priorCoverageState.upsideCoverage)) {
+        const updated = {...priorCoverageState,upsideCoverage:coverage};
+        this.aiReadState.set(symbol,updated);
+        this.watchlistStore.patchEntry(symbol,{tradersLinkAiReadBoundaryState:updated});
+        this.persistWatchlist();
+        this.recordTradersLinkAiReadRunOutcome({symbol,trigger:requestedTrigger,stage:'boundary',outcome:'not_needed',runId,
+          reason:`Upside coverage: ${coverage.status}; ${coverage.upperRefreshPolicy}.`,
+          dedupeKey:`upside-coverage:${symbol}:${entry.activatedAt}:${coverage.status}:${coverage.evidenceKey}`});
+      }
+    }
     const refreshDecision = decideTradersLinkAiReadRefresh({
       previous: this.aiReadState.get(symbol) ?? null,
       currentPrice: snapshot.currentPrice,
@@ -4432,6 +4471,13 @@ export class ManualWatchlistRuntimeManager {
       dataAsOf,
     });
     this.aiReadInFlight.add(symbol);
+    const dispatchState = this.aiReadState.get(symbol);
+    if (requestedTrigger==='automatic' && refreshDecision.confirmedPriorBoundary?.direction==='upper' && dispatchState?.upsideCoverage?.operationalRearm) {
+      const consumed = {...dispatchState,upsideCoverage:{...dispatchState.upsideCoverage,consumedEvidenceKey:dispatchState.upsideCoverage.evidenceKey}};
+      this.aiReadState.set(symbol,consumed);
+      this.watchlistStore.patchEntry(symbol,{tradersLinkAiReadBoundaryState:consumed});
+      this.persistWatchlist();
+    }
     const cancellation = new AbortController();
     this.cancellableAnalysis.set(symbol, { runId, startedAt: Date.now(), controller: cancellation });
     try {
@@ -5084,6 +5130,7 @@ export class ManualWatchlistRuntimeManager {
         generationId: read.generationId, createdAt: this.options.now?.() ?? Date.now(),
         trigger: input.actor === "runtime:automatic-boundary" ? "boundary_cross" : "manual",
         boundaryState: { ...buildTradersLinkAiReadRefreshState(read),
+          lastAutomaticRefreshRegime: entry.tradersLinkAiReadBoundaryState?.lastAutomaticRefreshRegime,
           automaticRefreshDateKey: entry.tradersLinkAiReadBoundaryState?.automaticRefreshDateKey,
           automaticRefreshCount: entry.tradersLinkAiReadBoundaryState?.automaticRefreshCount,
         },
@@ -13639,6 +13686,13 @@ export class ManualWatchlistRuntimeManager {
     }
 
     const overnight = this.overnightLevelPatch(update.symbol, update.timestamp);
+    const analysisState = this.aiReadState.get(normalizeSymbol(update.symbol));
+    const activeEntry = this.watchlistStore.getEntry(update.symbol);
+    if (analysisState?.upsideCoverage && activeEntry?.active && analysisState.generatedAt >= (activeEntry.activatedAt ?? 0)) {
+      patch.analysisUpsideContext = {analysisGeneratedAt:analysisState.generatedAt,analysisReferencePrice:analysisState.currentPrice,
+        targetPrices:(analysisState.boundaries ?? []).filter(b=>b.role==='upsideTarget').map(b=>b.price),
+        publicationIdentity:activeEntry.indicatorPublicationIdentity,coverage:analysisState.upsideCoverage};
+    }
     if (overnight?.levelMap) {
       patch.levelMap = overnight.levelMap;
       patch.nearestSupport = overnight.levelMap.nearestSupport?.price ?? null;

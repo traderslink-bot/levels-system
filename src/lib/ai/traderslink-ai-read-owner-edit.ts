@@ -1,5 +1,6 @@
 import type { TradersLinkAiReadPayload } from "../live-watchlist/live-watchlist-types.js";
 import { parseSimpleAnalysis } from "./watchlist-simple-content.js";
+import { ownerTargetCoverage } from './watchlist-upside-coverage.js';
 import { sortPullbacksByPrice } from "./pullback-price-order.js";
 
 export const OWNER_ANALYSIS_SECTIONS = ["currentRead", "needsToHold", "cautionBelow", "momentumFailure", "mustClear", "breakoutContinuation", "targets", "downsideCheckpoints", "shallow", "deep", "failureRecovery", "catalystRealityCheck", "dilutionRisk", "listingStatus", "riskSummary"] as const;
@@ -66,6 +67,7 @@ export function applyOwnerAnalysisEdit(original: TradersLinkAiReadPayload, rawPa
       targets:simpleAnalysis.upside.map(area=>({label:"",price:area.high,condition:area.explanation})),
     };
     const warnings = simpleAnalysis.pullbacks.flatMap(area=>area.low > area.high ? ["A pullback low is above its high."] : []);
+    payload.upsideCoverage = ownerTargetCoverage(original,payload);
     return {payload, warnings, changedPaths:Object.keys(patch).filter(key=>
       JSON.stringify(patch[key]) !== JSON.stringify((original as unknown as Record<string,unknown>)[key]))};
   }
@@ -118,6 +120,7 @@ export function applyOwnerAnalysisEdit(original: TradersLinkAiReadPayload, rawPa
     } else throw new Error(`${key} is generation provenance, not an editable analysis field.`);
     if (JSON.stringify(output[key]) !== JSON.stringify((original as unknown as Record<string, unknown>)[key])) changedPaths.push(key);
   }
+  result.upsideCoverage = ownerTargetCoverage(original,result);
   const warnings: string[] = [];
   for (const [name, plan] of Object.entries(result.ownerPullbacks ?? result.pullbackPlans)) {
     if (!plan) continue;

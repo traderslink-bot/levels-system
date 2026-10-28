@@ -6,6 +6,7 @@ import type { WatchlistModel, WatchlistReasoningEffort } from "./watchlist-model
 import { createHash } from "node:crypto";
 import { buildSimpleAnalysisTestRequest, SIMPLE_ANALYSIS_PROMPT, SIMPLE_ANALYSIS_SCHEMA } from "./watchlist-simple-analysis.js";
 import { parseSimpleAnalysis } from "./watchlist-simple-content.js";
+import { evaluateUpsideCoverage } from './watchlist-upside-coverage.js';
 import { supplementSimpleUpside, orderSimpleAnalysisPullbacks } from "./watchlist-simple-input.js";
 import { OWNER_REVIEW_DEVELOPER_PROMPT, OWNER_REVIEW_RESPONSE_SCHEMA } from "./traderslink-ai-read-owner-contract.js";
 import { numericOrderingTolerance, matchesObservedPrice, isSupportedPullbackZone, buildScenarioCandleEvidence } from "./traderslink-ai-read-section-validation.js";
@@ -2741,8 +2742,9 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         const rawText = extractResponseText(response);
         if (response.status === "incomplete" || !rawText) throw new Error("OpenAI returned an incomplete Simple analysis.");
         const raw = JSON.parse(rawText);
-        const simpleAnalysis = parseSimpleAnalysis(orderSimpleAnalysisPullbacks(supplementSimpleUpside(
-          raw, simpleMarketPacket(input, dataAsOf))));
+        const marketPacket = simpleMarketPacket(input, dataAsOf);
+        const upsideCoverage = evaluateUpsideCoverage(marketPacket);
+        const simpleAnalysis = parseSimpleAnalysis(orderSimpleAnalysisPullbacks(supplementSimpleUpside(raw, marketPacket)));
         if (!simpleAnalysis) throw new Error("OpenAI returned malformed Simple analysis fields.");
         // Compatibility fields contain only the corresponding supplied content.
         // The separate card/editor reads simpleAnalysis; unused legacy sections stay empty.
@@ -2756,12 +2758,14 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         }, databaseSources(input.research), true);
         const result: TradersLinkAiReadPayload = {
           ...legacy, version:3, analysisFormat:"simple", simpleAnalysis, generationId, symbol,
+          upsideCoverage,
           generatedAt:Date.now(), dataAsOf, currentPrice:referenceQuote.price,
           marketSession:marketSessionAt(dataAsOf), sources:databaseSources(input.research),
           model, externalResearchEnabled:false, usedWebSearch:false,
           usage:buildUsage(response,model,this.options.pricing),
         };
-        capture("validation", {valid:true, analysisFormat:"simple", selectionAudit:raw.selectionAudit});
+        capture("validation", {valid:true, analysisFormat:"simple", selectionAudit:raw.selectionAudit,
+          upsideCoverage:upsideCoverage ?? null});
         capture("prepared_payload", result);
         recordAttempt(initialAttemptType, "success", model, response);
         return result;
@@ -3232,6 +3236,10 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
       usedWebSearch: usage.webSearchCallCount > 0,
       usage,
     };
+    result.upsideCoverage = evaluateUpsideCoverage(simpleMarketPacket(input,dataAsOf));
+    if (result.upsideCoverage?.status === 'NO_HIGHER_RESISTANCE_IN_SUPPLIED_HISTORY') result.targets = [];
+    capture("validation", {stage:"upside_coverage",coverage:result.upsideCoverage ?? null,
+      targetsRetained:result.targets.length});
     capture("prepared_payload", result);
     return result;
   }

@@ -12,6 +12,9 @@ const MODULES = [
   "traderslink-ai-read-section-validation",
   "traderslink-ai-read-breakout-selection",
   "traderslink-ai-read-checkpoint-dependencies",
+  "watchlist-simple-analysis",
+  "watchlist-simple-input",
+  "watchlist-upside-coverage",
 ] as const;
 
 export function captureAnalysisCodeIdentity(options: {

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { ReviewPublication } from "./traderslink-ai-read-publication-preview.js";
 import type { LiveWatchlistCardPatch, TradersLinkAiReadPayload } from "../live-watchlist/live-watchlist-types.js";
 import { renderAnalysisImages, type AnalysisImage } from "./watchlist-analysis-image.js";
+import { parseUpsideCoverage } from './watchlist-upside-coverage.js';
 
 /** Immutable local derivative of the frozen approval, reused after a confirmed rejection. */
 export async function approvedAnalysisImages(directory: string, revision: number, publication: ReviewPublication,
@@ -10,7 +11,9 @@ export async function approvedAnalysisImages(directory: string, revision: number
   if (publication.analysisImageVersion !== 1) return [];
   if (!Number.isSafeInteger(revision) || revision <= 0) throw new Error("Invalid approval revision");
   mkdirSync(directory, { recursive: true });
-  const file = join(directory, `analysis-images-${revision}${layout ? "-light-two-branding-v3" : ""}.json`);
+  let coverageVersion='';
+  try {if(parseUpsideCoverage(JSON.parse((publication.website as unknown as LiveWatchlistCardPatch).cards.tradersLinkAiRead?.body ?? '{}').upsideCoverage))coverageVersion='-coverage-v1';}catch{/* Older frozen approvals keep their exact existing cache identity. */}
+  const file = join(directory, `analysis-images-${revision}${layout ? "-light-two-branding-v3" : ""}${coverageVersion}.json`);
   const load = (): AnalysisImage[] => {
     const stored = JSON.parse(readFileSync(file, "utf8")) as { images: Array<{ filename: string; description: string; base64: string }> };
     if (!Array.isArray(stored.images) || stored.images.length > 4) throw new Error("Invalid image cache");

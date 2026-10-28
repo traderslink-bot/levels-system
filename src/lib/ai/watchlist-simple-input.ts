@@ -1,3 +1,4 @@
+import { evaluateUpsideCoverage } from './watchlist-upside-coverage.js';
 /** Reassess saved candidate labels without altering source candles or live code. */
 export function addHistoricalFourHourReplay(input: any, supplement: any): any {
   const packet = input?.marketPacket;
@@ -29,6 +30,7 @@ export function addHistoricalFourHourReplay(input: any, supplement: any): any {
 export function prepareSimpleAnalysisInput(input: unknown): unknown {
   const copy = structuredClone(input) as any;
   const packet = copy?.marketPacket;
+  if (packet) packet.upsideCoverage = evaluateUpsideCoverage(packet);
   if (packet && Number.isFinite(packet.dataAsOf)) {
     const parts = new Intl.DateTimeFormat('en-CA', {timeZone:'America/New_York',
       year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'})
@@ -127,6 +129,7 @@ export function orderSimpleAnalysisPullbacks(read: any): any {
 
 /** Preserve AI areas; add at most one corroborated outer level, never a rounded invention. */
 export function supplementSimpleUpside(read: any, marketPacket: any): any {
+  if (evaluateUpsideCoverage(marketPacket)?.status === 'NO_HIGHER_RESISTANCE_IN_SUPPLIED_HISTORY') return {...read,upside:[]};
   if (!Array.isArray(read?.upside) || !(marketPacket?.currentPrice > 0)) return read;
   const furthest = Math.max(marketPacket.currentPrice, ...read.upside.map((area: any) =>
     Number.isFinite(area.high) ? area.high : marketPacket.currentPrice));

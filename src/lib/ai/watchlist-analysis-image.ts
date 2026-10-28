@@ -1,5 +1,6 @@
 import type { TradersLinkAiReadPayload } from "../live-watchlist/live-watchlist-types.js";
 import { sortPullbacksByPrice } from "./pullback-price-order.js";
+import { upsidePresentation } from './watchlist-upside-coverage.js';
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
@@ -43,7 +44,8 @@ export function analysisImageSections(read: TradersLinkAiReadPayload, dipVisible
       value(area(plan.low, plan.high)), body(plan.explanation),
       body(plan.confirmation.trim() ? `Required confirmation: ${plan.confirmation}` : ""),
     ]));
-    add("targets", "Potential Targets (Volume Dependent)", simple.upside.flatMap(level => [value(area(level.low, level.high)), body(level.explanation)]));
+    const message=upsidePresentation(read).message;
+    add("targets", "Potential Targets (Volume Dependent)", message ? [body(message)] : simple.upside.flatMap(level => [value(area(level.low, level.high)), body(level.explanation)]));
     return sections;
   }
   // Future contracts need their own projection; do not silently misrepresent them.
@@ -54,7 +56,8 @@ export function analysisImageSections(read: TradersLinkAiReadPayload, dipVisible
     const level = read[key];
     if (level) add(key, title, [value(price(level.price)), body(level.rationale)]);
   }
-  add("targets", "Potential Targets (Volume Dependent)", read.targets.flatMap(level => [value(level.price === null ? level.label : price(level.price)), body(level.condition)]));
+  const message=upsidePresentation(read).message;
+  add("targets", "Potential Targets (Volume Dependent)", message ? [body(message)] : read.targets.flatMap(level => [value(level.price === null ? level.label : price(level.price)), body(level.condition)]));
   const plans = sortPullbacksByPrice(read.ownerPullbacks ?? (["shallow","deep"] as const).flatMap(key=>read.pullbackPlans[key]?[{...read.pullbackPlans[key]!,hidden:hidden.has(key)}]:[]),"zoneLow","zoneHigh");
   for (const [index,plan] of plans.entries()) {
     if (!dipVisible || plan.hidden) continue;

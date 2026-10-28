@@ -90,6 +90,7 @@ export type LiveWatchlistHealthPatch = {
 };
 
 export type LiveWatchlistTickerDataPatch = {
+  analysisUpsideContext?: import('../ai/watchlist-upside-coverage.js').AnalysisUpsideContext;
   type: "tickerData";
   symbol: string;
   status?: LiveWatchlistStatus;
@@ -316,6 +317,7 @@ export type TradersLinkAiReadListingContext = {
 };
 
 export type TradersLinkAiReadPayload = {
+  upsideCoverage?: import('../ai/watchlist-upside-coverage.js').UpsideCoverage;
   analysisFormat?: "current" | "simple";
   simpleAnalysis?: import("../ai/watchlist-simple-content.js").SimpleAnalysis;
   ownerHiddenSections?: string[];
