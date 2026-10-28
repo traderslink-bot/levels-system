@@ -196,6 +196,12 @@ function attachX(entry, actions, state, more = actions) {
       window.parent.postMessage({ source: 'traderslink-watchlist-admin', type: 'post-potential-gain', symbol: entry.symbol }, window.location.origin);
     };
     if(entry.watchlistGroup !== "private") more.append(gainPost);
+    const lossPost = document.createElement('button'); lossPost.type = 'button'; lossPost.className = 'secondary'; lossPost.textContent = 'Post Loss';
+    lossPost.onclick = () => {
+      if (window.parent === window) { window.alert('Open Watchlist Admin in the dashboard to enter and preview the loss card.'); return; }
+      window.parent.postMessage({ source: 'traderslink-watchlist-admin', type: 'post-manual-loss', symbol: entry.symbol }, window.location.origin);
+    };
+    if(entry.watchlistGroup !== "private") more.append(lossPost);
     const free = document.createElement('button'); free.type = 'button'; free.className = 'secondary'; free.textContent = 'Post to Free Chat';
     free.disabled = !entry.publicationReview?.cycleId;
     free.onclick = async () => {

@@ -9,3 +9,12 @@ test('Post Gain label preserves its existing preview action and message identity
   assert.match(WATCHLIST_ROW_REVIEW, /type: 'post-potential-gain', symbol: entry.symbol/);
   new Script(WATCHLIST_ROW_REVIEW.match(/<script>([\s\S]*?)<\/script>/)![1]!);
 });
+
+test('Post Loss is a separate manual action with only the ticker and no automatic trade facts', () => {
+  assert.match(WATCHLIST_ROW_REVIEW, /lossPost.textContent = 'Post Loss'/);
+  const action = WATCHLIST_ROW_REVIEW.slice(WATCHLIST_ROW_REVIEW.indexOf('    const lossPost'), WATCHLIST_ROW_REVIEW.indexOf('    const free ='));
+  assert.match(action, /type: 'post-manual-loss', symbol: entry.symbol/);
+  assert.match(action, /entry.watchlistGroup !== "private"/);
+  assert.doesNotMatch(action, /price|Date\.now|fetch\(|request\(/);
+  new Script(WATCHLIST_ROW_REVIEW.match(/<script>([\s\S]*?)<\/script>/)![1]!);
+});
