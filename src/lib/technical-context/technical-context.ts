@@ -122,7 +122,14 @@ export function refreshTechnicalContextForPrice(
 export function buildTechnicalContextFromCandles(
   request: BuildTechnicalContextRequest,
 ): TechnicalContext {
-  const sorted = [...request.candles].sort((left, right) => left.timestamp - right.timestamp);
+  // Date.toISOString throws for NaN, Infinity and finite values outside the
+  // JavaScript Date range. Keep unrelated valid history; never manufacture a
+  // current timestamp for a malformed historical observation.
+  const accepted = request.candles.filter((candle) => candle !== null &&
+    typeof candle === "object" && typeof candle.timestamp === "number" &&
+    Number.isSafeInteger(candle.timestamp) &&
+    Number.isFinite(new Date(candle.timestamp).getTime()));
+  const sorted = accepted.sort((left, right) => left.timestamp - right.timestamp);
   const latestTimestamp = sorted.at(-1)?.timestamp ?? null;
   const explicitSessionDate = request.sessionDate !== undefined && request.sessionDate !== null;
   const requestedSessionDate = request.sessionDate ?? (latestTimestamp === null ? null : utcDate(latestTimestamp));
@@ -140,6 +147,7 @@ export function buildTechnicalContextFromCandles(
   });
   const diagnostics = [
     ...(request.dataQualityFlags ?? []),
+    ...(accepted.length !== request.candles.length ? ["5m:invalid_candle_timestamp"] : []),
     ...(selected.fallbackUsed ? ["5m:utc_session_rollover_recent_window"] : []),
     ...dynamicLevels.diagnostics.map((diagnostic) => diagnostic.code),
   ];

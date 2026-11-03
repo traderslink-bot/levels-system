@@ -86,6 +86,7 @@ export class EodhdLivePriceProvider implements LivePriceProvider {
   private pendingUpdates = new Map<string, LivePriceUpdate>();
   private lastDispatchedTimestampBySymbol = new Map<string, number>();
   private stopping = false;
+  private lastDispatchErrorAt?: number;
 
   constructor(options: EodhdLivePriceProviderOptions = {}) {
     const apiToken = options.apiToken ?? envText("EODHD_API_TOKEN", "LEVEL_EODHD_API_TOKEN");
@@ -236,7 +237,7 @@ export class EodhdLivePriceProvider implements LivePriceProvider {
   }
 
   private handleTradeMessage(message: EodhdTradeMessage): void {
-    if (!this.listener) {
+    if (!this.listener || message === null || typeof message !== "object") {
       return;
     }
 
@@ -247,9 +248,17 @@ export class EodhdLivePriceProvider implements LivePriceProvider {
       return;
     }
 
+    const timestamp = typeof message.t === "number" || typeof message.t === "string"
+      ? parsePositiveNumber(message.t) : undefined;
+    // The US trade feed supplies epoch milliseconds. An invalid supplied
+    // timestamp must not poison ordering/candles or be replaced with "now".
+    if (timestamp === undefined || !Number.isSafeInteger(timestamp) ||
+      !Number.isFinite(new Date(timestamp).getTime())) {
+      return;
+    }
     this.queueUpdate({
       symbol: watchlistSymbol,
-      timestamp: parsePositiveNumber(message.t) ?? Date.now(),
+      timestamp,
       lastPrice,
       volume: parsePositiveNumber(message.v),
     });
@@ -260,7 +269,7 @@ export class EodhdLivePriceProvider implements LivePriceProvider {
       return;
     }
     if (this.dispatchIntervalMs <= 0) {
-      this.listener(update);
+      this.dispatchUpdate(update);
       return;
     }
 
@@ -304,7 +313,29 @@ export class EodhdLivePriceProvider implements LivePriceProvider {
         continue;
       }
       this.lastDispatchedTimestampBySymbol.set(update.symbol, update.timestamp);
-      this.listener(update);
+      this.dispatchUpdate(update);
+    }
+  }
+
+  private dispatchUpdate(update: LivePriceUpdate): void {
+    try {
+      // A failure in one consumer/update must not terminate the timer or stop
+      // other symbols. Handle rejected async consumers as well as sync throws.
+      const result: unknown = this.listener?.(update);
+      if (result !== undefined) {
+        void Promise.resolve(result).catch(() => this.reportDispatchFailure());
+      }
+    } catch {
+      this.reportDispatchFailure();
+    }
+  }
+
+  private reportDispatchFailure(): void {
+    const now = Date.now();
+    if (this.lastDispatchErrorAt === undefined || now - this.lastDispatchErrorAt >= 60_000) {
+      this.lastDispatchErrorAt = now;
+      // Do not include raw messages, credentials, URLs or consumer error text.
+      console.error("[EodhdLivePriceProvider] live_price_update_failed; runtime retained; further errors suppressed for 60s");
     }
   }
 }
