@@ -1,6 +1,7 @@
+import { readAlpacaRuntimeReferencePrice } from "../lib/market-data/alpaca-runtime-providers.js";
 import { requestEodhdCurrentTrade } from "./stock-levels-live-price.js";
 
-export type StockLevelsReferencePrice = { price: number; asOf: number; source: "eodhd" | "yahoo" };
+export type StockLevelsReferencePrice = { price: number; asOf: number; source: "eodhd" | "yahoo" | "alpaca" };
 const MAX_OPEN_AGE_MS = 60_000;
 const MAX_CLOSED_AGE_MS = 96 * 60 * 60_000;
 const eastern = new Intl.DateTimeFormat("en-US", {
@@ -37,6 +38,10 @@ export async function resolveStockLevelsReferencePrice(
   symbol: string,
   fetchFn: typeof fetch = fetch,
 ): Promise<StockLevelsReferencePrice | null> {
+  if (process.env.TRADERLINK_MARKET_DATA_PROVIDER === "alpaca" || process.env.LEVEL_HISTORICAL_CANDLE_PROVIDER === "alpaca") {
+    const quote = await readAlpacaRuntimeReferencePrice(symbol, {fetcher:fetchFn});
+    return quote && isUsableStockLevelsPrice(quote) ? quote : null;
+  }
   const yahoo = await requestYahooReferencePrice(symbol, fetchFn);
   if (yahoo) return yahoo;
   // Delayed HTTP quotes are deliberately excluded from current-price lookup.

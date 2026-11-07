@@ -216,8 +216,8 @@ const DISCORD_API_BASE_URL = "https://discord.com/api/v10";
 const DISCORD_CLEANUP_PAGE_LIMIT = 100;
 const DISCORD_CLEANUP_PARENT_MESSAGE_PAGE_LIMIT = 50;
 const DISCORD_CLEANUP_RETRY_DELAY_MS = 1000;
-const RUNTIME_HISTORICAL_PROVIDER_OPTIONS = ["ibkr", "eodhd"] as const;
-const RUNTIME_LIVE_PROVIDER_OPTIONS = ["ibkr", "eodhd", "moomoo"] as const;
+const RUNTIME_HISTORICAL_PROVIDER_OPTIONS = ["ibkr", "eodhd", "alpaca"] as const;
+const RUNTIME_LIVE_PROVIDER_OPTIONS = ["ibkr", "eodhd", "moomoo", "alpaca"] as const;
 const PROVIDER_CONFIG_VERSION = 2;
 const AUTO_WATCHLIST_THRESHOLD_KEYS = new Set<keyof AutoWatchlistSelectorThresholds>(
   Object.keys(DEFAULT_AUTO_WATCHLIST_SELECTOR_CONFIG) as Array<keyof AutoWatchlistSelectorThresholds>,
@@ -266,22 +266,22 @@ function resolvePositiveIntegerEnv(value: string | undefined, fallback: number):
 }
 
 function resolveHistoricalProviderName(raw: string | undefined): RuntimeHistoricalProviderName {
-  return raw?.trim().toLowerCase() === "eodhd" ? "eodhd" : "ibkr";
+  return raw?.trim().toLowerCase() === "alpaca" ? "alpaca" : raw?.trim().toLowerCase() === "eodhd" ? "eodhd" : "ibkr";
 }
 
 function parseRuntimeHistoricalProviderName(raw: unknown): RuntimeHistoricalProviderName | null {
   const normalized = typeof raw === "string" ? raw.trim().toLowerCase() : "";
-  return normalized === "ibkr" || normalized === "eodhd" ? normalized : null;
+  return normalized === "alpaca" || normalized === "ibkr" || normalized === "eodhd" ? normalized : null;
 }
 
 function parseRuntimeLiveProviderName(raw: unknown): LivePriceProviderName | null {
   const normalized = typeof raw === "string" ? raw.trim().toLowerCase() : "";
-  return normalized === "ibkr" || normalized === "eodhd" || normalized === "moomoo" ? normalized : null;
+  return normalized === "alpaca" || normalized === "ibkr" || normalized === "eodhd" || normalized === "moomoo" ? normalized : null;
 }
 
 function parseSameDayCandleProviderName(raw: unknown): SameDayCandleProviderName | null {
   const normalized = typeof raw === "string" ? raw.trim().toLowerCase() : "";
-  return normalized === "yahoo" || normalized === "moomoo" ? normalized : null;
+  return normalized === "alpaca" || normalized === "yahoo" || normalized === "moomoo" ? normalized : null;
 }
 
 function resolveProviderConfigPath(): string {
@@ -650,7 +650,7 @@ async function main(): Promise<void> {
   const rawCandleService = new CandleFetchService(historicalProvider);
   const dashboardEodhdHistoricalCandleService = (() => {
     try {
-      return new CandleFetchService(createHistoricalCandleProvider({ provider: "eodhd" }));
+      return new CandleFetchService(createHistoricalCandleProvider({ provider: historicalProviderName === "alpaca" ? "alpaca" : "eodhd" }));
     } catch {
       return null;
     }
@@ -951,7 +951,7 @@ async function main(): Promise<void> {
   const stockLevelsGenerator = createStockLevelsGenerator({
     generateExistingWatchlistLevels: (request) => {
       if (!dashboardEodhdHistoricalCandleService) {
-        throw new Error("EODHD historical levels are unavailable.");
+        throw new Error("Historical levels are unavailable.");
       }
       return manager.generateLevelsWithWatchlistConfiguration({
         ...request,
@@ -1779,7 +1779,7 @@ async function main(): Promise<void> {
         );
         if (!requestedProvider) {
           sendJson(response, 400, {
-            error: "historicalProvider must be ibkr or eodhd.",
+            error: "historicalProvider must be ibkr, eodhd, or alpaca.",
           });
           return;
         }
@@ -1876,7 +1876,7 @@ async function main(): Promise<void> {
         );
         if (!requestedProvider) {
           sendJson(response, 400, {
-            error: "liveProvider must be ibkr, eodhd, or moomoo.",
+            error: "liveProvider must be ibkr, eodhd, moomoo, or alpaca.",
           });
           return;
         }
@@ -1990,7 +1990,7 @@ async function main(): Promise<void> {
         );
         if (!requestedProvider) {
           sendJson(response, 400, {
-            error: "sameDayCandleProvider must be yahoo or moomoo.",
+            error: "sameDayCandleProvider must be yahoo, moomoo, or alpaca.",
           });
           return;
         }

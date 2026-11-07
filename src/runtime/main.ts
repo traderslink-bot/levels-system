@@ -26,7 +26,7 @@ import { waitForIbkrConnection } from "../scripts/shared/ibkr-connection.js";
 import { createIbkrClient } from "../scripts/shared/ibkr-runtime.js";
 
 function resolveHistoricalProviderName(raw: string | undefined): CandleProviderName {
-  return raw?.trim().toLowerCase() === "eodhd" ? "eodhd" : "ibkr";
+  return raw?.trim().toLowerCase() === "alpaca" ? "alpaca" : raw?.trim().toLowerCase() === "eodhd" ? "eodhd" : "ibkr";
 }
 
 async function seedLevels(

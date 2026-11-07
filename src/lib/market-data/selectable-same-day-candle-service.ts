@@ -1,6 +1,7 @@
+import { AlpacaRuntimeHistoricalProvider } from "./alpaca-runtime-providers.js";
 import type { CandleProviderResponse } from "./candle-types.js";
 import { finalizeCandleProviderResponse } from "./candle-quality.js";
-import type { CandleFetchService, HistoricalFetchRequest } from "./candle-fetch-service.js";
+import { CandleFetchService, type HistoricalFetchRequest } from "./candle-fetch-service.js";
 import type { CoordinatedCandleFetchDiagnostics } from "./coordinated-candle-fetch-service.js";
 import {
   MoomooAiReadCandleLoadError,
@@ -8,7 +9,7 @@ import {
   type MoomooAiReadCandleWindow,
 } from "./platform-moomoo-ai-read-candle-loader.js";
 
-export const SAME_DAY_CANDLE_PROVIDER_OPTIONS = ["yahoo", "moomoo"] as const;
+export const SAME_DAY_CANDLE_PROVIDER_OPTIONS = ["yahoo", "moomoo", "alpaca"] as const;
 export type SameDayCandleProviderName = (typeof SAME_DAY_CANDLE_PROVIDER_OPTIONS)[number];
 
 type SameDayYahooService = Pick<CandleFetchService, "fetchCandles" | "getProviderName"> & {
@@ -35,6 +36,7 @@ export type SameDayCandleProviderHealth = {
 };
 
 export class SelectableSameDayCandleService {
+  private alpacaService?: CandleFetchService;
   private selectedProvider: SameDayCandleProviderName;
   private activeProvider: SameDayCandleProviderName | null = null;
   private lastMoomooSuccessAt: number | null = null;
@@ -109,7 +111,9 @@ export class SelectableSameDayCandleService {
   async fetchCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
     this.lastAttemptAt = this.now();
     try {
-      const result = this.selectedProvider === "yahoo"
+      const result = this.selectedProvider === "alpaca"
+        ? await this.fetchAlpacaCandles(request)
+        : this.selectedProvider === "yahoo"
         ? await this.fetchYahooCandles(request)
         : await this.fetchMoomooWithYahooFallback(request);
       this.lastSuccessAt = this.now();
@@ -121,6 +125,15 @@ export class SelectableSameDayCandleService {
       this.lastError = error instanceof Error ? error.message : String(error);
       throw error;
     }
+  }
+
+  private async fetchAlpacaCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
+    this.alpacaService ??= new CandleFetchService(new AlpacaRuntimeHistoricalProvider());
+    const result = await this.alpacaService.fetchCandles({...request, preferredProvider:"alpaca"});
+    if (!this.hasAcceptedSameDayResponse(result)) throw new Error("Alpaca did not return accepted same-day candles.");
+    this.activeProvider = "alpaca";
+    this.fallbackReason = null;
+    return result;
   }
 
   private hasAcceptedSameDayResponse(response: CandleProviderResponse): boolean {

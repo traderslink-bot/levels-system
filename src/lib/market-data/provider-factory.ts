@@ -1,3 +1,4 @@
+import { AlpacaRuntimeHistoricalProvider } from "./alpaca-runtime-providers.js";
 import { IBApi } from "@stoqey/ib";
 
 import type { CandleProviderName } from "./candle-types.js";
@@ -25,6 +26,7 @@ export function createHistoricalCandleProvider(
   const priority = resolveProviderPriority(options.provider);
 
   for (const providerName of priority) {
+    if (providerName === "alpaca") return new AlpacaRuntimeHistoricalProvider();
     if (providerName === "ibkr" && options.ib) {
       return new IbkrHistoricalCandleProvider(options.ib, options.ibkrTimeoutMs);
     }

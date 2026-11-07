@@ -954,6 +954,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     }
 
     function providerLabel(value) {
+      if (value === "alpaca") {
+        return "Alpaca";
+      }
       if (value === "eodhd") {
         return "EODHD";
       }
