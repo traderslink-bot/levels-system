@@ -37,6 +37,7 @@ import type {
 } from "../market-data/trade-candle-context.js";
 import { classifyUsEquityMarketSession } from "../market-data/us-equity-exchange-calendar.js";
 import { closedMarketAnalysisWindow } from "../ai/traderslink-ai-read-market-context.js";
+import { hasNewerLiveOvernightPrice, watchlistPriceFeedStatus } from "./watchlist-price-feed-status.js";
 import { LevelEngine } from "../levels/level-engine.js";
 import { resolveLevelRuntimeSettings } from "../levels/level-runtime-mode.js";
 import type { FinalLevelZone, LevelEngineOutput } from "../levels/level-types.js";
@@ -258,6 +259,8 @@ export function resolveMarketStructureStandalonePostMode(
 }
 
 export type ManualWatchlistRuntimeManagerOptions = {
+  /** Reflects the selected live provider, including owner provider changes. */
+  overnightLivePricesEnabled?: () => boolean;
   candleFetchService: CandleFetchService;
   startupCachedCandleFetchService?: CandleFetchService | null;
   levelStore: LevelStore;
@@ -11345,7 +11348,10 @@ export class ManualWatchlistRuntimeManager {
 
   private handlePriceUpdate = (update: LivePriceUpdate): void => {
     const overnight = this.watchlistStore.getEntry(update.symbol)?.overnightLevelReference;
-    const releasedOvernight = overnight && isFreshDaySessionQuote(overnight, update.timestamp);
+    const releasedOvernight = overnight && (isFreshDaySessionQuote(overnight, update.timestamp)
+      || hasNewerLiveOvernightPrice({ overnightEnabled: this.options.overnightLivePricesEnabled?.() === true,
+        referenceCheckedAt: overnight.checkedAt, referenceObservedAt: overnight.observedAt,
+        observedAt: update.timestamp, now: this.options.now?.() ?? Date.now() }));
     if (releasedOvernight) {
       this.watchlistStore.patchEntry(update.symbol, { overnightLevelReference: undefined });
       this.persistWatchlist();
@@ -12497,14 +12503,8 @@ export class ManualWatchlistRuntimeManager {
     const stuckActivationCount = this.getStuckActivations().length;
     const notes: string[] = [];
 
-    const priceFeedStatus: ManualWatchlistProviderHealth["priceFeedStatus"] =
-      marketSession === "closed"
-        ? "closed"
-        : lastPriceAgeMs === null
-        ? "waiting"
-        : lastPriceAgeMs <= 2 * 60 * 1000
-          ? "live"
-          : "stale";
+    const priceFeedStatus = watchlistPriceFeedStatus({ now, regularSessionsClosed: marketSession === "closed",
+      overnightEnabled: this.options.overnightLivePricesEnabled?.() === true, lastPriceAgeMs });
     if (priceFeedStatus === "closed") {
       notes.push("market session is closed; live price silence is expected");
     } else if (priceFeedStatus === "waiting") {
@@ -12610,14 +12610,9 @@ export class ManualWatchlistRuntimeManager {
           entry.lastPriceUpdateAt === undefined ? null : Math.max(0, now - entry.lastPriceUpdateAt);
         const lastLevelPostAgeMs =
           entry.lastLevelPostAt === undefined ? null : Math.max(0, now - entry.lastLevelPostAt);
-        const priceStatus: ManualWatchlistRestartReadiness["priceStatus"] =
-          marketSession === "closed"
-            ? "closed"
-            : lastPriceAgeMs === null
-            ? "waiting"
-            : lastPriceAgeMs <= 2 * 60 * 1000
-              ? "fresh"
-              : "stale";
+        const feedStatus = watchlistPriceFeedStatus({ now, regularSessionsClosed: marketSession === "closed",
+          overnightEnabled: this.options.overnightLivePricesEnabled?.() === true, lastPriceAgeMs });
+        const priceStatus: ManualWatchlistRestartReadiness["priceStatus"] = feedStatus === "live" ? "fresh" : feedStatus;
         const discordStatus: ManualWatchlistRestartReadiness["discordStatus"] =
           entry.discordThreadId ? "ready" : "missing_thread";
         const isCacheWarming = this.startupCacheWarmingSymbols.has(symbol);
@@ -13103,7 +13098,10 @@ export class ManualWatchlistRuntimeManager {
     this.assertActivationCurrent(symbol, activationEpoch);
     const current = this.watchlistStore.getEntry(symbol);
     if (!current || current.lifecycle === "inactive" || current.activatedAt !== entry.activatedAt || current.publicationReview?.cycleId !== cycleId || current.overnightQuoteAttemptedAt !== now) return;
-    if (reference && !isFreshDaySessionQuote(reference, current.lastPriceUpdateAt ?? 0)) {
+    if (reference && !isFreshDaySessionQuote(reference, current.lastPriceUpdateAt ?? 0)
+      && !hasNewerLiveOvernightPrice({ overnightEnabled: this.options.overnightLivePricesEnabled?.() === true,
+        referenceCheckedAt: reference.checkedAt, referenceObservedAt: reference.observedAt, observedAt: current.lastPriceUpdateAt ?? 0,
+        now: this.options.now?.() ?? Date.now() })) {
       if (activationEpoch !== undefined) this.overnightQuoteAttemptEpochs.set(symbol, { epoch: activationEpoch, attemptedAt: now, reference });
       this.watchlistStore.patchEntry(symbol, { overnightLevelReference: reference });
       this.persistWatchlist();

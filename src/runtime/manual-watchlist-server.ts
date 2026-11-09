@@ -882,6 +882,7 @@ async function main(): Promise<void> {
         })
       : null;
   const manager = new ManualWatchlistRuntimeManager({
+    overnightLivePricesEnabled: () => liveProviderName === "alpaca",
     tradersLinkAiReadReviewStore: new TradersLinkAiReadReviewStore(join(durableDataDirectory, "ai-read-owner-reviews")),
     initialReviewBeforePublishingEnabled: persistedTradersLinkAiReadSettings?.reviewBeforePublishingEnabled ?? true,
     initialAutoPublishBoundaryRefreshes: persistedTradersLinkAiReadSettings?.autoPublishBoundaryRefreshes ?? false,

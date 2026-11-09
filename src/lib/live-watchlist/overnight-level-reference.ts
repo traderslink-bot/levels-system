@@ -1,6 +1,8 @@
 export type OvernightLevelReference = {
   price: number;
   checkedAt: number;
+  /** Actual provider trade time, when supplied; never the lookup receipt time. */
+  observedAt?: number;
   resumeAfter: number;
 };
 
@@ -27,7 +29,10 @@ export function normalizeOvernightLevelReference(value: unknown): OvernightLevel
   if (typeof input.price !== 'number' || !Number.isFinite(input.price) || input.price <= 0 ||
     typeof input.checkedAt !== 'number' || !Number.isSafeInteger(input.checkedAt) ||
     typeof input.resumeAfter !== 'number' || overnightResumeAfter(input.checkedAt) !== input.resumeAfter) return null;
-  return { price: input.price, checkedAt: input.checkedAt, resumeAfter: input.resumeAfter };
+  if (input.observedAt !== undefined && (typeof input.observedAt !== 'number' || !Number.isSafeInteger(input.observedAt)
+    || input.observedAt < input.resumeAfter - 8 * 60 * 60 * 1000 || input.observedAt > input.checkedAt + 2000)) return null;
+  return { price: input.price, checkedAt: input.checkedAt, resumeAfter: input.resumeAfter,
+    ...(input.observedAt === undefined ? {} : { observedAt: input.observedAt }) };
 }
 
 export function isFreshDaySessionQuote(reference: OvernightLevelReference, observedAt: number): boolean {
