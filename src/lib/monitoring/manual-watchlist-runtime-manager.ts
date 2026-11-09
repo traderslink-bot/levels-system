@@ -12504,7 +12504,8 @@ export class ManualWatchlistRuntimeManager {
     const notes: string[] = [];
 
     const priceFeedStatus = watchlistPriceFeedStatus({ now, regularSessionsClosed: marketSession === "closed",
-      overnightEnabled: this.options.overnightLivePricesEnabled?.() === true, lastPriceAgeMs });
+      overnightEnabled: this.options.overnightLivePricesEnabled?.() === true, lastPriceAgeMs,
+      transport: this.options.monitor.getLivePriceFeedHealth?.() });
     if (priceFeedStatus === "closed") {
       notes.push("market session is closed; live price silence is expected");
     } else if (priceFeedStatus === "waiting") {

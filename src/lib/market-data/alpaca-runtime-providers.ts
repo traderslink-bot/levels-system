@@ -79,6 +79,8 @@ export class AlpacaRuntimeLivePriceProvider {
   private timer?: ReturnType<typeof setTimeout>;
   private abort?: AbortController;
   private readonly published = new Map<string, string>();
+  private feedHealth: { connected: boolean; checkedAt: number } | null = null;
+  getFeedHealth() { return this.feedHealth ? { ...this.feedHealth } : null; }
   constructor(options: AdapterOptions = {}) { this.gateway = new RuntimeGateway(options); }
   async start(entries: { symbol: string; active: boolean }[], onUpdate: (update: RuntimeUpdate) => void) {
     await this.stop();
@@ -101,20 +103,23 @@ export class AlpacaRuntimeLivePriceProvider {
       try {
         if (sessionKey(this.gateway.now()).session === "overnight") {
           const remaining = [...symbols];
+          let available = false;
           await Promise.all(Array.from({ length: Math.min(4, symbols.length) }, async () => {
             while (remaining.length && generation === this.generation) {
               const symbol = remaining.shift()!;
-              try { const data = await this.gateway.get("overnight", new URLSearchParams({ symbol }), abort.signal); if (data.feed === "boats") publish(symbol, data.trade); } catch { /* Retain last accepted value. */ }
+              try { const data = await this.gateway.get("overnight", new URLSearchParams({ symbol }), abort.signal); if (data.feed === "boats") { available = true; if (generation === this.generation) this.feedHealth = { connected: true, checkedAt: this.gateway.now() }; publish(symbol, data.trade); } } catch { /* Retain last accepted value. */ }
             }
           }));
+          if (!available && generation === this.generation) this.feedHealth = { connected: false, checkedAt: this.gateway.now() };
         } else if (symbols.length) {
           const data = await this.gateway.get("quotes", new URLSearchParams({ symbols: symbols.join(",") }), abort.signal);
+          if (generation === this.generation) this.feedHealth = { connected: data.feed === "sip" && data.connected === true, checkedAt: this.gateway.now() };
           if (data.feed === "sip" && data.connected) for (const symbol of symbols) publish(symbol, data.snapshots?.[symbol]?.latestTrade, data.snapshots?.[symbol]?.latestQuote);
         }
-      } catch { /* No silent provider fallback or manufactured fresh timestamp. */ }
+      } catch { if (generation === this.generation) this.feedHealth = { connected: false, checkedAt: this.gateway.now() }; }
       finally { if (generation === this.generation && symbols.length) this.timer = setTimeout(() => void poll(), 5000); }
     };
     if (symbols.length) void poll();
   }
-  async stop() { this.generation++; clearTimeout(this.timer); this.abort?.abort(); this.abort = undefined; this.published.clear(); }
+  async stop() { this.generation++; clearTimeout(this.timer); this.abort?.abort(); this.abort = undefined; this.published.clear(); this.feedHealth = null; }
 }

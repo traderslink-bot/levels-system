@@ -150,6 +150,10 @@ export class WatchlistMonitor {
     return previousProvider;
   }
 
+  getLivePriceFeedHealth() {
+    return this.livePriceProvider.getFeedHealth?.() ?? null;
+  }
+
   private ensureSymbolState(symbol: string): SymbolMonitoringState {
     const existing = this.symbolStates.get(symbol);
     if (existing) {

@@ -29,3 +29,20 @@ test("actual manager health and restart rows agree on overnight freshness and pr
   assert.equal(health.buildProviderHealth(0).priceFeedStatus,"stale");
   assert.equal(health.buildProviderHealth(0).restartReadiness[0]?.priceStatus,"stale");
 });
+
+test("connected feed health is separate from per-ticker stale quote readiness during a halt", () => {
+  const now=Date.parse("2026-11-09T15:00:00Z");
+  const store=new WatchlistStore();
+  store.upsertManualEntry({symbol:"TEST",active:true,lifecycle:"active",lastPrice:5,lastPriceUpdateAt:now-1200000});
+  let connected=true;
+  const manager=new ManualWatchlistRuntimeManager({candleFetchService:{},monitor:{getLivePriceFeedHealth:()=>({connected,checkedAt:now})},
+    discordAlertRouter:{},opportunityRuntimeController:{},levelStore:new LevelStore(),watchlistStore:store,
+    watchlistStatePersistence:{},liveWatchlistPublisher:null,now:()=>now,overnightLivePricesEnabled:()=>true,
+  } as unknown as ManualWatchlistRuntimeManagerOptions);
+  const health=manager as unknown as {lastPriceUpdateAt:number;buildProviderHealth(count:number):{priceFeedStatus:string;restartReadiness:{priceStatus:string}[]}};
+  health.lastPriceUpdateAt=now-1200000;
+  assert.equal(health.buildProviderHealth(0).priceFeedStatus,"live");
+  assert.equal(health.buildProviderHealth(0).restartReadiness[0]?.priceStatus,"stale");
+  connected=false;
+  assert.equal(health.buildProviderHealth(0).priceFeedStatus,"stale");
+});

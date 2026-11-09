@@ -78,3 +78,26 @@ dynamic selection and sparse halt-resumption context. Existing generic fallback
 tests remain unchanged. Help requires no change: this restores existing provider
 and analysis behavior without a new user workflow. Local correction remains
 separate from deployment/live verification.
+
+## November 9: connected feed versus halted last trade
+
+Owner clarified that an unchanged/old trade during a halt must not say Not live
+when the feed is connected. The earlier age-based display semantics are superseded
+by this instruction. Alpaca now exposes an optional transport-health observation
+from its EXISTING SIP connected response/BOATS successful requests; no extra
+market-data calls or new timers. Monitor forwards it to overall feed health.
+Health expires after 30 seconds without a successful connection observation;
+disconnection/error cannot be masked by a recently received trade. BOATS marks
+each success when it actually arrives, not when a later slow batch ends.
+Legacy providers retain their existing behavior. Session eligibility still applies.
+
+Individual actual trade timestamps, restart-readiness quote ages and reference
+replacement checks remain independent and unchanged. Platform hides Not live on
+a connected feed, including halted/quiet trades; it retains last-price time when
+the feed is not live. Fixed-reference notes also respect connection state without
+claiming that the reference itself is a new trade. The UI does not infer a halt
+merely from price silence. New fake-transport/actual-manager tests cover connected
+old trades, disconnected/error/expired state, BOATS no-new-trade, no added request,
+stop reset, and separate stale restart readiness. Five focused new/manager checks
+pass. Final combined batch: 26 tests and full runtime TypeScript pass, including
+the additional actual-manager assertion.

@@ -13,8 +13,13 @@ export function isWatchlistOvernightSession(now: number): boolean {
 
 export function watchlistPriceFeedStatus(input: {
   now: number; regularSessionsClosed: boolean; overnightEnabled: boolean; lastPriceAgeMs: number | null;
+  transport?: { connected: boolean; checkedAt: number } | null;
 }): "closed" | "waiting" | "live" | "stale" {
   if (input.regularSessionsClosed && !(input.overnightEnabled && isWatchlistOvernightSession(input.now))) return "closed";
+  if (input.transport) {
+    const age = input.now - input.transport.checkedAt;
+    return input.transport.connected && Number.isFinite(age) && age >= -2000 && age <= 30_000 ? "live" : "stale";
+  }
   if (input.lastPriceAgeMs === null || !Number.isFinite(input.lastPriceAgeMs) || input.lastPriceAgeMs < 0) return "waiting";
   return input.lastPriceAgeMs <= 120_000 ? "live" : "stale";
 }
