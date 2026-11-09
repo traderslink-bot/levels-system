@@ -101,3 +101,58 @@ old trades, disconnected/error/expired state, BOATS no-new-trade, no added reque
 stop reset, and separate stale restart readiness. Five focused new/manager checks
 pass. Final combined batch: 26 tests and full runtime TypeScript pass, including
 the additional actual-manager assertion.
+
+## November 9: owner-directed event-driven price delivery
+
+Owner requested removing the five-second Watchlist polling wait. Discovery also
+found the separate fifteen-second Runtime-to-website ticker publication gate.
+Both must change together; replacing provider polling alone is not sufficient.
+Scanner task owns shared gateway implementation, not this consumer. Protocol 1
+is specified in its assigned Platform source at
+docs/migration/alpaca-live-price-stream-contract-20261109.md. Owner's all-deploy /
+restart HOLD remains in force. Do not connect to the currently installed gateway's
+absent /prices endpoint or ship this consumer before matching gateway readiness.
+
+Implementation sequence and state:
+
+1. Receive SIP trades through one authenticated POST /prices SSE subscription for
+   the active Watchlist population, using the gateway's existing SIP socket and
+   independent consumer lease. No new upstream connection per viewer. Local done.
+2. Atomically validate protocol/feed/population/price/provider timestamp and
+   transport timestamps; preserve nanosecond ordering and original trade time.
+   Heartbeats only update transport health. Bound buffer to 2 MB, silence to
+   12 seconds, reconnect backoff to 1–30 seconds; stop and population changes
+   await prior stream cancellation. Local done.
+3. Preserve BOATS as its existing separate five-second REST path, not a claimed
+   overnight WebSocket. Clock-only mode checks switch transports at session
+   boundaries without adding periodic SIP quote requests. Local done.
+4. Bypass the old fifteen-second website gate only for effective Alpaca, keeping
+   the existing durable serialized/latest-wins outbox for delivery pressure.
+   Same-millisecond eligible prices advance revisions without changing their
+   trade timestamps. Ignore older reconnect trades before state mutation.
+   Legacy provider cadence and historical/indicator candles remain unchanged.
+   Local done. No approval, notifications or automatic-generation rule changes.
+5. Qualify matching immutable gateway and Runtime code, then only after the owner
+   lifts HOLD verify installed feed-to-browser latency, disconnect/reconnect,
+   session transitions and representative live load. Pending; local tests cannot
+   establish deployed timing or guarantee every intermediate tick is displayed.
+
+Verification: 95 focused Runtime tests pass across ten files, including factory,
+source identity, history/AI parity, actual manager publication, stream malformed /
+fragmented CRLF, 2 MB and watchdog bounds, same-millisecond nanosecond ordering,
+reconnect stale bootstrap, population cleanup, halt health and existing durable
+outbox replay/coalescing/priority checks. Full Runtime TypeScript passes.
+
+Additional local HTTP integration used the actual shared LivePriceHub source and
+actual Runtime provider, no copied implementation. One eligible synthetic trade
+traveled hub -> loopback POST /prices SSE -> Runtime in 228 ms with original
+timestamp retained and connected status. This is not installed-source/live market
+or complete browser latency proof. No real provider requests, model requests,
+saved-analysis writes or notification sends. Local HTTP server/hub/provider were
+closed after the check. An initial TSX CommonJS/ESM import mismatch failed before
+starting the harness; default import resolved that harness-only issue.
+
+Help review: the existing guide already distinguishes live-price updates from
+completed-session indicator readings. No new user control or visible workflow is
+introduced, so no additional Help revision is required for this transport-only
+slice. No dependencies, schema, provider selection or credentials changed.

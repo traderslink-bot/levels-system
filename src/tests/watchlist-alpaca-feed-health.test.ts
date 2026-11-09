@@ -3,11 +3,17 @@ import test from "node:test";
 import { AlpacaRuntimeLivePriceProvider } from "../lib/market-data/alpaca-runtime-providers.js";
 import { watchlistPriceFeedStatus } from "../lib/monitoring/watchlist-price-feed-status.js";
 
+function streamFrame(now: number, connected: boolean, prices: Record<string, unknown> = {}) {
+  return new Response(new ReadableStream({ start(controller) {
+    controller.enqueue(new TextEncoder().encode(`event: prices\ndata: ${JSON.stringify({protocolVersion:1,feed:"sip",connected,kind:connected?"snapshot":"status",emittedAt:now,prices})}\n\n`));
+  } }), {headers:{"content-type":"text/event-stream"}});
+}
+
 test("connected SIP transport stays live with old trades during a halt; timestamps remain actual", async () => {
   const now = Date.parse("2026-11-09T15:00:00Z"), old = now - 20 * 60000;
   const updates: {timestamp: number}[] = [];
   const provider = new AlpacaRuntimeLivePriceProvider({url:"https://gateway.example/",token:"offline",now:()=>now,
-    fetcher:async()=>Response.json({feed:"sip",connected:true,snapshots:{TEST:{latestTrade:{p:5,t:new Date(old).toISOString()}}}})});
+    fetcher:async()=>streamFrame(now,true,{TEST:{price:5,providerObservedAt:new Date(old).toISOString(),receiptAt:now}})});
   try {
     await provider.start([{symbol:"TEST",active:true}], update=>updates.push(update));
     await new Promise(resolve=>setImmediate(resolve));
@@ -23,7 +29,7 @@ test("disconnected, failing and expired connections never use a fresh trade to c
   const now = Date.parse("2026-11-09T15:00:00Z");
   for (const fail of [false,true]) {
     const provider = new AlpacaRuntimeLivePriceProvider({url:"https://gateway.example/",token:"offline",now:()=>now,
-      fetcher:async()=>fail ? new Response("{}",{status:503}) : Response.json({feed:"sip",connected:false,snapshots:{}})});
+      fetcher:async()=>fail ? new Response("{}",{status:503}) : streamFrame(now,false)});
     try {
       await provider.start([{symbol:"TEST",active:true}],()=>assert.fail("must not publish"));
       await new Promise(resolve=>setImmediate(resolve));

@@ -261,6 +261,7 @@ export function resolveMarketStructureStandalonePostMode(
 export type ManualWatchlistRuntimeManagerOptions = {
   /** Reflects the selected live provider, including owner provider changes. */
   overnightLivePricesEnabled?: () => boolean;
+  realtimeTickerPrices?: () => boolean;
   candleFetchService: CandleFetchService;
   startupCachedCandleFetchService?: CandleFetchService | null;
   levelStore: LevelStore;
@@ -1575,9 +1576,9 @@ const ACTIVATION_MAX_AUTO_RETRIES = 1;
 const ACTIVATION_STUCK_WARNING_MS = 2 * 60 * 1000;
 const ACTIVATION_WATCHDOG_INTERVAL_MS = 15 * 1000;
 const PRICE_UPDATE_PERSIST_INTERVAL_MS = 5 * 1000;
-// The website consumes ticker updates over SSE and refreshes visible pages every
-// 15 seconds. Keep the durable publisher on the same cadence so quote bursts do
-// not turn every tick into a Neon read/modify/write cycle.
+// Legacy provider cadence only. Alpaca already coalesces eligible trades at the
+// gateway; its event publications use the existing serialized/latest-wins outbox
+// instead of discarding fifteen seconds of price updates.
 const WEBSITE_TICKER_DATA_PUBLISH_INTERVAL_MS = 15 * 1000;
 const WEBSITE_TECHNICAL_CONTEXT_PUBLISH_INTERVAL_MS = 30 * 1000;
 const WEBSITE_PULLBACK_READ_PUBLISH_INTERVAL_MS = 5 * 60 * 1000;
@@ -11347,6 +11348,8 @@ export class ManualWatchlistRuntimeManager {
   }
 
   private handlePriceUpdate = (update: LivePriceUpdate): void => {
+    const existingPriceTime = this.watchlistStore.getEntry(update.symbol)?.lastPriceUpdateAt;
+    if (existingPriceTime !== undefined && update.timestamp < existingPriceTime) return;
     const overnight = this.watchlistStore.getEntry(update.symbol)?.overnightLevelReference;
     const releasedOvernight = overnight && (isFreshDaySessionQuote(overnight, update.timestamp)
       || hasNewerLiveOvernightPrice({ overnightEnabled: this.options.overnightLivePricesEnabled?.() === true,
@@ -13574,6 +13577,7 @@ export class ManualWatchlistRuntimeManager {
     const isProductionTimestamp = update.timestamp >= 1_000_000_000_000;
     if (
       !options.force &&
+      this.options.realtimeTickerPrices?.() !== true &&
       isProductionTimestamp &&
       update.timestamp - lastPublishedAt < WEBSITE_TICKER_DATA_PUBLISH_INTERVAL_MS
     ) {
@@ -13601,7 +13605,7 @@ export class ManualWatchlistRuntimeManager {
     const marketDataRevision =
       previousMarketDataObservedAt === undefined || update.timestamp > previousMarketDataObservedAt
         ? Math.max(observedAtRevisionBase, previousMarketDataRevision + 1)
-        : options.force
+        : options.force || this.options.realtimeTickerPrices?.() === true
           ? previousMarketDataRevision + 1
           : previousMarketDataRevision;
     const haltState = this.tickerHaltStateBySymbol.get(normalizeSymbol(update.symbol));

@@ -1,3 +1,5 @@
+import { consumeWatchlistPriceStream } from "./watchlist-alpaca-price-stream.js";
+
 /** Portable adapters for the separately hosted levels/Watchlist runtime.
  * Only a private VPS gateway token is used here; no Alpaca broker key.
  */
@@ -27,6 +29,11 @@ class RuntimeGateway {
     const response = await this.fetcher(url, { headers: { Authorization: `Bearer ${this.token}` }, signal: signal ? AbortSignal.any([signal, timeout]) : timeout, redirect: "error" });
     if (!response.ok) throw Error("Alpaca VPS market data is unavailable.");
     return response.json();
+  }
+  openPrices(symbols: readonly string[], signal: AbortSignal) {
+    return this.fetcher(new URL("prices", this.base), { method: "POST", headers: {
+      Authorization: `Bearer ${this.token}`, "Content-Type": "application/json", Accept: "text/event-stream",
+    }, body: JSON.stringify({ symbols }), signal, redirect: "error", cache: "no-store" });
   }
 }
 
@@ -72,13 +79,15 @@ function sessionKey(time: number) {
   return { date: `${values.year}-${values.month}-${values.day}`, session: minute < 240 || minute >= 1200 ? "overnight" : minute < 570 ? "premarket" : minute < 960 ? "regular" : "after_hours" };
 }
 
-/** Polls the VPS's shared WebSocket cache, never Alpaca REST for each live tick. */
+/** Receives SIP trades from the shared gateway socket; BOATS remains REST-only. */
 export class AlpacaRuntimeLivePriceProvider {
   private readonly gateway: RuntimeGateway;
   private generation = 0;
   private timer?: ReturnType<typeof setTimeout>;
   private abort?: AbortController;
+  private running?: Promise<void>;
   private readonly published = new Map<string, string>();
+  private readonly lastOrder = new Map<string, bigint>();
   private feedHealth: { connected: boolean; checkedAt: number } | null = null;
   getFeedHealth() { return this.feedHealth ? { ...this.feedHealth } : null; }
   constructor(options: AdapterOptions = {}) { this.gateway = new RuntimeGateway(options); }
@@ -87,39 +96,68 @@ export class AlpacaRuntimeLivePriceProvider {
     const symbols = [...new Set(entries.filter(entry => entry.active).map(entry => entry.symbol.trim().toUpperCase()))];
     if (symbols.length > 400 || symbols.some(symbol => !/^[A-Z][A-Z0-9.-]{0,14}$/.test(symbol))) throw Error("Invalid Alpaca Watchlist population.");
     const generation = ++this.generation, abort = new AbortController(); this.abort = abort;
-    const publish = (symbol: string, trade: { p?: number; t?: string } | null, quote?: { bp?: number; ap?: number }) => {
+    const publish = (symbol: string, trade: { p?: number; t?: string } | null, quote?: { bp?: number; ap?: number }, order?: bigint) => {
       if (generation !== this.generation || !trade || typeof trade.p !== "number" || !Number.isFinite(trade.p) || trade.p <= 0) return;
       const timestamp = Date.parse(trade.t ?? ""), now = this.gateway.now();
       if (!Number.isFinite(timestamp) || timestamp > now + 2000) return;
       const source = sessionKey(timestamp), current = sessionKey(now);
       if (current.session === "overnight") { if (now - timestamp > 8 * 3600_000 || source.session !== "overnight") return; }
       else if (source.date !== current.date || source.session !== current.session) return;
+      const nextOrder = order ?? BigInt(timestamp) * 1_000_000n;
+      if (nextOrder <= (this.lastOrder.get(symbol) ?? 0n)) return;
+      this.lastOrder.set(symbol, nextOrder);
       const signature = `${timestamp}:${trade.p}`; if (this.published.get(symbol) === signature) return;
       this.published.set(symbol, signature);
       const book = typeof quote?.bp === "number" && Number.isFinite(quote.bp) && quote.bp > 0 && typeof quote.ap === "number" && Number.isFinite(quote.ap) && quote.ap >= quote.bp ? { bid: quote.bp, ask: quote.ap } : {};
       onUpdate({ symbol, timestamp, lastPrice: trade.p, ...book });
     };
+    let failures = 0;
     const poll = async () => {
+      const overnight = sessionKey(this.gateway.now()).session === "overnight";
+      const mode = new AbortController();
+      const signal = AbortSignal.any([abort.signal, mode.signal]);
+      // Clock-only session transition check: no network requests or price delay.
+      const modeTimer = setInterval(() => {
+        if ((sessionKey(this.gateway.now()).session === "overnight") !== overnight) mode.abort();
+      }, 1000);
+      modeTimer.unref();
       try {
-        if (sessionKey(this.gateway.now()).session === "overnight") {
+        if (overnight) {
           const remaining = [...symbols];
           let available = false;
           await Promise.all(Array.from({ length: Math.min(4, symbols.length) }, async () => {
-            while (remaining.length && generation === this.generation) {
+            while (remaining.length && generation === this.generation && !signal.aborted) {
               const symbol = remaining.shift()!;
-              try { const data = await this.gateway.get("overnight", new URLSearchParams({ symbol }), abort.signal); if (data.feed === "boats") { available = true; if (generation === this.generation) this.feedHealth = { connected: true, checkedAt: this.gateway.now() }; publish(symbol, data.trade); } } catch { /* Retain last accepted value. */ }
+              try { const data = await this.gateway.get("overnight", new URLSearchParams({ symbol }), signal); if (data.feed === "boats" && !signal.aborted) { available = true; if (generation === this.generation) this.feedHealth = { connected: true, checkedAt: this.gateway.now() }; publish(symbol, data.trade); } } catch { /* Retain last accepted value. */ }
             }
           }));
           if (!available && generation === this.generation) this.feedHealth = { connected: false, checkedAt: this.gateway.now() };
         } else if (symbols.length) {
-          const data = await this.gateway.get("quotes", new URLSearchParams({ symbols: symbols.join(",") }), abort.signal);
-          if (generation === this.generation) this.feedHealth = { connected: data.feed === "sip" && data.connected === true, checkedAt: this.gateway.now() };
-          if (data.feed === "sip" && data.connected) for (const symbol of symbols) publish(symbol, data.snapshots?.[symbol]?.latestTrade, data.snapshots?.[symbol]?.latestQuote);
+          await consumeWatchlistPriceStream({ symbols, signal, now: this.gateway.now,
+            open: streamSignal => this.gateway.openPrices(symbols, streamSignal),
+            onFrame: frame => {
+              if (generation !== this.generation || signal.aborted) return;
+              this.feedHealth = { connected: frame.connected, checkedAt: this.gateway.now() };
+              failures = 0;
+              for (const trade of frame.trades) publish(trade.symbol,
+                { p: trade.price, t: new Date(trade.timestamp).toISOString() }, undefined, trade.order);
+            },
+          });
         }
       } catch { if (generation === this.generation) this.feedHealth = { connected: false, checkedAt: this.gateway.now() }; }
-      finally { if (generation === this.generation && symbols.length) this.timer = setTimeout(() => void poll(), 5000); }
+      finally {
+        clearInterval(modeTimer);
+        if (generation === this.generation && symbols.length) {
+          const delay = mode.signal.aborted ? 0 : overnight ? 5000 : Math.min(30000, 1000 * 2 ** Math.min(failures++, 5));
+          this.timer = setTimeout(() => { this.running = poll(); }, delay);
+        }
+      }
     };
-    if (symbols.length) void poll();
+    if (symbols.length) this.running = poll();
   }
-  async stop() { this.generation++; clearTimeout(this.timer); this.abort?.abort(); this.abort = undefined; this.published.clear(); this.feedHealth = null; }
+  async stop() {
+    this.generation++; clearTimeout(this.timer); this.abort?.abort(); this.abort = undefined;
+    await this.running; this.running = undefined;
+    this.published.clear(); this.lastOrder.clear(); this.feedHealth = null;
+  }
 }

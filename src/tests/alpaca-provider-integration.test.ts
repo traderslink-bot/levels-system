@@ -30,9 +30,11 @@ test("runtime history preserves real source identity and rejects incomplete or w
   payload={...valid,feed:"iex"};await assert.rejects(()=>provider.fetchCandles(request,plan),/incomplete/);
 });
 
-test("Alpaca live adapter uses actual timestamps and stops its shared-cache polling",async()=>{
+test("Alpaca live adapter uses actual timestamps and stops its shared trade stream",async()=>{
   let requests=0;const updates:unknown[]=[];
-  const provider=new AlpacaRuntimeLivePriceProvider({url:"https://gateway.invalid/",token:"synthetic-only",now:()=>now,fetcher:async()=>{requests++;return Response.json({feed:"sip",connected:true,snapshots:{AAPL:{latestTrade:{p:2,t:new Date(now-1000).toISOString()}}}});}});
+  const provider=new AlpacaRuntimeLivePriceProvider({url:"https://gateway.invalid/",token:"synthetic-only",now:()=>now,fetcher:async()=>{
+    requests++;return new Response(new ReadableStream({start(c){c.enqueue(new TextEncoder().encode(`event: prices\ndata: ${JSON.stringify({protocolVersion:1,feed:"sip",connected:true,kind:"snapshot",emittedAt:now,prices:{AAPL:{price:2,providerObservedAt:new Date(now-1000).toISOString(),receiptAt:now}}})}\n\n`));}}),{headers:{"content-type":"text/event-stream"}});
+  }});
   await provider.start([{symbol:"AAPL",active:true}],update=>updates.push(update));await nextTurn();await provider.stop();
   assert.equal(requests,1);assert.deepEqual(updates,[{symbol:"AAPL",timestamp:now-1000,lastPrice:2}]);
 });
