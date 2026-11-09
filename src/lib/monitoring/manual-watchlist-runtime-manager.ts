@@ -26,6 +26,7 @@ import { buildWatchlistDiscordLinkMessage } from "../alerts/watchlist-discord-li
 import { resolveTradersLinkAiReadReferenceQuote } from "../ai/traderslink-ai-read-price-action.js";
 
 import { CandleFetchService, type HistoricalFetchRequest } from "../market-data/candle-fetch-service.js";
+import { availablePriorHigh, suppressPriceDiscoveryRefresh } from "./watchlist-price-discovery.js";
 import type { MoomooAiReadCandleLoader } from "../market-data/platform-moomoo-ai-read-candle-loader.js";
 import type { WatchlistIndicatorCandleLoader } from "../market-data/platform-watchlist-indicator-loader.js";
 import { watchlistIndicatorPublicationTime, watchlistIndicatorPublicationIdentity } from "../market-data/watchlist-indicator-publication-time.js";
@@ -3225,6 +3226,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly tradeSetupThesisReadBySymbol = new Map<string, PotentialMoveRead>();
   private readonly chartThesisLevelOutputBySymbol = new Map<string, LevelEngineOutput>();
   private readonly chartThesisSeriesMapBySymbol = new Map<string, Record<CandleTimeframe, CandleProviderResponse>>();
+  private readonly aiReadHistoricalHigh = new Map<string, { date: string | null; high: number | null }>();
   private readonly recentWebsiteArticleFreshnessBySymbol = new Map<string, RecentWebsiteArticleCatalystFreshness>();
   private readonly pressReleaseCatalystContextBySymbol = new Map<string, PressReleaseCatalystContext>();
   private readonly aiReadResearchBySymbol = new Map<
@@ -4148,6 +4150,9 @@ export class ManualWatchlistRuntimeManager {
       }
     }
 
+    this.aiReadHistoricalHigh.set(symbol, {
+      date: newYorkDateKeyForTimestamp(fetchAsOf), high: availablePriorHigh(dailyCandles, fetchAsOf),
+    });
     return {
       source,
       fetchedAt: Date.now(),
@@ -4326,11 +4331,11 @@ export class ManualWatchlistRuntimeManager {
       tickSize: snapshot.roleFlipContext?.tickSize,
     });
     const previousRefreshState = this.aiReadState.get(symbol) ?? null;
-    const automaticRefreshDateKey = newYorkDateKeyForTimestamp(this.options.now?.() ?? Date.now());
-    const automaticRefreshCount = getAutomaticAiReadRefreshCountForDate(
+    let automaticRefreshDateKey = newYorkDateKeyForTimestamp(this.options.now?.() ?? Date.now());
+    const automaticRefreshCount = Math.max(getAutomaticAiReadRefreshCountForDate(
       previousRefreshState,
       this.options.now?.() ?? Date.now(),
-    );
+    ), this.options.tradersLinkAiReadRunLedger?.getAutomaticBoundaryRefreshCount?.(symbol, automaticRefreshDateKey) ?? 0);
     if (refreshDecision.pendingBoundaryCross !== undefined) {
       const previousState = this.aiReadState.get(symbol);
       if (previousState) {
@@ -4371,6 +4376,27 @@ export class ManualWatchlistRuntimeManager {
       });
       return null;
     }
+    const hasHigherMappedStructure = [...(snapshot.resistanceZones ?? []), ...(snapshot.ladderResistanceZones ?? [])].some(zone =>
+      !isSyntheticResistance(zone) && zone.representativePrice > snapshot.currentPrice &&
+      Math.abs(zone.representativePrice - (snapshot.specialLevels?.currentSessionHigh ?? 0)) > zone.representativePrice * 1e-8);
+    const suppressNewHighOnly = (historicalHigh: number | null) => !hasHigherMappedStructure && suppressPriceDiscoveryRefresh({
+      automatic: requestedTrigger === "automatic", force,
+      direction: refreshDecision.confirmedPriorBoundary?.direction,
+      currentPrice: snapshot.currentPrice, availableHistoricalHigh: historicalHigh,
+    });
+    const storedHistoricalHigh = this.aiReadHistoricalHigh.get(symbol);
+    const historicalHigh = storedHistoricalHigh?.date === automaticRefreshDateKey
+      ? storedHistoricalHigh.high
+      : availablePriorHigh(this.chartThesisSeriesMapBySymbol.get(symbol)?.daily.candles ?? [], dataAsOf);
+    const skipNewHighOnly = () => {
+      this.recordTradersLinkAiReadRunOutcome({ symbol, trigger: "boundary_cross", stage: "boundary", outcome: "not_needed", runId,
+        reason: "Price is above available historical highs. A new session high alone does not require another analysis.",
+        dedupeKey: `price-discovery:${symbol}:${automaticRefreshDateKey}:${previousRefreshState?.generatedAt}` });
+    };
+    if (suppressNewHighOnly(historicalHigh)) {
+      skipNewHighOnly();
+      return null;
+    }
     if (
       refreshDecision.trigger === "boundary_cross" &&
       (!this.tradersLinkAiReadBoundaryRefreshSettings.enabled ||
@@ -4395,21 +4421,7 @@ export class ManualWatchlistRuntimeManager {
       return null;
     }
 
-    const nextAutomaticRefreshCount = refreshDecision.trigger === "boundary_cross"
-      ? automaticRefreshCount + 1
-      : automaticRefreshCount;
-    if (refreshDecision.trigger === "boundary_cross" && previousRefreshState) {
-      const countedState = {
-        ...previousRefreshState,
-        automaticRefreshDateKey,
-        automaticRefreshCount: nextAutomaticRefreshCount,
-      };
-      this.aiReadState.set(symbol, countedState);
-      this.watchlistStore.patchEntry(symbol, {
-        tradersLinkAiReadBoundaryState: countedState,
-      });
-      this.persistWatchlist();
-    }
+    let nextAutomaticRefreshCount = automaticRefreshCount;
 
     const budgetStatus = this.getTradersLinkAiReadDailyCostBudgetStatus();
     if (!budgetStatus.canStartRequest) {
@@ -4486,6 +4498,10 @@ export class ManualWatchlistRuntimeManager {
         });
         throw error;
       }
+      if (suppressNewHighOnly(availablePriorHigh(priceAction.dailyCandles, dataAsOf))) {
+        skipNewHighOnly();
+        return null;
+      }
       let recordedAttemptCount = 0;
       // Preparation can await market/news data. Recheck switches immediately
       // before the paid request so a queued follow-up cannot bypass OFF.
@@ -4503,6 +4519,29 @@ export class ManualWatchlistRuntimeManager {
           runId, reason: activationChanged ? "Ticker activation changed before the AI request." : requestAvailability.reason ?? "AI Read generation is unavailable.",
         });
         return null;
+      }
+      // Reserve only a dispatched request, not failed data/news preparation.
+      // Settings may have changed while preparation awaited providers.
+      if (refreshDecision.trigger === "boundary_cross") {
+        const now = this.options.now?.() ?? Date.now();
+        const dateKey = newYorkDateKeyForTimestamp(now);
+        const state = this.aiReadState.get(symbol) ?? null;
+        const count = Math.max(getAutomaticAiReadRefreshCountForDate(state, now),
+          this.options.tradersLinkAiReadRunLedger?.getAutomaticBoundaryRefreshCount?.(symbol, dateKey) ?? 0);
+        if (!this.tradersLinkAiReadBoundaryRefreshSettings.enabled ||
+          count >= this.tradersLinkAiReadBoundaryRefreshSettings.maxPerTickerPerNewYorkDate) {
+          this.recordTradersLinkAiReadRunOutcome({ symbol, trigger: "boundary_cross", stage: "preflight", outcome: "skipped", runId,
+            reason: "Automatic boundary refresh is disabled or its daily limit has been reached." });
+          return null;
+        }
+        nextAutomaticRefreshCount = count + 1;
+        if (state) {
+          automaticRefreshDateKey = dateKey;
+          const countedState = { ...state, automaticRefreshDateKey: dateKey, automaticRefreshCount: nextAutomaticRefreshCount };
+          this.aiReadState.set(symbol, countedState);
+          this.watchlistStore.patchEntry(symbol, { tradersLinkAiReadBoundaryState: countedState });
+          this.persistWatchlist();
+        }
       }
       // Legacy public tickers also require review of replacements. Persist
       // the gate before dispatch, without inventing a past approved draft.
@@ -4531,7 +4570,7 @@ export class ManualWatchlistRuntimeManager {
       try {
         this.recordTradersLinkAiReadRunOutcome({
           symbol,
-          trigger: requestedTrigger,
+          trigger: refreshDecision.trigger,
           stage: "request",
           outcome: "request_started",
           runId,
@@ -4620,6 +4659,15 @@ export class ManualWatchlistRuntimeManager {
         });
       }
       const latestEntry = this.watchlistStore.getEntry(symbol);
+      if (refreshDecision.trigger === "boundary_cross") {
+        const state = this.aiReadState.get(symbol);
+        if (state) {
+          const serviced = { ...state, lastAutomaticRefreshRegime: refreshDecision.automaticRefreshRegime };
+          this.aiReadState.set(symbol, serviced);
+          this.watchlistStore.patchEntry(symbol, { tradersLinkAiReadBoundaryState: serviced });
+          this.persistWatchlist();
+        }
+      }
       if (entry.publicationReview?.required) {
         const reviewStore = this.options.tradersLinkAiReadReviewStore;
         const cycle = reviewStore?.read(entry.publicationReview.cycleId);
@@ -5090,6 +5138,7 @@ export class ManualWatchlistRuntimeManager {
         boundaryState: { ...buildTradersLinkAiReadRefreshState(read),
           automaticRefreshDateKey: entry.tradersLinkAiReadBoundaryState?.automaticRefreshDateKey,
           automaticRefreshCount: entry.tradersLinkAiReadBoundaryState?.automaticRefreshCount,
+          lastAutomaticRefreshRegime: entry.tradersLinkAiReadBoundaryState?.lastAutomaticRefreshRegime,
         },
       } });
       this.persistWatchlist();
@@ -12900,6 +12949,7 @@ export class ManualWatchlistRuntimeManager {
       this.tradeSetupThesisReadBySymbol.delete(symbol);
       this.chartThesisLevelOutputBySymbol.delete(symbol);
       this.chartThesisSeriesMapBySymbol.delete(symbol);
+      this.aiReadHistoricalHigh.delete(symbol);
       this.recentWebsiteArticleFreshnessBySymbol.delete(symbol);
       this.pressReleaseCatalystContextBySymbol.delete(symbol);
       this.priorRegularCloseBySymbol.delete(symbol);
@@ -14138,6 +14188,7 @@ export class ManualWatchlistRuntimeManager {
     this.tradeSetupThesisReadBySymbol.delete(symbol);
     this.chartThesisLevelOutputBySymbol.delete(symbol);
     this.chartThesisSeriesMapBySymbol.delete(symbol);
+    this.aiReadHistoricalHigh.delete(symbol);
     const pendingFastClear = this.pendingFastLevelClearAlerts.get(symbol);
     if (pendingFastClear) {
       clearTimeout(pendingFastClear.timer);
@@ -14184,6 +14235,7 @@ export class ManualWatchlistRuntimeManager {
     this.tradeSetupThesisReadBySymbol.delete(normalizedSymbol);
     this.chartThesisLevelOutputBySymbol.delete(normalizedSymbol);
     this.chartThesisSeriesMapBySymbol.delete(normalizedSymbol);
+    this.aiReadHistoricalHigh.delete(normalizedSymbol);
     this.recentWebsiteArticleFreshnessBySymbol.delete(normalizedSymbol);
     this.pressReleaseCatalystContextBySymbol.delete(normalizedSymbol);
     this.aiReadResearchBySymbol.delete(normalizedSymbol);
@@ -14342,6 +14394,7 @@ export class ManualWatchlistRuntimeManager {
     this.tradeSetupThesisReadBySymbol.clear();
     this.chartThesisLevelOutputBySymbol.clear();
     this.chartThesisSeriesMapBySymbol.clear();
+    this.aiReadHistoricalHigh.clear();
     this.recentWebsiteArticleFreshnessBySymbol.clear();
     this.pressReleaseCatalystContextBySymbol.clear();
     this.aiReadResearchBySymbol.clear();
@@ -14387,6 +14440,7 @@ export class ManualWatchlistRuntimeManager {
     this.tradeSetupThesisReadBySymbol.clear();
     this.chartThesisLevelOutputBySymbol.clear();
     this.chartThesisSeriesMapBySymbol.clear();
+    this.aiReadHistoricalHigh.clear();
     this.recentWebsiteArticleFreshnessBySymbol.clear();
     this.pressReleaseCatalystContextBySymbol.clear();
     this.aiReadResearchBySymbol.clear();

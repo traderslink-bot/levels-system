@@ -4,6 +4,26 @@ import { Script } from "node:vm";
 import { ANALYSIS_REVIEW_PANEL } from "../runtime/manual-watchlist-analysis-review-panel.js";
 import { MANUAL_WATCHLIST_PAGE } from "../runtime/manual-watchlist-page.js";
 
+test("review controls hydrate atomically and incomplete reloads never turn saved switches off", () => {
+  const script = ANALYSIS_REVIEW_PANEL.match(/<script>([\s\S]*?)<\/script>/)![1]!;
+  const settingsCode = script.slice(script.indexOf("  const showSettings ="), script.indexOf("  const loadQueue ="));
+  const nodes = new Map<string, any>();
+  const context = { controlsLoaded: false, byId: (id: string) => {
+    if (!nodes.has(id)) nodes.set(id, { checked: false, hidden: true, disabled: true });
+    return nodes.get(id);
+  }, settings: { automaticUpdatesEnabled: true, reviewBeforePublishingEnabled: true,
+    autoPublishBoundaryRefreshes: true, notifyAutomaticAnalysisUpdates: true,
+    ownerReviewNotificationsEnabled: true, ownerReviewDiscordEnabled: true, boundaryRefreshEnabled: true } };
+  new Script(settingsCode + "\nshowSettings(settings);").runInNewContext(context);
+  assert.equal(context.controlsLoaded, true);
+  for (const id of ["automatic", "required", "auto-publish", "auto-notify", "owner-notify", "owner-discord"]) assert.equal(nodes.get(id).checked, true);
+  assert.equal(nodes.get("saved-controls").hidden, false);
+  assert.equal(nodes.get("controls-loading").hidden, true);
+  assert.throws(() => new Script("showSettings({ automaticUpdatesEnabled: false });").runInNewContext(context), /incomplete/);
+  for (const id of ["automatic", "required", "auto-publish", "auto-notify", "owner-notify", "owner-discord"]) assert.equal(nodes.get(id).checked, true);
+  assert.match(ANALYSIS_REVIEW_PANEL, /id="analysis-review-saved-controls" hidden/);
+});
+
 test("request inspector renders lazily with explicit truncation and unavailable diagnostics", () => {
   const script = ANALYSIS_REVIEW_PANEL.match(/<script>([\s\S]*?)<\/script>/)![1]!;
   const render = script.slice(script.indexOf("  function renderAudit("), script.indexOf('  byId("inspect").onclick'));

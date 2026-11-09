@@ -2,7 +2,8 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
 <style>#analysis-review-panel [hidden] { display: none !important; } #analysis-review-panel details { margin: 12px 0; } #analysis-review-panel summary { cursor: pointer; font-weight: 700; margin-bottom: 10px; } #analysis-review-panel fieldset { min-width: 0; margin: 8px 0; } #analysis-review-actions { flex-wrap: wrap; }</style>
 <div class="ai-read-console" id="analysis-review-panel">
   <h3>Analysis Review</h3>
-  <div class="provider-control">
+  <p id="analysis-review-controls-loading" role="status">Loading saved review controls…</p>
+  <div class="provider-control" id="analysis-review-saved-controls" hidden>
     <fieldset><legend>Analysis display</legend>
       <label><input type="checkbox" id="analysis-review-recovery-visible" style="width:auto" disabled /> Show failure and recovery section</label>
       <p>Applies to all tickers. Off hides the Failure and recovery section, including its downside checkpoints. The Momentum failure level remains visible unless hidden in the analysis editor. Saved analysis is not deleted.</p>
@@ -25,8 +26,8 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     <p>Uses the separately configured private owner channel, not the member Watchlist channel.</p>
     <p id="analysis-review-owner-delivery" role="status"></p>
     <button type="button" id="analysis-review-settings-save" disabled>Save review controls</button>
-    <button type="button" id="analysis-review-settings-load" class="secondary">Reload review controls</button>
   </div>
+  <button type="button" id="analysis-review-settings-load" class="secondary">Reload review controls</button>
   <div class="inline-control">
     <button type="button" id="analysis-review-queue-refresh" class="secondary">Refresh review list</button>
   </div>
@@ -120,7 +121,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     const controls = Array.from(document.querySelectorAll("#analysis-review-panel button, #analysis-review-panel input, #analysis-review-panel textarea, #analysis-review-panel select"));
     controls.forEach((control) => { control.disabled = true; });
     try { await operation(); } catch (error) { message(error.message || "Review could not complete."); }
-    finally { busy = false; controls.forEach((control) => { control.disabled = false; }); byId("approve").disabled = !preview || dirty; ["automatic", "required", "format", "auto-publish", "owner-notify", "owner-discord", "settings-save"].forEach((id) => { byId(id).disabled = !controlsLoaded; }); }
+    finally { busy = false; controls.forEach((control) => { control.disabled = false; }); byId("approve").disabled = !preview || dirty; ["automatic", "required", "format", "recovery-visible", "auto-publish", "auto-notify", "owner-notify", "owner-discord", "settings-save"].forEach((id) => { byId(id).disabled = !controlsLoaded; }); if (!controlsLoaded) byId("controls-loading").textContent = "Saved review controls have not loaded. Reload review controls to try again; no settings have been changed."; }
   }
   function orderPullbacks(rows,lowKey="low",highKey="high") {
     const range=row=>typeof row[lowKey]==="number"&&Number.isFinite(row[lowKey])&&row[lowKey]>0&&typeof row[highKey]==="number"&&Number.isFinite(row[highKey])&&row[highKey]>0?[row[lowKey],row[highKey]]:null;
@@ -490,6 +491,10 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     message("Selected audit exported. It has not been shared with anyone.");
   });
   const showSettings = (settings) => {
+    const required = ["automaticUpdatesEnabled", "reviewBeforePublishingEnabled", "autoPublishBoundaryRefreshes", "notifyAutomaticAnalysisUpdates", "ownerReviewNotificationsEnabled", "ownerReviewDiscordEnabled"];
+    if (!settings || required.some(key => typeof settings[key] !== "boolean")) {
+      throw new Error("Saved review controls are incomplete. Reload to try again; your settings have not been changed.");
+    }
     byId("automatic").checked = settings.automaticUpdatesEnabled;
     byId("required").checked = settings.reviewBeforePublishingEnabled;
     byId("auto-publish").checked = settings.autoPublishBoundaryRefreshes === true;
@@ -505,6 +510,8 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
       : "Automatic boundary refresh is on, subject to session settings and request limits.";
     byId("format").value = settings.analysisFormat || "current";
     controlsLoaded = true;
+    byId("saved-controls").hidden = false;
+    byId("controls-loading").hidden = true;
   };
   const loadQueue = async () => {
     const result = await request("/queue"), list = byId("queue");

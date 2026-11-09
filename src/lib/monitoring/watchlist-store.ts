@@ -1,3 +1,4 @@
+import { normalizeAiReadBoundaryState } from "./watchlist-ai-boundary-state.js";
 import { watchlistIndicatorPublicationIdentity } from "../market-data/watchlist-indicator-publication-time.js";
 import { isTopWatchesGroup } from "../live-watchlist/top-watches-group.js";
 import { normalizeOvernightLevelReference } from "../live-watchlist/overnight-level-reference.js";
@@ -7,7 +8,6 @@ import { normalizeAiReadAdmission, normalizePublicationReview } from "../ai/trad
 
 import type {
   PendingTradersLinkAiReadGeneration,
-  TradersLinkAiReadBoundary,
   TradersLinkAiReadBoundaryState,
   WatchlistEntry,
   WatchlistGroup,
@@ -48,48 +48,6 @@ function normalizeWatchlistGroup(value: unknown): WatchlistGroup | undefined {
     : undefined;
 }
 
-function normalizeAiReadBoundaryState(
-  value: TradersLinkAiReadBoundaryState | undefined,
-): TradersLinkAiReadBoundaryState | undefined {
-  if (
-    !value ||
-    !Number.isFinite(value.generatedAt) ||
-    !Number.isFinite(value.currentPrice) ||
-    value.currentPrice <= 0
-  ) {
-    return undefined;
-  }
-  const boundary = (price: number | null): number | null =>
-    typeof price === "number" && Number.isFinite(price) && price > 0 ? price : null;
-  const boundaries: TradersLinkAiReadBoundary[] = (value.boundaries ?? []).flatMap((candidate) => {
-    const price = boundary(candidate?.price ?? null);
-    if (
-      (candidate?.role !== "needsToHold" && candidate?.role !== "cautionBelow" && candidate?.role !== "momentumFailure" &&
-        candidate?.role !== "mustClear" && candidate?.role !== "breakoutContinuation" && candidate?.role !== "upsideTarget" &&
-        candidate?.role !== "downsideCheckpoint") ||
-      (candidate?.side !== "upside" && candidate?.side !== "downside") ||
-      (candidate?.impact !== "hold" && candidate?.impact !== "caution" && candidate?.impact !== "invalidates" &&
-        candidate?.impact !== "improves" && candidate?.impact !== "exhausts") ||
-      price === null
-    ) {
-      return [];
-    }
-    return [{ role: candidate.role, side: candidate.side, impact: candidate.impact, price }];
-  });
-  return {
-    generatedAt: value.generatedAt,
-    currentPrice: value.currentPrice,
-    upperBoundary: boundary(value.upperBoundary),
-    lowerBoundary: boundary(value.lowerBoundary),
-    ...(boundaries.length > 0 ? { boundaries } : {}),
-    lastAutomaticRefreshRegime:
-      typeof value.lastAutomaticRefreshRegime === "string" &&
-      value.lastAutomaticRefreshRegime.length > 0 &&
-      value.lastAutomaticRefreshRegime.length <= 160
-        ? value.lastAutomaticRefreshRegime
-        : null,
-  };
-}
 
 function normalizePendingTradersLinkAiReadGeneration(
   value: PendingTradersLinkAiReadGeneration | undefined,

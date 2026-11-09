@@ -71,6 +71,10 @@ const DEFAULT_RUN_LEDGER_FILE = resolve(
   "traderslink-ai-read-run-events.jsonl",
 );
 
+const boundaryDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+});
+
 function parseLines(raw: string): TradersLinkAiReadRunEvent[] {
   const events: TradersLinkAiReadRunEvent[] = [];
   for (const line of raw.split(/\r?\n/)) {
@@ -99,12 +103,29 @@ function parseLines(raw: string): TradersLinkAiReadRunEvent[] {
 export class TradersLinkAiReadRunLedger {
   readonly filePath: string;
   private readonly dedupeKeys = new Set<string>();
+  private readonly boundaryRequests = new Map<string, Set<string>>();
+
+  private indexBoundaryRequest(event: TradersLinkAiReadRunEvent): void {
+    if (event.trigger !== "boundary_cross" || !event.generationId || !Number.isFinite(event.occurredAt) ||
+      !["request", "attempt", "publishing"].includes(event.stage)) return;
+    const date = boundaryDateFormatter.format(new Date(event.occurredAt));
+    const key = `${event.symbol}:${date}`;
+    const ids = this.boundaryRequests.get(key) ?? new Set<string>();
+    ids.add(event.generationId);
+    this.boundaryRequests.set(key, ids);
+  }
+
+  getAutomaticBoundaryRefreshCount(symbol: string, dateKey: string | null): number {
+    if (!dateKey) return 0;
+    return this.boundaryRequests.get(`${symbol}:${dateKey}`)?.size ?? 0;
+  }
 
   constructor(options: TradersLinkAiReadRunLedgerOptions = {}) {
     this.filePath = options.filePath ?? DEFAULT_RUN_LEDGER_FILE;
     try {
       for (const event of parseLines(readFileSync(this.filePath, "utf8"))) {
         if (event.dedupeKey) this.dedupeKeys.add(event.dedupeKey);
+        this.indexBoundaryRequest(event);
       }
     } catch {
       // The file is created on the first event.
@@ -127,6 +148,7 @@ export class TradersLinkAiReadRunLedger {
     };
     mkdirSync(dirname(this.filePath), { recursive: true });
     appendFileSync(this.filePath, `${JSON.stringify(recorded)}\n`, "utf8");
+    this.indexBoundaryRequest(recorded);
     if (recorded.dedupeKey) this.dedupeKeys.add(recorded.dedupeKey);
     return recorded;
   }

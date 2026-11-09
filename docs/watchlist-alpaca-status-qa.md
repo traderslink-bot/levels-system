@@ -1,5 +1,59 @@
 # Watchlist Alpaca price status QA
 
+## November 9 — new-high boundary and refresh-limit correction
+
+Owner scope: stop automatic analyses chasing each new session high when no higher
+historical structure remains, enforce the saved per-ticker daily limit, and
+investigate apparently unchecked review controls. Source base b3f63e0b; no live
+settings, analyses, publications or deliveries changed during this work.
+
+Read-only hosted evidence: CKX had nine published boundary-cross generations on
+November 9 while its durable boundary state contained count 0/date null. The
+saved limit was 5. All six automatic/review/notification switches were still true.
+The Store normalizer discarded count/date and pending-cross state, whereas the
+disk normalizer retained them. Approval then copied the stripped state. The disk
+normalizer also incorrectly capped valid counts at 100 despite an admin maximum
+of 1000. Normalization is now shared and preserves those fields through Store,
+pending publication and persistence. Unique boundary generation IDs are indexed
+from the existing run ledger once at startup, so already-consumed refreshes are
+not forgotten; no per-price filesystem read is added. Initial/manual requests and
+fallback attempts are not extra boundary refreshes. Reservation happens after
+preparation and rechecks the current limit. Successful publication retains regime
+identity; failed generation does not mark the boundary serviced.
+
+CKX's saved Potential Path had only 24.74 resistance: one weak intraday touch,
+matching HOD 24.74. A read-only SIP/split-adjusted daily query returned 717 bars
+since January 2024, with prior-date maximum 14.4399. This is bounded available
+history, not proof of an all-time high. Automatic upper-boundary requests now
+stop when price is above usable available prior daily history and no independent
+higher mapped structure remains. Today's changing high is excluded from that
+history ceiling. Missing/insufficient history fails open, not an invented ATH.
+Initial/manual requests and downside boundary checks retain existing behavior.
+Prepared/cached historical data is reused: no new per-tick provider requests.
+Cache entries clear with the existing symbol lifecycle cleanup.
+
+No coupling from saving the numeric limit to stored review booleans was found.
+The panel initially rendered unchecked placeholders; a failed initial load could
+leave those visible. It now hides them until a complete saved response arrives,
+validates all six booleans before changing any, preserves loaded values on failed
+or partial reload, and offers an explicit retry. This is a verified loading/error
+path correction, not a claim that the owner's exact transient browser failure
+was reproduced.
+
+Verification: 102 focused tests passed across boundary decisions, new regressions,
+review panel, persistence, realtime publication and publisher. Three additional
+canonical article manager tests passed. Runtime full TypeScript passed after the
+final additions. Actual isolated Chromium panel passed
+initial failure, six true hydrated controls, partial response and failed reload
+retention, with no page errors or network effects. No signed-in production UI
+acceptance is claimed. The persistence test's stale full-object expectation was
+updated to explicitly assert the current entry defaults and normalized zero/null
+usage fields; that test now passes. The manager regression also verifies that
+failed generation consumes one slot, manual refresh still dispatches after the
+automatic limit, and lowering the limit during preparation prevents dispatch.
+Paired Platform slice labels HOD references and updates Help. No push,
+deployment, provider configuration, generated analysis or notification was made.
+
 Source base 849b6d991de45fa596d90e3a031ae5e6f45c2aaf. Owner requested independent
 Watchlist provider/AI/indicator QA and truthful price availability. Scanner task
 confirmed no ownership overlap. Paired Platform base is ffb309d4; this is a
