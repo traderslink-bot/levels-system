@@ -28,7 +28,7 @@ import {
 } from "../lib/market-data/selectable-same-day-candle-service.js";
 import { CoordinatedCandleFetchService } from "../lib/market-data/coordinated-candle-fetch-service.js";
 import { DayTradeAdapterService } from "../lib/day-trade-adapter/day-trade-adapter-service.js";
-import { buildTradeCandleContext } from "../lib/market-data/trade-candle-context.js";
+import { createWatchlistAiHistoricalLoader } from "../lib/market-data/watchlist-ai-historical-loader.js";
 import {
   ValidationCachedCandleFetchService,
   resolveValidationCandleCacheMode,
@@ -939,7 +939,7 @@ async function main(): Promise<void> {
     tradersLinkAiReadMoomooCandleLoader,
     levelIntradayFallbackCandleFetchService,
     indicatorCandleLoader: createPlatformWatchlistIndicatorLoader(),
-    tradersLinkAiReadHistoricalCandleLoader: buildTradeCandleContext,
+    tradersLinkAiReadHistoricalCandleLoader: createWatchlistAiHistoricalLoader(() => historicalProviderName),
     opportunityDiagnosticsEnabled: monitoringEventDiagnosticsEnabled,
     autoCleanReadGenerator: aiCleanReadService
       ? async (input) => {

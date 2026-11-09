@@ -41,3 +41,40 @@ UI evidence is in the paired Platform docs/migration/watchlist-alpaca-independen
 No production writes, restart, provider configuration changes, real AI request
 or notifications were used for this QA. Coordinator owns integration/release;
 exclude the local AGENTS setup overlay from any commit.
+
+## November 9: SMX halted/reverse-split session correction
+
+Owner reported the only failing analysis today, SMX, resumed from its split halt
+at 09:00 ET. Recorded 09:40–09:42 runtime logs show the additional AI history
+loader still requested EODHD and received HTTP 401 for previous-session and daily
+history. Server installed bare buildTradeCandleContext, whose legacy routing
+ignores the runtime's selected historical provider. Main Alpaca history/stored
+fallback could mask this in other analyses. Success of a generated response did
+not establish completeness of every downstream input.
+
+Add an explicit provider override to the generic builder, with no change to its
+legacy defaults. The Watchlist-only loader evaluates effective provider selection
+on each call and overrides all history frames to Alpaca when selected. Empty or
+failed Alpaca history does not silently mix another provider's adjustment basis.
+No ticker-specific price/rule, threshold weakening, split-ratio guessing, synthetic
+halt candles, approval restriction, provider-setting change or model call added.
+
+Read-only verification replayed the actual manager's context method at the
+original 09:42:11 ET cutoff using real Alpaca SMX bars: 34 one-minute candles,
+7 completed current five-minute bars, 166 prior-session five-minute bars,
+173 merged five-minute bars, 127 daily bars and 247 four-hour bars. Availability
+validation now passes. Actual service outgoing requests captured locally for BOTH
+simple and detailed formats contain 31 selected one-minute, 173 five-minute,
+127 daily and 247 four-hour observations. The transport was fake: no OpenAI
+request, saved-analysis change, notification or publication occurred. Actual
+gateway responses report SIP/split-adjusted/complete. Reverse-split corporate
+action correctness beyond the provider's declared adjustment is not independently
+certified by this check.
+
+Twelve focused tests pass (new loader, generic legacy builder and both-format
+packet parity); full runtime TypeScript passes. The new regressions cover server
+wiring, every historical timeframe, recent/older windows, empty/error handling,
+dynamic selection and sparse halt-resumption context. Existing generic fallback
+tests remain unchanged. Help requires no change: this restores existing provider
+and analysis behavior without a new user workflow. Local correction remains
+separate from deployment/live verification.

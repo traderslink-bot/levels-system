@@ -18,6 +18,7 @@ export type TradeCandleContextProviderSelection = {
   reason:
     | "fresh_intraday_window"
     | "historical_or_daily_window"
+    | "configured_provider"
     | "eodhd_unavailable_yahoo_fallback";
 };
 
@@ -49,6 +50,8 @@ export type BuildTradeCandleContextRequest = {
   eodhdIntradayReadyHourEastern?: number;
   recentProvider?: HistoricalCandleProvider;
   historicalProvider?: HistoricalCandleProvider;
+  /** Explicit consumer selection; bypass legacy Yahoo/EODHD date routing. */
+  providerOverride?: HistoricalCandleProvider;
   yahooOptions?: YahooHistoricalCandleProviderOptions;
   eodhdOptions?: EodhdHistoricalCandleProviderOptions;
 };
@@ -438,7 +441,9 @@ export async function buildTradeCandleContext(
   const series: TradeCandleContextSeries[] = [];
 
   for (const timeframe of timeframes) {
-    const selection = selectProvider({
+    const selection: TradeCandleContextProviderSelection = request.providerOverride
+      ? { provider: request.providerOverride.providerName, reason: "configured_provider" }
+      : selectProvider({
       timeframe,
       fromTimeMs: request.fromTimeMs,
       toTimeMs: request.toTimeMs,
@@ -452,9 +457,9 @@ export async function buildTradeCandleContext(
     });
 
     const provider =
-      selection.provider === "yahoo"
+      request.providerOverride ?? (selection.provider === "yahoo"
         ? (recentProvider ??= new YahooHistoricalCandleProvider(request.yahooOptions))
-        : (historicalProvider ??= new EodhdHistoricalCandleProvider(request.eodhdOptions));
+        : (historicalProvider ??= new EodhdHistoricalCandleProvider(request.eodhdOptions)));
     let result = await fetchSlicedSeries({
       provider,
       symbol,
@@ -466,7 +471,7 @@ export async function buildTradeCandleContext(
     });
 
     if (
-      shouldTryEodhdOneMinuteAggregation({
+      !request.providerOverride && shouldTryEodhdOneMinuteAggregation({
         selectionProvider: selection.provider,
         timeframe,
         result,
@@ -487,7 +492,7 @@ export async function buildTradeCandleContext(
     }
 
     if (
-      selection.provider === "eodhd" &&
+      !request.providerOverride && selection.provider === "eodhd" &&
       result.candles.length === 0 &&
       canFallbackToYahoo({
         timeframe,
