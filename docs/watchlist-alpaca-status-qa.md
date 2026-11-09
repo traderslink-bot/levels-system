@@ -156,3 +156,14 @@ Help review: the existing guide already distinguishes live-price updates from
 completed-session indicator readings. No new user control or visible workflow is
 introduced, so no additional Help revision is required for this transport-only
 slice. No dependencies, schema, provider selection or credentials changed.
+
+Paired immutable source receipt: Runtime consumer
+7e34c65d333713836fb71726a0c602c8fc369012 (parent be659dec), gateway-owner
+preservation e23e01d3655b3f06dce4e2a2c0f28154f4c5bde6 (parent 86ec79f7).
+The gateway owner reports 395 scanner/Alpaca regression tests and ten final focused
+cases passing, including session boundary, no-trade heartbeat, single shared SIP
+socket and <=250 ms synthetic receipt-to-emission. These are gateway-owner results,
+not reruns by this chat. The actual hub and gateway blobs read for local integration
+match that preservation commit. Its whole branch is NOT a release artifact;
+Coordinator must qualify exact-parent integration/pinned gateway recovery before
+any owner-authorized deployment. All-deploy HOLD remains. No live acceptance yet.
