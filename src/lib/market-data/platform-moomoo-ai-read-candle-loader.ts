@@ -2,6 +2,8 @@ import type { Candle } from "./candle-types.js";
 import { closedMarketAnalysisWindow } from "../ai/traderslink-ai-read-market-context.js";
 
 export type MoomooAiReadCandleWindow = Readonly<{
+  /** Present on Platform bridge results; omitted only by legacy injected loaders. */
+  provider?: "moomoo" | "alpaca";
   oneMinuteCandles: readonly Candle[];
   fiveMinuteCandles: readonly Candle[];
 }>;
@@ -58,11 +60,11 @@ function number(value: unknown): number | null {
 }
 
 function parseCandles(value: unknown, asOfTimeMs: number): Candle[] {
-  if (!Array.isArray(value)) throw new Error("Moomoo candle response was invalid.");
+  if (!Array.isArray(value)) throw new Error("Platform candle response was invalid.");
   const candles = new Map<number, Candle>();
   for (const item of value) {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
-      throw new Error("Moomoo candle response contained an invalid candle.");
+      throw new Error("Platform candle response contained an invalid candle.");
     }
     const source = item as RemoteCandle;
     const timestamp = number(source.timestamp);
@@ -77,12 +79,12 @@ function parseCandles(value: unknown, asOfTimeMs: number): Candle[] {
       open <= 0 || high <= 0 || low <= 0 || close <= 0 || volume < 0 ||
       high < low || high < open || high < close || low > open || low > close
     ) {
-      throw new Error("Moomoo candle response contained invalid OHLCV.");
+      throw new Error("Platform candle response contained invalid OHLCV.");
     }
     const candle = Object.freeze({ timestamp, open, high, low, close, volume });
     const previous = candles.get(timestamp);
     if (previous && JSON.stringify(previous) !== JSON.stringify(candle)) {
-      throw new Error("Moomoo candle response contained duplicate timestamps.");
+      throw new Error("Platform candle response contained duplicate timestamps.");
     }
     candles.set(timestamp, candle);
   }
@@ -163,7 +165,7 @@ export function createPlatformMoomooAiReadCandleLoader(
     } catch {
       throw new MoomooAiReadCandleLoadError(
         "bridge_unavailable",
-        "Moomoo Open API candle bridge request failed.",
+        "Platform candle bridge request failed.",
       );
     }
     let payload: RemoteResponse;
@@ -172,7 +174,7 @@ export function createPlatformMoomooAiReadCandleLoader(
     } catch {
       throw new MoomooAiReadCandleLoadError(
         "bridge_unavailable",
-        "Moomoo Open API candle bridge response was not JSON.",
+        "Platform candle bridge response was not JSON.",
       );
     }
     if (
@@ -182,20 +184,21 @@ export function createPlatformMoomooAiReadCandleLoader(
     ) {
       throw new MoomooAiReadCandleLoadError(
         "coverage_unavailable",
-        "No Moomoo candle coverage for the requested trading session.",
+        "No candle coverage for the requested trading session.",
       );
     }
-    if (!response.ok || payload.status !== "ready" || payload.provider !== "moomoo_open_api") {
+    if (!response.ok || payload.status !== "ready" || (payload.provider !== "moomoo_open_api" && payload.provider !== "alpaca")) {
       throw new MoomooAiReadCandleLoadError(
         "bridge_unavailable",
-        "Moomoo Open API candle bridge is unavailable.",
+        "Platform candle bridge is unavailable.",
       );
     }
     const oneMinuteCandles = parseCandles(payload.candles, endTimeMs);
     if (oneMinuteCandles.length === 0) {
-      throw new Error("Moomoo Open API returned no candles for the requested trading session.");
+      throw new Error("Platform candle bridge returned no candles for the requested trading session.");
     }
     return Object.freeze({
+      provider: payload.provider === "alpaca" ? "alpaca" : "moomoo",
       oneMinuteCandles: Object.freeze(oneMinuteCandles),
       fiveMinuteCandles: Object.freeze(
         aggregateCompletedFiveMinuteCandles(oneMinuteCandles, endTimeMs),

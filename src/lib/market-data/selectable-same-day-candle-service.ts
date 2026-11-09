@@ -205,6 +205,9 @@ export class SelectableSameDayCandleService {
     const window = cached && this.now() - cached.storedAt < 55_000 && cached.endTimeMs >= requestedEndTimestamp
       ? cached.window
       : await this.loadMoomooWindow(symbol, requestedEndTimestamp);
+    if (window.provider && window.provider !== "moomoo") {
+      throw new Error("The Platform bridge returned a different provider than the selected Moomoo source.");
+    }
     const source = request.timeframe === "1m"
       ? window.oneMinuteCandles
       : window.fiveMinuteCandles;

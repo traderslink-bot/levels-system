@@ -4007,13 +4007,13 @@ export class ManualWatchlistRuntimeManager {
         const fetched = await moomooCandleLoader({ symbol, asOfTimeMs: fetchAsOf });
         oneMinuteCandles = normalizePullbackCandles([...fetched.oneMinuteCandles]);
         intradayCandles = normalizePullbackCandles([...fetched.fiveMinuteCandles]);
-        if (intradayCandles.length > 0) {
-          recentIntradayProvider = "Moomoo Open API";
-          source = "Moomoo Open API current-session OHLCV";
+        if (intradayCandles.length > 0 || oneMinuteCandles.length > 0) {
+          recentIntradayProvider = fetched.provider === "alpaca" ? "Alpaca" : "Moomoo Open API";
+          source = `${recentIntradayProvider} current-session OHLCV`;
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        console.warn(`[TradersLinkAiRead] Moomoo same-day candle lookup failed for ${symbol}: ${message}`);
+        console.warn(`[TradersLinkAiRead] Platform same-day candle lookup failed for ${symbol}: ${message}`);
       }
     } else if (service) {
       const [oneMinuteResult, intradayResult, dailyResult] = await Promise.allSettled([
