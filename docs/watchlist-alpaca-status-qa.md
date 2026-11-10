@@ -1,5 +1,54 @@
 # Watchlist Alpaca price status QA
 
+## November 10 — SMX reverse-split investigation (read-only)
+
+Owner reported absent higher resistance and noted the chart visibly has adjusted
+daily history. No generation, refresh, edit, post, deployment, restart or setting
+change was performed. Existing authorized Runtime SSH and authenticated GETs
+were used; saved current-cycle review originals/publications/diagnostic files
+were read directly without instantiating writers or fabricating owner actors.
+No credentials, actor IDs, private URLs or unrelated account/ticker evidence is
+recorded here. Scanner/chart owner was asked for current handling independently;
+no source collision or shared-source edits were made.
+
+Official SEC November4 announcement confirms SMX2.8:1 reverse split effective
+November9 (https://www.sec.gov/Archives/edgar/data/1940674/000149315226049929/ex99-1.htm).
+Fresh existing gateway /history (Watchlist) and /bars?daily=1 (chart) GETs both
+returned adjustment=split and identical sampled OHLCV: October16 high15.71,
+November6 high5.32/close4.928, November9 high10.8/close9.35. Watchlist history
+was complete for the bounded request. Those same daily values are in the saved
+analysis requests. No evidence supports multiplying this history by2.8 again.
+The chart response has276 daily bars, beginning October7,2025, while the latest
+saved analysis has126 daily bars from May12,2026 through November9,2026 and252
+four-hour bars. Its daily maximum is91.94; first November9-evening request had127
+daily bars including May11 high147.15. This is bounded history, not all-time.
+
+Saved publications show the distinction between compact display and full ladder:
+- November9 10:44PM ET publication, reference10.42: compact resistance through
+  11.90; Full Ladder already includes15.71,29.20,40.26 and continues to63.52.
+- November10 7:33AM ET, reference15.09: compact through21.28; Full Ladder63.52.
+- November10 9:11AM ET, reference19.5215: compact21.28/25.15/29.20; Full Ladder
+  includes40.26,43.40,48.19,56.00,63.52 and other intermediate levels.
+The last original generated9:09AM ET has targets22/25.15/27.02/29.20 while the
+actual input includes daily history up to91.94 and a resistance shortlist that
+also includes30.67. Earlier originals ended15.71 then21.28. No inference that
+the missing higher targets were absent from provider data is justified.
+
+Source trace: both adapters enforce split-adjusted SIP /history. Runtime compact
+snapshot uses a price-dependent forward range (base50% at prices>=15), plus
+qualified connected outer anchors; full ladder also retains more generated
+structure. Simple prompt chooses2-3 significant upside areas, optional fourth,
+requires supported30%+ coverage, explicitly says this is a floor not a ceiling.
+It does not promise the all-time high in its targets. Thus existing evidence
+points to history scope and selection/presentation, not missing split adjustment.
+Do not label every old high resistance or re-adjust already adjusted candles.
+Potential follow-up: improve broader-history/outer-level selection and make
+compact-versus-full scope clear, with general tests before any correction.
+Saved data-quality flags also include insufficient-bars/suspicious-gap despite
+summary status full; these flags alone do not establish a split error and were
+not silently corrected. No full-history maximum or exact hidden model reasoning
+is claimed by this bounded investigation.
+
 ## November 10 — Admin failure handling (released and transport-verified)
 
 Final release: paired Platform9e7db6c1ba36e8a174132b7d221019b20d2ef8f2
