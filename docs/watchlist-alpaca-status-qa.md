@@ -1,6 +1,16 @@
 # Watchlist Alpaca price status QA
 
-## November 10 — Admin failure handling (local source, not released)
+## November 10 — Admin failure handling (released and transport-verified)
+
+Final release: paired Platform9e7db6c1ba36e8a174132b7d221019b20d2ef8f2
+(parent2aba52e3, configured main), deploymentcf96a9ee-01ec-49dd-9a00-010e78e14bbe
+reported SUCCESS/sole RUNNING. Runtime source/deployment below also SUCCESS.
+Independent final GETs from the NEW Platform's actual configured connection:
+root200/305648B with shared reader and retained-review notice, old misleading
+session warning absent; watchlist200/5825B valid JSON; healthz200/38B valid JSON;
+public Platform health200. No owner actor/session fabricated, mutation or send.
+Owner browser editing acceptance is not substituted by these transport checks.
+No scanner, catalyst, settings, provider configuration or approval rules changed.
 
 Release qualification update: owner subsequently authorized deployment. Coordinator
 integrated error-only Runtime0c292650 onto exact live parent07ffc5dd (excluding
