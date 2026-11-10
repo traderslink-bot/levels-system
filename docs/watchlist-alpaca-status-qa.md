@@ -1,5 +1,38 @@
 # Watchlist Alpaca price status QA
 
+## November 10 — Admin transport incident recovered
+
+The owner saw plaintext rate limited and every ticker's review status unavailable.
+Read-only comparison confirmed the existing configured Platform-to-Runtime
+public connection returned429/12-byte plaintext, while actual Runtime localhost
+health/API/root returned200. The app's review UI incorrectly attributed generic
+upstream failure to the owner session; no authentication/session failure was
+established. Railway's LAX edge rejected the requests before Runtime ingress.
+Native Under Attack mode was checked read-only and disabled. Canonical DNS had
+only IPv4; ordinary Node HTTPS reproduced the same rejection. No repeat probing
+or auth/security bypass was used as a repair.
+
+Coordinator obtained direct owner authorization, tried native static egress with
+an unchanged-image Platform deployment (did not recover), then obtained approval
+for a temporary fixed-destination secure VPS relay. Coordinator owns its hosted
+configuration/security/process records. Relay is separate from Alpaca, retains
+existing bearer authentication/owner actor, refuses redirects, bounds body/time,
+and does not persist raw credentials or request bodies. No existing provider,
+Watchlist data, live prices, approval settings or Runtime source was changed.
+Platform configuration-only deployment 5f7e8f8d-4531-420a-95eb-a7e40be1633f uses
+the same 2aba52e3 source/image; Runtime remains 07ffc5dd.
+
+Independent worker final verification from the actual newly configured Platform
+container: root200/text-html302237 bytes containing the full console and review
+script; watchlist API200/parseable JSON4556 bytes; healthz200/JSON38 bytes. No rate
+limited responses. Existing bearer only, redirects refused, no owner actor or
+session fabricated, no mutation or post. Coordinator separately verified anonymous
+relay401 and synthetic forwarding/auth controls. Owner was told to refresh the
+already open Admin. An attached signed-in owner browser was unavailable, so
+specific browser editing/approval acceptance is not claimed. The Day-trade-impact
+source-only slice below was not included in emergency recovery. Retain the relay
+as an explicit operational dependency until Coordinator qualifies its replacement.
+
 ## November 10 — retire Day-trade impact (source-only)
 
 Owner requested removing the catalyst's Day-trade impact display and AI request,
