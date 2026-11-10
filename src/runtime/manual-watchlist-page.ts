@@ -1,6 +1,7 @@
 import { ANALYSIS_REVIEW_PANEL } from "./manual-watchlist-analysis-review-panel.js";
 import { WATCHLIST_ROW_REVIEW } from "./manual-watchlist-row-review.js";
 import { WATCHLIST_DISCORD_MENTIONS_PANEL } from "./manual-watchlist-discord-mentions-panel.js";
+import { WATCHLIST_JSON_RESPONSE_READER } from "./manual-watchlist-json-response.js";
 
 export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 <html lang="en">
@@ -2669,12 +2670,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
 
     async function fetchJson(url) {
       const response = await fetch(url, { signal: AbortSignal.timeout(20000), cache: "no-store" });
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload?.error || "Request failed with HTTP " + response.status + ".");
-      }
-      return payload;
+      return readWatchlistJsonResponse(response);
     }
+
+    ${WATCHLIST_JSON_RESPONSE_READER}
 
     async function loadEntries() {
       const [payload] = await Promise.all([fetchJson("/api/watchlist"), window.watchlistRowReview.refresh()]);

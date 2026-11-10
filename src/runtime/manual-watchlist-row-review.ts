@@ -1,3 +1,5 @@
+import { WATCHLIST_JSON_RESPONSE_READER } from './manual-watchlist-json-response.js';
+
 /** Owner console only. Uses the existing authenticated review API; never generates AI. */
 export const WATCHLIST_ROW_REVIEW = String.raw`
 <style>
@@ -51,7 +53,9 @@ li.watchlist-control-row > .entry-main > .entry-title > strong:first-child { col
 </style>
 <script>
 (() => {
+  ${WATCHLIST_JSON_RESPONSE_READER}
   let queue = new Map(), loading = null;
+  let reviewError = '';
   const pending = new Set(), errors = new Map(), notificationChoices = new Map();
   const notesDrafts = new Map();
   const freeChatChoices = new Map();
@@ -97,15 +101,22 @@ li.watchlist-control-row > .entry-main > .entry-title > strong:first-child { col
       headers: body ? { 'Content-Type': 'application/json', 'x-traderlink-journal-admin-request': '1' } : {},
       body: body ? JSON.stringify(body) : undefined,
     });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Review unavailable. Check your owner session.');
-    return result;
+    return readWatchlistJsonResponse(response);
   }
   async function refresh() {
     if (loading) return loading;
     loading = (async () => {
-      try { const result = await request('/queue'); queue = new Map(result.tickers.map(item => [item.symbol, item])); }
-      catch { queue = new Map(); }
+      try {
+        const result = await request('/queue');
+        if (!Array.isArray(result.tickers) || result.tickers.some(item => !item || typeof item.symbol !== 'string')) throw new Error('Review information is temporarily unavailable.');
+        queue = new Map(result.tickers.map(item => [item.symbol, item]));
+        reviewError = '';
+      }
+      catch (error) {
+        reviewError = error.status === 401 || error.status === 403
+          ? error.message : 'Review update delayed. Showing the last loaded review information.';
+        if (error.status === 401 || error.status === 403) queue = new Map();
+      }
       finally { loading = null; }
     })();
     return loading;
@@ -241,11 +252,12 @@ function attachX(entry, actions, state, more = actions) {
       } catch(error) { message.textContent = String(error.message || error); }
     };
     if(entry.watchlistGroup !== "private") more.append(free);
-    attachX(entry,options,queue.get(entry.symbol),more);
+    const cachedState = queue.get(entry.symbol);
+    const state = cachedState && (!entry.publicationReview?.cycleId || cachedState.cycleId === entry.publicationReview.cycleId) ? cachedState : undefined;
+    attachX(entry,options,state,more);
     if (!entry.publicationReview?.required) return;
-    const state = queue.get(entry.symbol);
     const status = document.createElement('p'); status.setAttribute('role', 'status');
-    status.textContent = (state?.status || 'Review status unavailable. Check the owner session.') + (errors.has(entry.symbol) ? ' — ' + errors.get(entry.symbol) : '');
+    status.textContent = (state?.status || 'Review information is temporarily unavailable.') + (reviewError ? ' — ' + (state || reviewError.includes('Sign in again') ? reviewError : 'Waiting for review information to reconnect.') : '') + (errors.has(entry.symbol) ? ' — ' + errors.get(entry.symbol) : '');
     status.className = 'watchlist-review-status'; (header.querySelector('.entry-title') || header).append(status);
     const notes = document.createElement('button'); notes.type = 'button'; notes.className = 'secondary'; notes.textContent = 'My notes';
     notes.disabled = !state?.cycleId || pending.has(entry.symbol);
