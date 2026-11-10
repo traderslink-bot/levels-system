@@ -2,6 +2,24 @@
 
 ## November 10 — Admin failure handling (local source, not released)
 
+Release qualification update: owner subsequently authorized deployment. Coordinator
+integrated error-only Runtime0c292650 onto exact live parent07ffc5dd (excluding
+unrelated catalyst changes), deployment abf1ec8d-cf3b-4c8b-9b4e-4ffd5ce86cd5
+reported SUCCESS/sole RUNNING. Independent read-only GETs from actual Platform
+configuration: root200 contains the new reader/delayed-review notice and no old
+owner-session warning; watchlist API and healthz200 with valid JSON. Platform
+error-handling release remains pending at this checkpoint.
+
+Full Runtime CI is not green. Independently compared exact deployed-parent CI
+42679569729 (07ffc5dd) with candidate CI42844337067 (0c292650):92 versus91 unique
+TAP failure titles, zero new titles. Only the old stock-context timestamp-equality
+failure disappeared. This is consistent with87 failed leaf tests in candidate
+CI (suite failure nodes are also counted in the unique-title total). Mention
+endpoint/panel Unexpected-token-HTML and listing-only missing-Map failures both
+already failed in exact parent; their affected source/tests are unchanged by
+this release. Comparison used existing candidate log and parent GitHub log in
+memory; no broad rerun, source correction, live edit or send was required.
+
 After transport recovery, the owner requested continuing the correction here.
 Discovery found blind JSON parsing in the dashboard/review readers and a review
 refresh catch that replaced the loaded queue with an empty Map. A shared embedded
