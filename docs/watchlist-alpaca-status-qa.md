@@ -221,3 +221,36 @@ not reruns by this chat. The actual hub and gateway blobs read for local integra
 match that preservation commit. Its whole branch is NOT a release artifact;
 Coordinator must qualify exact-parent integration/pinned gateway recovery before
 any owner-authorized deployment. All-deploy HOLD remains. No live acceptance yet.
+
+## November 10 — Admin failure handling (local source, not released)
+
+After transport recovery, the owner requested continuing the correction here.
+Discovery found blind JSON parsing in the dashboard/review readers and a review
+refresh catch that replaced the loaded queue with an empty Map. A shared embedded
+reader now handles plaintext/HTML, malformed successful responses and structured
+API errors without displaying upstream bodies or blaming a session for429/5xx.
+Transient review failures preserve last-loaded same-activation controls and show
+a delayed-update notice. Genuine401/403 clears cached reviews; a successful empty
+queue also clears them. A different publication cycle cannot use the old review.
+Failed list reads do not render an invented empty list. Successful recovery clears
+the notice. No mutation retry, approval rule, provider request or delivery added.
+
+Verification: four focused response/retention/list/script regressions pass; all
+seven existing review-panel checks passed in the batch; full Runtime TypeScript
+and diff checks pass. Isolated Chromium with external network aborted verified
+real row markup through healthy -> plaintext429 -> healthy: editing remains
+available for the matching cycle, the warning appears/clears, three GETs and zero
+posts. This is synthetic browser coverage, not signed-in production acceptance.
+The broader row suite has four pre-existing failures (two incomplete DOM mocks,
+outdated ordinary-action count and Add fixture); executing the untouched HEAD
+suite entirely from git-show in memory reproduced the same four failures. No
+unrelated product changes were made to satisfy those stale tests; full CI is not
+claimed green.
+
+Paired Platform source normalizes non-JSON failed API responses and renders a
+readable initial-console failure with an explicit reload link instead of a bare
+edge body. This does not make an unavailable service editable or prevent a future
+infrastructure outage. No hosted configuration/data changed and no Coordinator
+contact was needed for implementation. Existing Help was reviewed: no feature or
+workflow change requires a guide amendment. Source remains separate from the
+previous Day-trade-impact removal and requires normal integration/release.

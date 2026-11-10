@@ -1,3 +1,5 @@
+import { WATCHLIST_JSON_RESPONSE_READER } from './manual-watchlist-json-response.js';
+
 export const ANALYSIS_REVIEW_PANEL = String.raw`
 <style>#analysis-review-panel [hidden] { display: none !important; } #analysis-review-panel details { margin: 12px 0; } #analysis-review-panel summary { cursor: pointer; font-weight: 700; margin-bottom: 10px; } #analysis-review-panel fieldset { min-width: 0; margin: 8px 0; } #analysis-review-actions { flex-wrap: wrap; }</style>
 <div class="ai-read-console" id="analysis-review-panel">
@@ -111,10 +113,9 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
       headers: body ? { "Content-Type": "application/json", "x-traderlink-journal-admin-request": "1" } : {},
       body: body ? JSON.stringify(body) : undefined,
     });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Owner review is unavailable. Check your owner session and try again.");
-    return result;
+    return readWatchlistJsonResponse(response);
   }
+  ${WATCHLIST_JSON_RESPONSE_READER}
   async function run(operation) {
     if (busy) return;
     busy = true;
