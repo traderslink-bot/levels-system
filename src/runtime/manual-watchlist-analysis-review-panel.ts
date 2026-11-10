@@ -91,7 +91,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     if (payload.analysisFormat === "simple") {
       const simple=structuredClone(payload.simpleAnalysis),hidden=payload.ownerHiddenSections || [];
       simple.pullbacks=simple.pullbacks.map((plan,index)=>({...plan,hidden:plan.hidden ?? hidden.includes(index===0?"shallow":index===1?"deep":"")}));
-      return {simpleAnalysis:simple,catalystRealityCheck:pick(payload.catalystRealityCheck,["summary","dayTradeRelevance"]),riskSummary:[...(payload.riskSummary || [])],ownerHiddenSections:hidden.filter(key=>key!=="shallow"&&key!=="deep")};
+      return {simpleAnalysis:simple,catalystRealityCheck:pick(payload.catalystRealityCheck,["summary"]),riskSummary:[...(payload.riskSummary || [])],ownerHiddenSections:hidden.filter(key=>key!=="shallow"&&key!=="deep")};
     }
     const result = Object.fromEntries(keys.filter((key) => Object.hasOwn(payload, key)).map((key) => [key, structuredClone(payload[key])]));
     for (const key of ["needsToHold", "cautionBelow", "momentumFailure", "mustClear", "breakoutContinuation"]) result[key] = pick(payload[key], levelFields);
@@ -100,7 +100,7 @@ export const ANALYSIS_REVIEW_PANEL = String.raw`
     result.ownerPullbacks = payload.ownerPullbacks ? payload.ownerPullbacks.map(plan=>({...pick(plan,pullbackFields),hidden:plan.hidden===true})) : ["shallow","deep"].flatMap(key=>payload.pullbackPlans[key]?[{...pick(payload.pullbackPlans[key],pullbackFields),hidden:(payload.ownerHiddenSections||[]).includes(key)}]:[]);
     delete result.pullbackPlans;
     result.failureRecovery = payload.failureRecovery ? pick(payload.failureRecovery, recoveryFields) : null;
-    for (const key of ["catalystRealityCheck", "dilutionRisk", "listingStatus"]) result[key] = pick(payload[key], ["summary", "dayTradeRelevance"]);
+    for (const key of ["catalystRealityCheck", "dilutionRisk", "listingStatus"]) result[key] = pick(payload[key], key === "catalystRealityCheck" ? ["summary"] : ["summary", "dayTradeRelevance"]);
     result.ownerHiddenSections = payload.ownerHiddenSections || [];
     return result;
   }

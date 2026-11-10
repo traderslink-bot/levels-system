@@ -1,5 +1,32 @@
 # Watchlist Alpaca price status QA
 
+## November 10 — retire Day-trade impact (source-only)
+
+Owner requested removing the catalyst's Day-trade impact display and AI request,
+without a database migration. Both simple and detailed schemas now omit the
+catalyst dayTradeRelevance field; prompts no longer request that commentary.
+Normalization retains an empty compatibility string in new stored payloads, so
+existing readers and saved analyses need no migration. Existing originals/edits
+are not rewritten. Runtime review editing no longer offers the retired field.
+No trading logic, candle inputs, target/pullback generation, approval or delivery
+rules changed. No paid requests, live data edits or posts were made.
+
+Three focused schema/hash/real-service-with-mocked-fetch tests pass, including
+normalizing a response with the field absent. Seven review-panel regressions
+pass; full Runtime TypeScript passes. The owner-review prompt/schema hashes were
+intentionally repinned. An additionally selected existing owner-review narrative
+test failed on target-list equality (the engine includes breakout 1.65 ahead of
+its six targets); that unrelated assertion and target logic were not changed and
+full CI is not claimed green. Paired Platform tests cover both old saved formats,
+catalyst text retained, retired commentary hidden, premium preview and editors.
+
+Separate live incident during this work: actual Platform-configured Runtime
+origin returned HTTP429 plaintext rate limited (12 bytes), while authenticated
+Runtime localhost healthz, watchlist API and root document all returned200.
+Coordinator independently found Railway LAX edge rejection before app ingress;
+VPS through ORD1 returned200. Hosted recovery is Coordinator-owned and not mixed
+into this source slice. No authenticated owner session was forged.
+
 ## November 9 — new-high boundary and refresh-limit correction
 
 Owner scope: stop automatic analyses chasing each new session high when no higher
