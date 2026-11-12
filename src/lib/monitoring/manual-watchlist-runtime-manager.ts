@@ -12116,8 +12116,19 @@ export class ManualWatchlistRuntimeManager {
         if(!current?.active || current.lifecycle!=="active") throw new Error("Ticker changed while moving. The website remains hidden; check the ticker before retrying.");
         const previous=this.getTradersLinkAiReadReview(symbol),draft=previous?.draft;
         const cycleId=randomUUID();
-        store.begin(cycleId,symbol,true,"runtime:private:"+(previous?.cycleId??""));
-        if(draft && (draft.body.kind==="original"||draft.body.kind==="edit")) store.saveDraft({cycleId,expectedHead:store.read(cycleId)!.head,actor:"runtime:private",payload:draft.body.payload});
+        const begin = store.begin(cycleId,symbol,true,"runtime:private:"+(previous?.cycleId??""));
+        // A new cycle must start with its original analysis, not an edit.
+        // Reuse the existing generation identity and audit; do not generate or
+        // copy a public approval into the private cycle.
+        const original = previous?.events.findLast(event => event.body.kind === "original");
+        if (original?.body.kind === "original") {
+          const copied = store.saveDraft({ cycleId, expectedHead: begin.revision, actor: "runtime:private",
+            generationId: original.body.generationId, payload: original.body.payload,
+            validationDecisions: original.body.validationDecisions });
+          if (draft?.body.kind === "edit") {
+            store.saveDraft({ cycleId, expectedHead: copied.revision, actor: "runtime:private", payload: draft.body.payload });
+          }
+        }
         const moved=this.watchlistStore.patchEntry(symbol,{watchlistGroup,publicationReview:{cycleId,required:true},discordThreadId:null})!;
         this.persistWatchlist();
         return moved;

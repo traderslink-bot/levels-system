@@ -1,5 +1,30 @@
 # Watchlist Alpaca price status QA
 
+## November 12 — moving a ticker with analysis to Private
+
+Live read-only investigation: DBGI Main→Private attempts at 9:51 and 9:52 AM
+ET reached Runtime, recorded pending placement, and returned HTTP400. Two new
+private review cycles had only their begin event; DBGI remained Main in both
+Runtime and Platform. The installed manager tried to save an edit as the first
+draft in each empty cycle, which the unchanged review store rejects with “No
+original analysis to edit.” No live move or recovery edit was performed.
+
+The generic move now copies the latest saved original with its existing
+generation identity, payload and validation decisions, then reapplies the saved
+owner edit if present. The source review, approval and delivery history stay
+intact. The private cycle has no inherited approval, generation or delivery
+events. No change to concealment ordering, move notifications/cleanup choices,
+analysis settings or any approval rule. No data migration or ticker exception.
+
+Focused manager tests reproduced the old error for original and edited reads;
+after the fix both pass, alongside no-analysis moves, failed concealment and
+repeat-move behavior. Five focused manager tests, 26 move-choice/review-store
+tests, seven publication-policy tests and full Runtime TypeScript pass. All
+tests used synthetic data and fake publishing ports. No DBGI mutation or real
+analysis, website publication or Discord send was used for verification. No Help
+change required: this restores the existing move workflow. Owner authorized the
+coordinator to deploy this narrow Runtime-only patch.
+
 ## November 10 — SMX reverse-split investigation (read-only)
 
 Owner reported absent higher resistance and noted the chart visibly has adjusted

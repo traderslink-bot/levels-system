@@ -3196,6 +3196,74 @@ test("ManualWatchlistRuntimeManager moves an active ticker between lists without
   assert.equal(liveWatchlistPublisher.cardPatches.at(-1)?.watchlistGroup, "top_regular");
 });
 
+for (const scenario of ["original", "edited", "no analysis", "concealment failure"] as const) {
+  test(`moving to Private preserves saved analysis and approval rules: ${scenario}`, async () => {
+    const directory = mkdtempSync(join(tmpdir(), "watchlist-private-move-"));
+    try {
+      const symbol = "MOVE";
+      const activatedAt = Date.UTC(2026, 6, 23, 13, 30);
+      const reviewStore = new TradersLinkAiReadReviewStore(directory);
+      reviewStore.begin("public-cycle", symbol, true, "owner");
+      const originalPayload = { symbol, currentRead: "Generated analysis", generatedAt: activatedAt, generationId: "saved-generation" };
+      if (scenario !== "no analysis") {
+        const original = reviewStore.saveDraft({ cycleId: "public-cycle", expectedHead: 1, actor: "generator",
+          generationId: "saved-generation", payload: originalPayload, validationDecisions: [{ stage: "original-audit" }] });
+        const draft = scenario === "edited" ? reviewStore.saveDraft({ cycleId: "public-cycle", expectedHead: original.revision,
+          actor: "owner", payload: { ...originalPayload, currentRead: "Owner's saved changes" } }) : original;
+        reviewStore.approve("public-cycle", draft.revision, draft.revision, "owner");
+      }
+      const previous = reviewStore.read("public-cycle")!;
+      const watchlistStore = new WatchlistStore();
+      watchlistStore.setEntries([{ symbol, activatedAt, active: true, priority: 1, tags: ["manual"],
+        watchlistGroup: "main", lifecycle: "active", refreshPending: false, note: "saved note",
+        discordThreadId: "previous-thread", publicationReview: { cycleId: "public-cycle", required: true } }]);
+      const persistence = new FakeWatchlistStatePersistence();
+      const publisher = scenario === "concealment failure" ? new FailingLiveWatchlistPublisher() : new FakeLiveWatchlistPublisher();
+      const discord = new FakeDiscordAlertRouter();
+      const manager = new ManualWatchlistRuntimeManager({ candleFetchService: {} as any, levelStore: new LevelStore(),
+        monitor: new FakeMonitor() as any, discordAlertRouter: discord as any,
+        opportunityRuntimeController: new FakeOpportunityRuntimeController() as any, watchlistStore,
+        watchlistStatePersistence: persistence as any, liveWatchlistPublisher: publisher,
+        tradersLinkAiReadReviewStore: reviewStore });
+      const generationSettings = manager.getTradersLinkAiReadGenerationSettings();
+      if (scenario === "concealment failure") {
+        await assert.rejects(manager.moveSymbolToWatchlistGroup(symbol, "private"), /website ingest unavailable/);
+        assert.equal(watchlistStore.getEntry(symbol)?.watchlistGroup, "main");
+        assert.equal(watchlistStore.getEntry(symbol)?.publicationReview?.cycleId, "public-cycle");
+        assert.equal(reviewStore.listCycles(symbol).cycles.length, 1);
+      } else {
+        const moved = await manager.moveSymbolToWatchlistGroup(symbol, "private");
+        assert.equal(moved.watchlistGroup, "private");
+        assert.equal(moved.activatedAt, activatedAt);
+        assert.equal(moved.note, "saved note");
+        assert.equal(moved.discordThreadId, null);
+        assert.equal(moved.publicationReview?.required, true);
+        assert.notEqual(moved.publicationReview?.cycleId, "public-cycle");
+        assert.equal(persistence.storedEntries.find(row => row.symbol === symbol)?.watchlistGroup, "private");
+        const saved = manager.getTradersLinkAiReadReview(symbol)!;
+        assert.equal(saved.events[0]?.actor, "runtime:private:public-cycle");
+        assert.equal(saved.approved, null);
+        assert.deepEqual(saved.draft?.body, scenario === "edited"
+          ? { kind: "edit", parentDraft: 2, payload: { ...originalPayload, currentRead: "Owner's saved changes" } }
+          : previous.draft?.body);
+        const copiedOriginal = saved.events.find(event => event.body.kind === "original");
+        assert.deepEqual(copiedOriginal?.body, previous.events.find(event => event.body.kind === "original")?.body);
+        assert.equal(saved.events.some(event => event.body.kind === "generation" || event.body.kind === "delivery"), false);
+        assert.equal(manager.isWatchlistPublicationApproved({ symbol, cards: {} }), false);
+        assert.equal(publisher.cardPatches.length, 1);
+        assert.equal(publisher.cardPatches[0]?.watchlistGroup, "private");
+        assert.deepEqual(publisher.cardPatches[0]?.cards, {});
+        assert.equal((await manager.moveSymbolToWatchlistGroup(symbol, "private")).publicationReview?.cycleId, saved.cycleId);
+        assert.equal(publisher.cardPatches.length, 1);
+      }
+      assert.deepEqual(reviewStore.read("public-cycle"), previous);
+      assert.deepEqual(manager.getTradersLinkAiReadGenerationSettings(), generationSettings);
+      assert.equal(discord.ensured.length, 0);
+      assert.equal(discord.levelSnapshots.length, 0);
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  });
+}
+
 test("manually pinning an active automatic ticker never runs a second enrichment activation", async () => {
   const liveWatchlistPublisher = new FakeLiveWatchlistPublisher();
   const persistence = new FakeWatchlistStatePersistence();
