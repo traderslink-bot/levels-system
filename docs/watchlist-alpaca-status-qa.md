@@ -1,5 +1,26 @@
 # Watchlist Alpaca price status QA
 
+## November 12 — mobile move controls and confirmed delivery retries
+
+Both overlaps reproduced at 320/375/390px. Placement now has its own
+selector/button grid with a mobile stack; delivery status occupies a separate
+full row. Successful placement clears its request/choices even if delivery
+failed; changing destination after an incomplete request clears old delivery
+choices. Replaying a completed placement returns its receipt without retries.
+
+Explicit Runtime retry accepts only a current completed move with a confirmed
+failed Discord delivery outside cooldown or failed selected cleanup. No new
+placement is allowed. Platform supplies actual Free Chat receipt status and
+retries only a matching current, failed, nonexpired receipt outside cooldown.
+No schema, approval, provider or saved-analysis changes.
+
+Verified 13 move tests, five manager tests including Private preservation, full
+Runtime TypeScript and diff checks. Network-blocked Chromium with actual UI and
+mock requests passed 320/375/390/600/768px, no overlap or horizontal overflow,
+seven retry visibility cases and separate payloads for both retries and a new
+silent move. Two unrelated review API failures match November 10 CI. No real
+moves, sends or deletes in testing. Owner authorized paired deployment.
+
 ## November 12 — moving a ticker with analysis to Private
 
 Live read-only investigation: DBGI Main→Private attempts at 9:51 and 9:52 AM

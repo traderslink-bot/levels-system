@@ -2519,10 +2519,19 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           // Append the notification choice after the destination and Move button.
           const moveButton = document.createElement("button");
             moveButton.textContent = "Move to List";
-            moveButton.disabled = movingSymbols.has(entry.symbol);
+            moveButton.disabled = movingSymbols.has(entry.symbol) || moveSelect.value === currentGroup;
           moveButton.className = "secondary";
+            moveSelect.addEventListener("change", () => {
+              const earlier = moveRequests.get(entry.symbol);
+              if (earlier && earlier.to !== moveSelect.value) {
+                notifyMove.checked = freeMove.checked = deleteMove.checked = false;
+                freeMove.disabled = true;
+                moveNotifyChoices.delete(entry.symbol);moveFreeChatChoices.delete(entry.symbol);moveDeleteChoices.delete(entry.symbol);
+              }
+              moveButton.disabled = movingSymbols.has(entry.symbol) || moveSelect.value === currentGroup;
+            });
             moveButton.addEventListener("click", async () => {
-              if (movingSymbols.has(entry.symbol)) return;
+              if (movingSymbols.has(entry.symbol) || moveSelect.value === currentGroup) return;
               movingSymbols.add(entry.symbol);
               pendingMoveGroups.set(entry.symbol, moveSelect.value);
             moveButton.disabled = true;
@@ -2530,7 +2539,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             try {
               let request=moveRequests.get(entry.symbol);
               const freeChat=notifyMove.checked&&freeMove.checked&&moveSelect.value!=='private';
-              if(!request||request.to!==moveSelect.value||request.notify!==notifyMove.checked||request.freeChat!==freeChat||request.deleteSource!==deleteMove.checked){request={symbol:entry.symbol,cycleId:entry.publicationReview?.cycleId,id:crypto.randomUUID(),to:moveSelect.value,notify:notifyMove.checked,freeChat,deleteSource:deleteMove.checked,discordText:window.watchlistDiscordText?.get(entry.publicationReview?.cycleId+':move:'+moveSelect.value)};moveRequests.set(entry.symbol,request);}
+              if(!request||request.cycleId!==entry.publicationReview?.cycleId||request.to!==moveSelect.value||request.notify!==notifyMove.checked||request.freeChat!==freeChat||request.deleteSource!==deleteMove.checked){request={symbol:entry.symbol,cycleId:entry.publicationReview?.cycleId,id:crypto.randomUUID(),to:moveSelect.value,notify:notifyMove.checked,freeChat,deleteSource:deleteMove.checked,discordText:window.watchlistDiscordText?.get(entry.publicationReview?.cycleId+':move:'+moveSelect.value)};moveRequests.set(entry.symbol,request);}
               const response = await fetch("/api/watchlist/analysis-review/category-move", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "x-traderlink-journal-admin-request":"1" },
@@ -2544,7 +2553,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
               setStatus(
                 (payload.move.notice || "Moved " + entry.symbol + " to " + moveSelect.options[moveSelect.selectedIndex].text)+(payload.freeChatWarning?' '+payload.freeChatWarning:''),
               );
-                if(payload.move.destination==='confirmed'||payload.move.destination==='skipped'){moveRequests.delete(entry.symbol);moveNotifyChoices.delete(entry.symbol);moveFreeChatChoices.delete(entry.symbol);moveDeleteChoices.delete(entry.symbol);}
+                // A successful placement ends the move, even when delivery failed.
+                moveRequests.delete(entry.symbol);moveNotifyChoices.delete(entry.symbol);moveFreeChatChoices.delete(entry.symbol);moveDeleteChoices.delete(entry.symbol);
                 window.watchlistMoveDeliveryCache?.clear();pendingMoveGroups.delete(entry.symbol);
                 movingSymbols.delete(entry.symbol);
                 await loadEntries();
@@ -2554,46 +2564,60 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             } finally {
                 movingSymbols.delete(entry.symbol);
                 renderEntries(moveSelectionEntries);
-                moveButton.disabled = false;
+                moveButton.disabled = moveSelect.value === currentGroup;
               moveSelect.disabled = false;
             }
           });
-          actionGroups.move.appendChild(moveSelect);
-          actionGroups.move.appendChild(moveButton);
+          const placementControls = document.createElement("div");
+          placementControls.className = "watchlist-move-placement";
+          placementControls.append(moveSelect, moveButton);
+          actionGroups.move.appendChild(placementControls);
           actionGroups.move.append(notifyLabel,freeLabel,deleteLabel);
             const editMovePost=document.createElement('button');editMovePost.type='button';editMovePost.textContent='Edit move post';editMovePost.onclick=()=>window.watchlistDiscordText?.open(entry.publicationReview?.cycleId+':move:'+moveSelect.value,entry.symbol,'move',moveSelect.value);actionGroups.move.append(editMovePost);
           const deliveryStatus=document.createElement('p');deliveryStatus.setAttribute('role','status');deliveryStatus.hidden=true;
           const retryDelivery=document.createElement('button');retryDelivery.type='button';retryDelivery.className='secondary';retryDelivery.textContent='Retry';retryDelivery.hidden=true;
-          actionGroups.move.append(deliveryStatus,retryDelivery);
+          const retryFreeChat=document.createElement('button');retryFreeChat.type='button';retryFreeChat.className='secondary';retryFreeChat.textContent='Retry Free Chat';retryFreeChat.hidden=true;
+          const deliveryPanel=document.createElement('div');deliveryPanel.className='watchlist-move-delivery';deliveryPanel.hidden=true;
+          deliveryPanel.append(deliveryStatus,retryDelivery,retryFreeChat);actionGroups.move.append(deliveryPanel);
           const deliveryKey=entry.symbol+':'+(entry.publicationReview?.cycleId||'')+':'+entry.watchlistGroup;
           const cache=window.watchlistMoveDeliveryCache||(window.watchlistMoveDeliveryCache=new Map());
           let latestMove,deliveryBusy=false;
+          const canRetryDiscord=move=>move?.current&&move.placement==='complete'&&move.published&&move.notify&&move.destination==='failed'&&!(move.retryAt>Date.now());
+          const canRetryCleanup=move=>move?.current&&move.placement==='complete'&&move.deleteSource&&move.cleanupFailed&&['confirmed','skipped'].includes(move.destination);
           const showDelivery=(move)=>{
-            latestMove=move;deliveryStatus.hidden=!move||!move.current;retryDelivery.hidden=true;
+            latestMove=move;deliveryPanel.hidden=deliveryStatus.hidden=!move||!move.current;retryDelivery.hidden=retryFreeChat.hidden=true;
             if(deliveryStatus.hidden)return;
             if(!move.notify||move.destination==='skipped')deliveryStatus.textContent='Moved. No notifications requested.';
             else if(move.destination==='confirmed'&&move.notification==='confirmed')deliveryStatus.textContent='Move notification sent.';
             else if(['sending','uncertain'].includes(move.destination))deliveryStatus.textContent='Moved. Notification delivery is not yet confirmed.';
-            else {deliveryStatus.textContent='Moved. Notification delivery needs another attempt.';retryDelivery.hidden=!move.published;}
-            if(move.deleteSource){deliveryStatus.textContent=move.notice||deliveryStatus.textContent;if(move.cleanupFailed)retryDelivery.hidden=false;}
-            if(move.freeChat)deliveryStatus.textContent+=' Free Chat also requested; see Post to Free Chat for delivery status.';
-            retryDelivery.textContent=move.freeChat&&move.destination==='confirmed'?'Retry missing delivery':'Retry';
-            if(move.freeChat&&move.destination==='confirmed')retryDelivery.hidden=false;
+            else if(move.destination==='failed')deliveryStatus.textContent='Moved. Discord delivery failed.';
+            else deliveryStatus.textContent='Moved. Notification delivery is pending.';
+            deliveryStatus.textContent=move.notice||deliveryStatus.textContent;
+            if(move.destination==='failed'&&move.retryAt>Date.now())deliveryStatus.textContent+=' Discord retry is temporarily on cooldown.';
+            if(move.freeChat)deliveryStatus.textContent+=move.freeChatDelivery?.state?' Free Chat: '+move.freeChatDelivery.state+'.':' Free Chat was requested; delivery status is unavailable.';
+            retryDelivery.hidden=!(canRetryDiscord(move)||canRetryCleanup(move));
+            retryDelivery.textContent=canRetryCleanup(move)?'Retry previous-channel cleanup':'Retry Discord delivery';
+            retryFreeChat.hidden=move.freeChatDelivery?.retryable!==true;
           };
           const loadDelivery=async(force=false)=>{
             if(deliveryBusy)return;const saved=cache.get(deliveryKey);
             if(!force&&saved&&Date.now()-saved.at<30000){showDelivery(saved.move);return;}
-            deliveryBusy=true;retryDelivery.disabled=true;
+            deliveryBusy=true;retryDelivery.disabled=retryFreeChat.disabled=true;
             try{const response=await fetch('/api/watchlist/analysis-review/category-move?symbol='+encodeURIComponent(entry.symbol),{cache:'no-store'});const result=await response.json();if(!response.ok)throw Error();const move=result.moves.at(-1);cache.set(deliveryKey,{at:Date.now(),move});showDelivery(move);}
-            catch{latestMove=undefined;retryDelivery.hidden=true;deliveryStatus.hidden=false;deliveryStatus.textContent='Unable to check move notification status.';}
-            finally{deliveryBusy=false;retryDelivery.disabled=false;}
+            catch{latestMove=undefined;retryDelivery.hidden=retryFreeChat.hidden=true;deliveryPanel.hidden=deliveryStatus.hidden=false;deliveryStatus.textContent='Unable to check move notification status.';}
+            finally{deliveryBusy=false;retryDelivery.disabled=retryFreeChat.disabled=false;}
           };
-          retryDelivery.onclick=async()=>{
-            if(deliveryBusy||!latestMove?.current)return;deliveryBusy=true;retryDelivery.disabled=true;
-            try{const response=await fetch('/api/watchlist/analysis-review/category-move',{method:'POST',headers:{'Content-Type':'application/json','x-traderlink-journal-admin-request':'1'},body:JSON.stringify({symbol:entry.symbol,cycleId:latestMove.cycleId,id:latestMove.id,to:latestMove.to,notify:latestMove.notify,deleteSource:latestMove.deleteSource===true,freeChat:latestMove.freeChat===true})});if(!response.ok)throw Error();cache.delete(deliveryKey);}
-            catch{deliveryStatus.textContent='Notification could not be sent. Try again.';}
-            finally{deliveryBusy=false;retryDelivery.disabled=false;await loadDelivery(true);}
+          const retryMoveDelivery=async(kind)=>{
+            if(deliveryBusy||movingSymbols.has(entry.symbol)||!latestMove?.current||
+              !(kind==='free-chat'?latestMove.freeChatDelivery?.retryable===true:canRetryDiscord(latestMove)||canRetryCleanup(latestMove)))return;
+            deliveryBusy=true;retryDelivery.disabled=retryFreeChat.disabled=true;
+            let failure='';
+            try{const response=await fetch('/api/watchlist/analysis-review/category-move?retry='+kind,{method:'POST',headers:{'Content-Type':'application/json','x-traderlink-journal-admin-request':'1'},body:JSON.stringify({symbol:entry.symbol,cycleId:latestMove.cycleId,id:latestMove.id,to:latestMove.to,notify:latestMove.notify,deleteSource:latestMove.deleteSource===true,freeChat:latestMove.freeChat===true})});await readWatchlistJsonResponse(response);cache.delete(deliveryKey);}
+            catch(error){failure=error.message||'Delivery retry could not complete.';}
+            finally{deliveryBusy=false;await loadDelivery(true);if(failure){deliveryPanel.hidden=deliveryStatus.hidden=false;deliveryStatus.textContent=failure;}}
           };
+          retryDelivery.onclick=()=>retryMoveDelivery('destination');
+          retryFreeChat.onclick=()=>retryMoveDelivery('free-chat');
           const morePanel=actionGroups.move.closest('details');
           if(morePanel){morePanel.addEventListener('toggle',()=>{if(morePanel.open)void loadDelivery();});if(morePanel.open)void loadDelivery();}
 
