@@ -39,21 +39,28 @@ export class CategoryMoveService{
  }
  status(symbol:string){const entry=this.ports.entry(symbol),moves=this.store.read(symbol);return moves.map(move=>({id:move.id,symbol:move.symbol,cycleId:move.cycleId,to:move.to,createdAt:move.createdAt,placement:move.placement,destination:move.destination,notification:move.notification,notice:move.notice,
   current:Boolean(entry?.active&&moves.at(-1)?.id===move.id&&this.sameActivation(symbol,entry,move)&&(entry.watchlistGroup??'main')===move.to),
-  cleanupFailed:move.cleanup.some(job=>job.state==='failed'),notify:move.notify,published:move.published,deleteSource:move.deleteSource===true,freeChat:move.freeChat===true,approvalRevision:move.approvalRevision}));}
- async execute(input:{symbol:string;id:string;to:string;notify:boolean;deleteSource?:boolean;freeChat?:boolean;actor:string;messageId?:string;discordText?:string}){
+  retryAt:move.retryAt,cleanupFailed:move.cleanup.some(job=>job.state==='failed'),notify:move.notify,published:move.published,deleteSource:move.deleteSource===true,freeChat:move.freeChat===true,approvalRevision:move.approvalRevision}));}
+ async execute(input:{symbol:string;id:string;to:string;notify:boolean;deleteSource?:boolean;freeChat?:boolean;actor:string;messageId?:string;discordText?:string;retryOnly?:boolean}){
   const symbol=input.symbol.trim().toUpperCase();
   if(input.to==='private')input={...input,notify:false,freeChat:false};
   const previous=locks.get(symbol)??Promise.resolve();
-  const operation=previous.catch(()=>{}).then(()=>this.run({...input,symbol}));locks.set(symbol,operation);
+  const operation=previous.catch(()=>{}).then(()=>this.run({...input,symbol,retryOnly:input.retryOnly===true}));locks.set(symbol,operation);
   try{return await operation;}finally{if(locks.get(symbol)===operation)locks.delete(symbol);}
  }
- private async run(input:{symbol:string;id:string;to:string;notify:boolean;deleteSource?:boolean;freeChat?:boolean;actor:string;messageId?:string;discordText?:string}){
+ private async run(input:{symbol:string;id:string;to:string;notify:boolean;deleteSource?:boolean;freeChat?:boolean;actor:string;messageId?:string;discordText?:string;retryOnly?:boolean}){
   if(input.to!=='private')categoryMoveCopy(input.symbol,input.to); // Validate before changing placement.
   let move=this.store.get(input.symbol,input.id);
   const entry=this.ports.entry(input.symbol);
   if(!entry?.active)throw Error('Ticker is no longer active.');
   if(move&&(move.to!==input.to||move.notify!==input.notify||move.actor!==input.actor))throw Error('Move request identity changed.');
   if(move&&(Boolean(move.deleteSource)!==Boolean(input.deleteSource)||Boolean(move.freeChat)!==Boolean(input.freeChat)))throw Error('Move choices changed.');
+  if(input.retryOnly&&(!move||!this.status(input.symbol).some(status=>status.id===input.id&&status.current&&status.placement==='complete'&&(
+    (status.published&&status.notify&&status.destination==='failed'&&!(Number(status.retryAt)>Date.now()))||
+    (status.deleteSource&&status.cleanupFailed&&['confirmed','skipped'].includes(status.destination))
+  ))))throw Error('This move has no retryable delivery.');
+  // A lost response can cause the placement button to submit the same ID
+  // again. Return the completed receipt without retrying any side effect.
+  if(input.retryOnly===false&&move?.placement==='complete'&&!input.messageId)return move;
   if(!move){
    const review=this.ports.review(input.symbol);
    const acknowledged=new Set((review?.events??[]).filter(event=>event.body.kind==='delivery'&&event.body.channel==='website'&&event.body.status==='acknowledged').map(event=>event.body.kind==='delivery'?event.body.approvalRevision:-1));

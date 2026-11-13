@@ -78,3 +78,27 @@ test('embedded move controls are valid JavaScript and retain both choices on ret
  assert.match(MANUAL_WATCHLIST_PAGE,/Also post to Free Chat/);assert.match(MANUAL_WATCHLIST_PAGE,/Delete posts from previous channel/);
  assert.match(MANUAL_WATCHLIST_PAGE,/deleteSource:latestMove.deleteSource===true,freeChat:latestMove.freeChat===true/);
 });
+
+test('delivery-only retry cannot place a ticker, create a move, or retry a sent, uncertain or cooling-down post',async()=>{
+ const {CategoryMoveService}=await import('../lib/alerts/watchlist-category-move-service.js');
+ const entry={active:true,activatedAt:100,watchlistGroup:'postmarket',publicationReview:{cycleId:'cycle'}};
+ const input={symbol:'TEST',id:'move',to:'postmarket',notify:true,freeChat:true,deleteSource:false,actor:'owner',retryOnly:true};
+ const original={...make({cycleId:'cycle',activationAt:100,freeChat:true}),actor:'owner',audience:{everyone:false,roles:[]},approvalRevision:2,placement:'complete' as const};
+ let saved:any, sent=0;
+ const store={read:()=>saved?[saved]:[],get:()=>saved,save:(value:any)=>{saved=value;}};
+ const service=new CategoryMoveService({entry:()=>entry,review:()=>null,place:async()=>assert.fail('retry must not place ticker'),
+  send:async()=>{sent++;return receipt;},verify:async()=>assert.fail('retry must not verify a receipt')},store as any);
+ await assert.rejects(service.execute(input),/no retryable delivery/);
+ for(const patch of [{destination:'confirmed'},{destination:'uncertain'},{destination:'sending'},
+   {destination:'pending'},{destination:'failed',retryAt:Date.now()+60000},{destination:'failed',placement:'pending'}]){
+  saved={...original,...patch};
+  await assert.rejects(service.execute(input),/no retryable delivery/);
+ }
+ saved={...original,destination:'failed'};
+ const replay=await service.execute({...input,retryOnly:false});
+ assert.equal(replay.destination,'failed');assert.equal(sent,0);
+ const result=await service.execute(input);
+ assert.equal(result.destination,'confirmed');assert.equal(sent,1);
+ await assert.rejects(service.execute(input),/no retryable delivery/);
+ assert.equal(sent,1);
+});
