@@ -300,3 +300,7 @@ infrastructure outage. No hosted configuration/data changed and no Coordinator
 contact was needed for implementation. Existing Help was reviewed: no feature or
 workflow change requires a guide amendment. Source remains separate from the
 previous Day-trade-impact removal and requires normal integration/release.
+
+## 2026-11-16 · Free Chat preview
+
+Manual Free Chat shares and retries, opt-in approval, and opted-in moves open an owner confirmation dialog using the Platform preview endpoint. The dialog shows the message and whether attachments will be included. Existing automatic sends use the Platform delivery policy without an owner dialog. Validate with an isolated Chromium fixture and intercepted requests. All eight previews, cancel/Escape, and manual confirmation passed. The move suite passed 13 tests. Four owner-row fixture failures also reproduce on unchanged Runtime HEAD and are unrelated to Free Chat. No Discord or hosted requests.

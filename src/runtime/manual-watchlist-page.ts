@@ -2539,6 +2539,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             try {
               let request=moveRequests.get(entry.symbol);
               const freeChat=notifyMove.checked&&freeMove.checked&&moveSelect.value!=='private';
+              if (freeChat && !await window.watchlistConfirmFreeChat(entry.symbol,'move')) return;
               if(!request||request.cycleId!==entry.publicationReview?.cycleId||request.to!==moveSelect.value||request.notify!==notifyMove.checked||request.freeChat!==freeChat||request.deleteSource!==deleteMove.checked){request={symbol:entry.symbol,cycleId:entry.publicationReview?.cycleId,id:crypto.randomUUID(),to:moveSelect.value,notify:notifyMove.checked,freeChat,deleteSource:deleteMove.checked,discordText:window.watchlistDiscordText?.get(entry.publicationReview?.cycleId+':move:'+moveSelect.value)};moveRequests.set(entry.symbol,request);}
               const response = await fetch("/api/watchlist/analysis-review/category-move", {
                 method: "POST",
@@ -2563,6 +2564,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
                 setStatus("Move request failed for " + entry.symbol + ": " + String(error), true);
             } finally {
                 movingSymbols.delete(entry.symbol);
+                pendingMoveGroups.delete(entry.symbol);
                 renderEntries(moveSelectionEntries);
                 moveButton.disabled = moveSelect.value === currentGroup;
               moveSelect.disabled = false;
@@ -2612,7 +2614,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
               !(kind==='free-chat'?latestMove.freeChatDelivery?.retryable===true:canRetryDiscord(latestMove)||canRetryCleanup(latestMove)))return;
             deliveryBusy=true;retryDelivery.disabled=retryFreeChat.disabled=true;
             let failure='';
-            try{const response=await fetch('/api/watchlist/analysis-review/category-move?retry='+kind,{method:'POST',headers:{'Content-Type':'application/json','x-traderlink-journal-admin-request':'1'},body:JSON.stringify({symbol:entry.symbol,cycleId:latestMove.cycleId,id:latestMove.id,to:latestMove.to,notify:latestMove.notify,deleteSource:latestMove.deleteSource===true,freeChat:latestMove.freeChat===true})});await readWatchlistJsonResponse(response);cache.delete(deliveryKey);}
+            try{
+              if (kind === 'free-chat' && !await window.watchlistConfirmFreeChat(entry.symbol,'published',latestMove.approvalRevision)) return;
+              const response=await fetch('/api/watchlist/analysis-review/category-move?retry='+kind,{method:'POST',headers:{'Content-Type':'application/json','x-traderlink-journal-admin-request':'1'},body:JSON.stringify({symbol:entry.symbol,cycleId:latestMove.cycleId,id:latestMove.id,to:latestMove.to,notify:latestMove.notify,deleteSource:latestMove.deleteSource===true,freeChat:latestMove.freeChat===true})});await readWatchlistJsonResponse(response);cache.delete(deliveryKey);}
             catch(error){failure=error.message||'Delivery retry could not complete.';}
             finally{deliveryBusy=false;await loadDelivery(true);if(failure){deliveryPanel.hidden=deliveryStatus.hidden=false;deliveryStatus.textContent=failure;}}
           };
