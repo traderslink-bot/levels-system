@@ -437,3 +437,7 @@ not reruns by this chat. The actual hub and gateway blobs read for local integra
 match that preservation commit. Its whole branch is NOT a release artifact;
 Coordinator must qualify exact-parent integration/pinned gateway recovery before
 any owner-authorized deployment. All-deploy HOLD remains. No live acceptance yet.
+
+## 2026-11-16 · Free Chat preview
+
+Manual Free Chat shares and retries, opt-in approval, and opted-in moves open an owner confirmation dialog using the Platform preview endpoint. The dialog shows the message and whether attachments will be included. Existing automatic sends use the Platform delivery policy without an owner dialog. Validate with an isolated Chromium fixture and intercepted requests. All eight previews, cancel/Escape, and manual confirmation passed. The move suite passed 13 tests. Four owner-row fixture failures also reproduce on unchanged Runtime HEAD and are unrelated to Free Chat. No Discord or hosted requests.
