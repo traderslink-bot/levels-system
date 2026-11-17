@@ -457,3 +457,49 @@ The direct Free Chat dialog now explains that the ticker must be published to th
 ## Owner analysis save compatibility
 
 The owner reported repeated generic save failures. An authenticated read-only inspection of installed Runtime source on deployment 3093d7fb confirmed the owner-edit validator still required the retired dayTradeRelevance field in catalyst edits. The released Platform editor submits only summary in both formats. Replayed actual Platform makeAnalysisEdit output against the old validator and reproduced the missing text failure in both formats. The corrected validator accepts summary-only catalyst edits, preserves recorded catalyst sources and generation identity, and tolerates the retired field from an older open editor. Focused regression checks and full Runtime TypeScript passed. Two unrelated stale owner-edit suite assertions fail identically against the unmodified parent. No live save, approval, regeneration or notification was performed. No migration is required.
+
+## November 18 — local all-role provider profile checkpoint
+
+The exact pre-cutover record is Coordinator
+`operations/alpaca-runtime-settings-switch-20261107.json`: historical EODHD,
+live EODHD, same-day Moomoo. The existing Moomoo-to-Yahoo same-day fallback is
+retained and still reports its actual provider. No Moomoo-live assumption was
+introduced. Alpaca profile uses Alpaca for all three roles.
+
+New authenticated GET/POST `/api/runtime/market-data-profile` has no public
+access even on a non-Railway runtime. POST accepts `profile` (`alpaca` or
+`previous`) and `expectedRevision`. Responses give the effective roles,
+profile (null for a custom/legacy combination), durable configuration revision
+and changing state. GET has no writes. Revision uses the existing JSON
+configuration timestamp, now monotonically increasing. No database migration.
+
+One gate serializes complete-profile and existing individual-role controls.
+New providers are constructed before mutation. The existing single monitor is
+stopped before the synchronous all-role/config commit, then started with the
+new provider. Failure restores previous sources/config before restarting the
+old monitor. Stock Levels' historical fallback follows the profile instead of
+remaining bound to startup. Historical lookbacks follow the selected provider
+with existing explicit environment overrides preserved. AI historical loading
+continues to use its existing selected-source closure. Saved analyses and all
+review, approval, publication and notification settings are untouched. New AI
+preparation waits for the short provider transition and discards pre-transition
+prepared price action; an already active preparation defers the provider change.
+
+Historical, disk-cache and same-day request completions reject a changed
+provider generation. Moomoo same-day cache/in-flight keys include the generation;
+old results cannot populate a new selection or start an obsolete Yahoo fallback.
+Provider-specific validation disk-cache namespaces remain intact.
+
+Verification: 16 focused profile/candle tests pass, covering exact profiles,
+concurrent requests, normal legacy live-only switching, commit ordering,
+persistence/stream rollback, lookback restoration, stale in-flight responses
+and disk-cache write suppression. Runtime full TypeScript is checked separately.
+No hosted settings, analyses, provider connections, preview, posts, workers or
+deployments were changed during implementation. Combined Platform/Runtime
+integration and real-provider switching remain separate acceptance checks.
+
+Final local checkpoint: Runtime full `tsc --noEmit -p tsconfig.json` passes.
+The paired Platform facade keeps GET read-only and marks a partially persisted
+pair unsynchronized; the next explicit Apply can finish it without repeating
+an uncertain Runtime mutation. Real-provider access and combined owner browser
+acceptance were not exercised or claimed.

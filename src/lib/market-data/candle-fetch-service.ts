@@ -110,6 +110,7 @@ export class StubHistoricalCandleProvider implements HistoricalCandleProvider {
 
 export class CandleFetchService {
   private provider: HistoricalCandleProvider;
+  private providerRevision = 0;
 
   constructor(providerOrOptions: HistoricalCandleProvider | CandleFetchServiceOptions) {
     if ("fetchCandles" in providerOrOptions) {
@@ -131,12 +132,16 @@ export class CandleFetchService {
       });
   }
 
+  getProvider(): HistoricalCandleProvider { return this.provider; }
+  getProviderRevision(): number { return this.providerRevision; }
+
   getProviderName(): CandleProviderName {
     return this.provider.providerName;
   }
 
   setProvider(provider: HistoricalCandleProvider): void {
     this.provider = provider;
+    this.providerRevision++;
   }
 
   async fetchCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
@@ -148,8 +153,10 @@ export class CandleFetchService {
       throw new Error("lookbackBars must be greater than zero.");
     }
 
+    const revision = this.providerRevision;
     const plan = buildHistoricalFetchPlan(request, request.preferredProvider ?? this.provider.providerName);
     const baseResponse = await this.provider.fetchCandles(request, plan);
+    if (revision !== this.providerRevision) throw new Error("Historical provider changed during the candle request. Retry with the current provider.");
     return finalizeCandleProviderResponse(baseResponse);
   }
 }

@@ -1,3 +1,4 @@
+import { WATCHLIST_MARKET_DATA_PROFILES, identifyWatchlistMarketDataProfile, WatchlistMarketDataProfileGate, WatchlistProfileChangeError } from "./watchlist-market-data-profile.js";
 import { upcomingTopWatchesGroup } from "../lib/monitoring/top-watches-calendar.js";
 import { getUsEquityTradingDay as topWatchesTradingDay } from "../lib/market-data/us-equity-exchange-calendar.js";
 import { isTopWatchesGroup } from "../lib/live-watchlist/top-watches-group.js";
@@ -325,7 +326,7 @@ function saveRuntimeProviderConfig(
 ): void {
   const persisted: RuntimeProviderConfig = {
     version: PROVIDER_CONFIG_VERSION,
-    lastUpdated: Date.now(),
+    lastUpdated: Math.max(Date.now(), (loadRuntimeProviderConfig(path)?.lastUpdated ?? 0) + 1),
     ...config,
   };
   const tempPath = `${path}.tmp`;
@@ -648,7 +649,7 @@ async function main(): Promise<void> {
     ib,
   });
   const rawCandleService = new CandleFetchService(historicalProvider);
-  const dashboardEodhdHistoricalCandleService = (() => {
+  let dashboardEodhdHistoricalCandleService = (() => {
     try {
       return new CandleFetchService(createHistoricalCandleProvider({ provider: historicalProviderName === "alpaca" ? "alpaca" : "eodhd" }));
     } catch {
@@ -1137,6 +1138,14 @@ async function main(): Promise<void> {
     }
   };
 
+  const profileGate = new WatchlistMarketDataProfileGate();
+  const readMarketDataProfile = () => {
+    const roles = { historicalProvider: historicalProviderName, liveProvider: liveProviderName,
+      sameDayCandleProvider: sameDayCandleProviderName };
+    return { profile: identifyWatchlistMarketDataProfile(roles), roles,
+      revision: loadRuntimeProviderConfig(providerConfigPath)?.lastUpdated ?? 0,
+      changing: profileGate.busy };
+  };
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", `http://${LOCAL_BIND_HOST}`);
 
@@ -1150,6 +1159,72 @@ async function main(): Promise<void> {
 
     if (isRailwayRuntime && !requestHasRuntimeAccess(request, runtimeAccessToken!)) {
       sendJson(response, 401, { error: "Runtime access token required." });
+      return;
+    }
+
+    if (url.pathname === "/api/runtime/market-data-profile") {
+      // This control is private even for a non-Railway runtime.
+      if (!runtimeAccessToken || !requestHasRuntimeAccess(request, runtimeAccessToken)) {
+        sendJson(response, 401, { error: "Runtime access token required." }); return;
+      }
+      response.setHeader("Cache-Control", "private, no-store");
+      if (request.method === "GET") { sendJson(response, 200, readMarketDataProfile()); return; }
+      if (request.method !== "POST") { sendJson(response, 405, { error: "Method not allowed." }); return; }
+      try {
+        const result = await profileGate.change(async () => {
+          const body = await readJsonBody(request);
+          if (body.profile !== "alpaca" && body.profile !== "previous") throw new WatchlistProfileChangeError(400, "Invalid Watchlist provider profile.");
+          const before = readMarketDataProfile();
+          if (!Number.isSafeInteger(body.expectedRevision) || body.expectedRevision !== before.revision) {
+            throw new WatchlistProfileChangeError(409, "Watchlist provider selection changed. Reload its current status.");
+          }
+          if (startupState !== "ready" || manager.hasActiveMarketDataPreparation()) {
+            throw new WatchlistProfileChangeError(409, "Watchlist market data preparation is running. Try the provider change after it completes.");
+          }
+          if (before.profile === body.profile) return { ...before, changing: false };
+          const next = WATCHLIST_MARKET_DATA_PROFILES[body.profile];
+          // Constructors validate required configuration before changing any role.
+          const nextHistorical = createHistoricalCandleProvider({ provider: next.historicalProvider, ib });
+          const nextLive = createLivePriceProvider({ provider: next.liveProvider, ib });
+          const oldHistorical = rawCandleService.getProvider();
+          const oldDashboard = dashboardEodhdHistoricalCandleService;
+          const oldLookbacks = manager.getHistoricalLookbackBars();
+          const nextLookbacks = resolveManualWatchlistHistoricalLookbacks(next.historicalProvider);
+          const applyRoles = (roles: typeof before.roles) => {
+            historicalProviderName = roles.historicalProvider;
+            liveProviderName = roles.liveProvider;
+            sameDayCandleProviderName = roles.sameDayCandleProvider;
+          };
+          await manager.switchLivePriceProvider(nextLive, {
+            commit: () => {
+              saveRuntimeProviderConfig(providerConfigPath, next);
+              rawCandleService.setProvider(nextHistorical);
+              dashboardEodhdHistoricalCandleService = new CandleFetchService(nextHistorical);
+              sameDayCandleService.setProvider(next.sameDayCandleProvider);
+              manager.setHistoricalLookbackBars(nextLookbacks);
+              applyRoles(next);
+            },
+            rollback: () => {
+              rawCandleService.setProvider(oldHistorical);
+              dashboardEodhdHistoricalCandleService = oldDashboard;
+              sameDayCandleService.setProvider(before.roles.sameDayCandleProvider);
+              manager.setHistoricalLookbackBars(oldLookbacks);
+              applyRoles(before.roles);
+              saveRuntimeProviderConfig(providerConfigPath, before.roles);
+            },
+          });
+          publishLiveWatchlistHealth({ publisher: liveWatchlistHealthPublisher, manager, startupState,
+            liveProviderName, ibkrConnected: isIbkrConnected(ib), ibkrReconnecting: isIbkrReconnecting(ib) });
+          return { ...readMarketDataProfile(), changing: false };
+        });
+        sendJson(response, 200, result);
+      } catch (error) {
+        const status = error instanceof WatchlistProfileChangeError ? error.status
+          : error instanceof RequestBodyParseError ? error.statusCode : 503;
+        // Do not return provider exception strings, which may contain connection URLs.
+        sendJson(response, status, { error: error instanceof WatchlistProfileChangeError ? error.message
+          : "Watchlist provider change did not complete. Read its current status before retrying." });
+      }
       return;
     }
 
@@ -1764,6 +1839,8 @@ async function main(): Promise<void> {
     }
 
     if (request.method === "POST" && url.pathname === "/api/runtime/historical-provider") {
+      if (profileGate.busy) { sendJson(response, 409, { error: "Watchlist provider change is already in progress." }); return; }
+      await profileGate.change(async () => {
       if (startupState !== "ready") {
         sendJson(response, 503, {
           error:
@@ -1858,9 +1935,13 @@ async function main(): Promise<void> {
         sendJson(response, statusCode, { error: message });
       }
       return;
+      });
+      return;
     }
 
     if (request.method === "POST" && url.pathname === "/api/runtime/live-provider") {
+      if (profileGate.busy) { sendJson(response, 409, { error: "Watchlist provider change is already in progress." }); return; }
+      await profileGate.change(async () => {
       if (startupState !== "ready") {
         sendJson(response, 503, {
           error:
@@ -1973,9 +2054,13 @@ async function main(): Promise<void> {
         sendJson(response, statusCode, { error: message });
       }
       return;
+      });
+      return;
     }
 
     if (request.method === "POST" && url.pathname === "/api/runtime/same-day-candle-provider") {
+      if (profileGate.busy) { sendJson(response, 409, { error: "Watchlist provider change is already in progress." }); return; }
+      await profileGate.change(async () => {
       if (startupState !== "ready") {
         sendJson(response, 503, {
           error: startupState === "error"
@@ -2031,6 +2116,8 @@ async function main(): Promise<void> {
         console.error(`[ManualWatchlistRuntime] Same-day candle provider switch failed: ${message}`);
         sendJson(response, 500, { error: message });
       }
+      return;
+      });
       return;
     }
 

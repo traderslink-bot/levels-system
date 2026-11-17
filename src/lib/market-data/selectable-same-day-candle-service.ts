@@ -38,6 +38,7 @@ export type SameDayCandleProviderHealth = {
 export class SelectableSameDayCandleService {
   private alpacaService?: CandleFetchService;
   private selectedProvider: SameDayCandleProviderName;
+  private providerRevision = 0;
   private activeProvider: SameDayCandleProviderName | null = null;
   private lastMoomooSuccessAt: number | null = null;
   private lastMoomooReachableAt: number | null = null;
@@ -70,6 +71,13 @@ export class SelectableSameDayCandleService {
 
   setProvider(provider: SameDayCandleProviderName): void {
     this.selectedProvider = provider;
+    this.providerRevision++;
+    this.moomooCache.clear();
+    this.moomooInFlight.clear();
+    this.activeProvider = null;
+    this.lastSuccessAt = this.lastAttemptAt = this.lastErrorAt = null;
+    this.lastMoomooSuccessAt = this.lastMoomooReachableAt = this.lastMoomooErrorAt = this.lastFallbackAt = null;
+    this.lastError = this.fallbackReason = null;
   }
 
   getDiagnostics(): SameDayCandleProviderHealth {
@@ -110,16 +118,19 @@ export class SelectableSameDayCandleService {
 
   async fetchCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
     this.lastAttemptAt = this.now();
+    const revision = this.providerRevision;
     try {
       const result = this.selectedProvider === "alpaca"
         ? await this.fetchAlpacaCandles(request)
         : this.selectedProvider === "yahoo"
         ? await this.fetchYahooCandles(request)
         : await this.fetchMoomooWithYahooFallback(request);
+      if (revision !== this.providerRevision) throw new Error("Same-day provider changed during the candle request.");
       this.lastSuccessAt = this.now();
       this.lastError = null;
       return result;
     } catch (error) {
+      if (revision !== this.providerRevision) throw error;
       this.activeProvider = null;
       this.lastErrorAt = this.now();
       this.lastError = error instanceof Error ? error.message : String(error);
@@ -128,8 +139,10 @@ export class SelectableSameDayCandleService {
   }
 
   private async fetchAlpacaCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
+    const revision = this.providerRevision;
     this.alpacaService ??= new CandleFetchService(new AlpacaRuntimeHistoricalProvider());
     const result = await this.alpacaService.fetchCandles({...request, preferredProvider:"alpaca"});
+    if (revision !== this.providerRevision) throw new Error("Same-day provider changed during the candle request.");
     if (!this.hasAcceptedSameDayResponse(result)) throw new Error("Alpaca did not return accepted same-day candles.");
     this.activeProvider = "alpaca";
     this.fallbackReason = null;
@@ -143,7 +156,9 @@ export class SelectableSameDayCandleService {
   }
 
   private async fetchYahooCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
+    const revision = this.providerRevision;
     const result = await this.yahooService.fetchCandles({ ...request, preferredProvider: "yahoo" });
+    if (revision !== this.providerRevision) throw new Error("Same-day provider changed during the candle request.");
     if (!this.hasAcceptedSameDayResponse(result)) {
       throw new Error("Yahoo did not return an accepted same-day candle response.");
     }
@@ -153,8 +168,10 @@ export class SelectableSameDayCandleService {
   }
 
   private async fetchMoomooWithYahooFallback(request: HistoricalFetchRequest): Promise<CandleProviderResponse> {
+    const revision = this.providerRevision;
     try {
       const result = await this.fetchMoomooCandles(request);
+      if (revision !== this.providerRevision) throw new Error("Same-day provider changed during the candle request.");
       if (!this.hasAcceptedSameDayResponse(result)) {
         throw new Error("Moomoo did not return an accepted same-day candle response.");
       }
@@ -165,6 +182,7 @@ export class SelectableSameDayCandleService {
       this.fallbackReason = null;
       return result;
     } catch (error) {
+      if (revision !== this.providerRevision) throw error;
       const coverageUnavailable = error instanceof MoomooAiReadCandleLoadError &&
         error.failure === "coverage_unavailable";
       const reason = coverageUnavailable
@@ -201,7 +219,7 @@ export class SelectableSameDayCandleService {
     }
     const requestedEndTimestamp = Math.min(request.endTimeMs ?? this.now(), this.now());
     const symbol = request.symbol.trim().toUpperCase();
-    const cached = this.moomooCache.get(symbol);
+    const cached = this.moomooCache.get(`${this.providerRevision}:${symbol}`);
     const window = cached && this.now() - cached.storedAt < 55_000 && cached.endTimeMs >= requestedEndTimestamp
       ? cached.window
       : await this.loadMoomooWindow(symbol, requestedEndTimestamp);
@@ -232,17 +250,20 @@ export class SelectableSameDayCandleService {
     symbol: string,
     endTimeMs: number,
   ): Promise<MoomooAiReadCandleWindow> {
-    const pending = this.moomooInFlight.get(symbol);
+    const revision = this.providerRevision;
+    const key = `${revision}:${symbol}`;
+    const pending = this.moomooInFlight.get(key);
     if (pending) return pending;
     const request = this.moomooLoader!({ symbol, asOfTimeMs: endTimeMs })
       .then((window) => {
-        this.moomooCache.set(symbol, { storedAt: this.now(), endTimeMs, window });
+        if (revision !== this.providerRevision) throw new Error("Same-day provider changed during the candle request.");
+        this.moomooCache.set(key, { storedAt: this.now(), endTimeMs, window });
         return window;
       })
       .finally(() => {
-        this.moomooInFlight.delete(symbol);
+        this.moomooInFlight.delete(key);
       });
-    this.moomooInFlight.set(symbol, request);
+    this.moomooInFlight.set(key, request);
     return request;
   }
 }
