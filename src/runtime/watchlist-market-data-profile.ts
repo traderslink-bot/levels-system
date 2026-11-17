@@ -5,10 +5,13 @@ export const WATCHLIST_MARKET_DATA_PROFILES = {
 } as const;
 export type WatchlistMarketDataProfile = keyof typeof WATCHLIST_MARKET_DATA_PROFILES;
 export type WatchlistProviderRoles = { historicalProvider: string; liveProvider: string; sameDayCandleProvider: string };
+export function watchlistProviderRolesMatch(a: WatchlistProviderRoles, b: WatchlistProviderRoles): boolean {
+  return a.historicalProvider === b.historicalProvider && a.liveProvider === b.liveProvider && a.sameDayCandleProvider === b.sameDayCandleProvider;
+}
 export function identifyWatchlistMarketDataProfile(roles: WatchlistProviderRoles): WatchlistMarketDataProfile | null {
   for (const profile of ["alpaca", "previous"] as const) {
     const expected = WATCHLIST_MARKET_DATA_PROFILES[profile];
-    if (Object.keys(expected).every(key => roles[key as keyof WatchlistProviderRoles] === expected[key as keyof WatchlistProviderRoles])) return profile;
+    if (watchlistProviderRolesMatch(roles, expected)) return profile;
   }
   return null;
 }

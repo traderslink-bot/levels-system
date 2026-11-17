@@ -503,3 +503,8 @@ The paired Platform facade keeps GET read-only and marks a partially persisted
 pair unsynchronized; the next explicit Apply can finish it without repeating
 an uncertain Runtime mutation. Real-provider access and combined owner browser
 acceptance were not exercised or claimed.
+
+Persistence rollback readback additionally compares the saved and effective
+three-role configurations. A mismatch is explicitly `persisted:false`, never a
+successful complete-pair acknowledgment. Same-profile Apply can repair the saved
+configuration. All 17 focused cases and full Runtime TypeScript pass.

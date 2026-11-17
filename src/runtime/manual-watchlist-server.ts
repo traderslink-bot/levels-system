@@ -1,4 +1,4 @@
-import { WATCHLIST_MARKET_DATA_PROFILES, identifyWatchlistMarketDataProfile, WatchlistMarketDataProfileGate, WatchlistProfileChangeError } from "./watchlist-market-data-profile.js";
+import { WATCHLIST_MARKET_DATA_PROFILES, watchlistProviderRolesMatch, identifyWatchlistMarketDataProfile, WatchlistMarketDataProfileGate, WatchlistProfileChangeError } from "./watchlist-market-data-profile.js";
 import { upcomingTopWatchesGroup } from "../lib/monitoring/top-watches-calendar.js";
 import { getUsEquityTradingDay as topWatchesTradingDay } from "../lib/market-data/us-equity-exchange-calendar.js";
 import { isTopWatchesGroup } from "../lib/live-watchlist/top-watches-group.js";
@@ -1142,8 +1142,10 @@ async function main(): Promise<void> {
   const readMarketDataProfile = () => {
     const roles = { historicalProvider: historicalProviderName, liveProvider: liveProviderName,
       sameDayCandleProvider: sameDayCandleProviderName };
+    const saved = loadRuntimeProviderConfig(providerConfigPath);
     return { profile: identifyWatchlistMarketDataProfile(roles), roles,
-      revision: loadRuntimeProviderConfig(providerConfigPath)?.lastUpdated ?? 0,
+      revision: saved?.lastUpdated ?? 0,
+      persisted: !saved || watchlistProviderRolesMatch(roles, saved),
       changing: profileGate.busy };
   };
   const server = createServer(async (request, response) => {
@@ -1181,7 +1183,10 @@ async function main(): Promise<void> {
           if (startupState !== "ready" || manager.hasActiveMarketDataPreparation()) {
             throw new WatchlistProfileChangeError(409, "Watchlist market data preparation is running. Try the provider change after it completes.");
           }
-          if (before.profile === body.profile) return { ...before, changing: false };
+          if (before.profile === body.profile) {
+            if (!before.persisted) saveRuntimeProviderConfig(providerConfigPath, before.roles);
+            return { ...readMarketDataProfile(), changing: false };
+          }
           const next = WATCHLIST_MARKET_DATA_PROFILES[body.profile];
           // Constructors validate required configuration before changing any role.
           const nextHistorical = createHistoricalCandleProvider({ provider: next.historicalProvider, ib });

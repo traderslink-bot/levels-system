@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { WATCHLIST_MARKET_DATA_PROFILES, identifyWatchlistMarketDataProfile, WatchlistMarketDataProfileGate } from "../runtime/watchlist-market-data-profile.js";
+import { WATCHLIST_MARKET_DATA_PROFILES, watchlistProviderRolesMatch, identifyWatchlistMarketDataProfile, WatchlistMarketDataProfileGate } from "../runtime/watchlist-market-data-profile.js";
 import { ManualWatchlistRuntimeManager } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -112,4 +112,12 @@ test("the disk cache rejects a response started under an earlier provider revisi
     await assert.rejects(pending, /provider changed/);
     assert.equal(service.getCacheRuntimeInfo().writes, 0);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("configuration readback distinguishes an incomplete disk rollback from actual persisted roles", () => {
+  assert.equal(watchlistProviderRolesMatch(WATCHLIST_MARKET_DATA_PROFILES.previous, WATCHLIST_MARKET_DATA_PROFILES.previous), true);
+  for (const key of ["historicalProvider", "liveProvider", "sameDayCandleProvider"] as const) {
+    assert.equal(watchlistProviderRolesMatch(WATCHLIST_MARKET_DATA_PROFILES.previous,
+      { ...WATCHLIST_MARKET_DATA_PROFILES.previous, [key]: "alpaca" }), false);
+  }
 });
