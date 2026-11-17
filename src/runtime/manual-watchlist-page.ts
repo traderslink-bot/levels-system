@@ -2540,7 +2540,10 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
               let request=moveRequests.get(entry.symbol);
               const freeChat=notifyMove.checked&&freeMove.checked&&moveSelect.value!=='private';
               if (freeChat && !await window.watchlistConfirmFreeChat(entry.symbol,'move')) return;
-              if(!request||request.cycleId!==entry.publicationReview?.cycleId||request.to!==moveSelect.value||request.notify!==notifyMove.checked||request.freeChat!==freeChat||request.deleteSource!==deleteMove.checked){request={symbol:entry.symbol,cycleId:entry.publicationReview?.cycleId,id:crypto.randomUUID(),to:moveSelect.value,notify:notifyMove.checked,freeChat,deleteSource:deleteMove.checked,discordText:window.watchlistDiscordText?.get(entry.publicationReview?.cycleId+':move:'+moveSelect.value)};moveRequests.set(entry.symbol,request);}
+              if (notifyMove.checked && moveSelect.value!=='private') {
+                await window.watchlistDiscordText.saveMoveText(moveTextKey());
+              }
+              if(!request||request.cycleId!==entry.publicationReview?.cycleId||request.to!==moveSelect.value||request.notify!==notifyMove.checked||request.freeChat!==freeChat||request.deleteSource!==deleteMove.checked){request={symbol:entry.symbol,cycleId:entry.publicationReview?.cycleId,id:crypto.randomUUID(),to:moveSelect.value,notify:notifyMove.checked,freeChat,deleteSource:deleteMove.checked};moveRequests.set(entry.symbol,request);}
               const response = await fetch("/api/watchlist/analysis-review/category-move", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "x-traderlink-journal-admin-request":"1" },
@@ -2564,7 +2567,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
                 setStatus("Move request failed for " + entry.symbol + ": " + String(error), true);
             } finally {
                 movingSymbols.delete(entry.symbol);
-                pendingMoveGroups.delete(entry.symbol);
                 renderEntries(moveSelectionEntries);
                 moveButton.disabled = moveSelect.value === currentGroup;
               moveSelect.disabled = false;
@@ -2575,7 +2577,14 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           placementControls.append(moveSelect, moveButton);
           actionGroups.move.appendChild(placementControls);
           actionGroups.move.append(notifyLabel,freeLabel,deleteLabel);
-            const editMovePost=document.createElement('button');editMovePost.type='button';editMovePost.textContent='Edit move post';editMovePost.onclick=()=>window.watchlistDiscordText?.open(entry.publicationReview?.cycleId+':move:'+moveSelect.value,entry.symbol,'move',moveSelect.value);actionGroups.move.append(editMovePost);
+          const moveTextKey=()=>entry.symbol+':'+entry.publicationReview?.cycleId+':move:'+moveSelect.value;
+          const editMovePost=document.createElement('button');
+          editMovePost.type='button';editMovePost.textContent='Edit move post';
+          const updateMoveEditor=()=>{editMovePost.disabled=moveSelect.value===currentGroup||moveSelect.value==='private';};
+          updateMoveEditor();
+          moveSelect.addEventListener('change',updateMoveEditor);
+          editMovePost.onclick=()=>window.watchlistDiscordText.open(moveTextKey(),entry.symbol,'move',moveSelect.value);
+          actionGroups.move.append(editMovePost);
           const deliveryStatus=document.createElement('p');deliveryStatus.setAttribute('role','status');deliveryStatus.hidden=true;
           const retryDelivery=document.createElement('button');retryDelivery.type='button';retryDelivery.className='secondary';retryDelivery.textContent='Retry';retryDelivery.hidden=true;
           const retryFreeChat=document.createElement('button');retryFreeChat.type='button';retryFreeChat.className='secondary';retryFreeChat.textContent='Retry Free Chat';retryFreeChat.hidden=true;

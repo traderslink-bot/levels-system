@@ -72,8 +72,18 @@ li.watchlist-control-row > .entry-main > .entry-title > strong:first-child { col
   const notesDrafts = new Map();
   const freeChatChoices = new Map();
 
+  const pendingMoveText = new Map();
+  async function saveMoveText(key) {
+    const draft = pendingMoveText.get(key);
+    if (!draft) return null;
+    const result = await request('/discord-text', draft);
+    pendingMoveText.delete(key);
+    return result;
+  }
+
   window.watchlistDiscordText={
     get:()=>undefined,
+    saveMoveText,
     open:async(key,symbol,kind,to='')=>{
       const dialog=document.createElement('dialog');dialog.style.cssText='width:min(600px,92vw);max-height:85vh;overflow:auto';
       const title=document.createElement('h2');title.textContent=symbol+' — Edit Discord post';
@@ -84,6 +94,7 @@ li.watchlist-control-row > .entry-main > .entry-title > strong:first-child { col
       const reset=document.createElement('button');reset.type='button';reset.textContent='Reset to generated text';reset.disabled=true;
       const close=document.createElement('button');close.type='button';close.textContent='Close';close.onclick=()=>dialog.close();
       dialog.append(title,text,fixed,status,use,reset,close);document.body.append(dialog);dialog.showModal();
+      dialog.addEventListener('cancel', event=>{if(close.disabled)event.preventDefault();});
       const position=()=>{if(window.parent===window||!window.frameElement)return;const f=window.frameElement.getBoundingClientRect(),top=Math.max(0,-f.top),bottom=Math.min(window.innerHeight,window.parent.innerHeight-f.top);dialog.style.position='fixed';dialog.style.margin='0 auto';dialog.style.left='0';dialog.style.right='0';dialog.style.top=(top+12)+'px';dialog.style.maxHeight=Math.max(120,bottom-top-24)+'px';};
       position();window.parent.addEventListener('scroll',position,true);window.parent.addEventListener('resize',position);
       dialog.addEventListener('close',()=>{window.parent.removeEventListener('scroll',position,true);window.parent.removeEventListener('resize',position);dialog.remove();});
@@ -91,18 +102,32 @@ li.watchlist-control-row > .entry-main > .entry-title > strong:first-child { col
         const generated=await request('/discord-text?symbol='+encodeURIComponent(symbol)+'&kind='+kind+'&to='+encodeURIComponent(to));
         if(!dialog.isConnected)return;
         let revision=generated.revision;
-        text.value=generated.draftText??generated.text;text.maxLength=generated.maxLength;
+        const pending = kind==='move' ? pendingMoveText.get(key) : undefined;
+        text.value=pending?.text??generated.draftText??generated.text;text.maxLength=generated.maxLength;
         fixed.textContent='Links and notification tags stay unchanged:'+generated.suffix;
         const validate=()=>{status.textContent=text.value.length+' / '+generated.maxLength+' characters. This does not send a post.';use.disabled=!text.value.trim()||text.value.length>generated.maxLength||/@(everyone|here)\b|<@/i.test(text.value);};
-        text.disabled=reset.disabled=false;text.oninput=()=>{validate();status.textContent+=' Unsaved changes—select Save text.';};
+        text.disabled=reset.disabled=false;
+        const markChanged=()=>{
+          validate();
+          if(kind==='move'){
+            pendingMoveText.set(key,{symbol,kind,to,identity:generated.identity,revision:pending ? pending.revision : revision,text:text.value});
+            status.textContent+=' Edits will be saved before the move posts.';
+          }else status.textContent+=' Unsaved changes—select Save text.';
+        };
+        text.oninput=markChanged;
         const save=async(value)=>{
-          use.disabled=reset.disabled=text.disabled=true;status.textContent='Saving post text…';
-          try{const result=await request('/discord-text',{symbol,kind,to,identity:generated.identity,revision,text:value});revision=result.revision;text.value=result.draftText??result.text;validate();status.textContent='Saved. This text will be used when you notify users.';}
+          use.disabled=reset.disabled=text.disabled=close.disabled=true;status.textContent='Saving post text…';
+          try{
+            const result=await request('/discord-text',{symbol,kind,to,identity:generated.identity,revision,text:value});
+            if(kind==='move')pendingMoveText.delete(key);
+            revision=result.revision;text.value=result.draftText??result.text;validate();
+            status.textContent='Saved. This text will be used when you notify users.';
+          }
           catch(error){status.textContent=String(error.message||error);}
-          finally{text.disabled=reset.disabled=false;use.disabled=!text.value.trim()||text.value.length>generated.maxLength||/@(everyone|here)\b|<@/i.test(text.value);}
+          finally{text.disabled=reset.disabled=close.disabled=false;use.disabled=!text.value.trim()||text.value.length>generated.maxLength||/@(everyone|here)\b|<@/i.test(text.value);}
         };
         reset.onclick=()=>save(null);
-        use.onclick=()=>save(text.value);validate();position();
+        use.onclick=()=>save(text.value);if(pending)markChanged();else validate();position();
       }catch(error){status.textContent=String(error.message||error);}
     }
   };

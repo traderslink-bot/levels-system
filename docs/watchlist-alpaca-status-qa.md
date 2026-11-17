@@ -441,3 +441,7 @@ any owner-authorized deployment. All-deploy HOLD remains. No live acceptance yet
 ## 2026-11-16 · Free Chat preview
 
 Manual Free Chat shares and retries, opt-in approval, and opted-in moves open an owner confirmation dialog using the Platform preview endpoint. The dialog shows the message and whether attachments will be included. Existing automatic sends use the Platform delivery policy without an owner dialog. Validate with an isolated Chromium fixture and intercepted requests. All eight previews, cancel/Escape, and manual confirmation passed. The move suite passed 13 tests. Four owner-row fixture failures also reproduce on unchanged Runtime HEAD and are unrelated to Free Chat. No Discord or hosted requests.
+
+## Custom text on notified Watchlist moves
+
+A read-only production ledger check found recent Main Session → Overnight Watches moves with confirmed default copy and no saved draft for their exact activation and destination. Closing the editor without saving previously discarded the typed text. The move editor now retains pending edits for the selected ticker, activation and destination, and a notified move saves them before submitting. Save failure stops the move so it cannot post default copy or delete prior messages. Silent moves and delivery retries keep their existing paths. A 390px Chromium fixture verified Close, reopen, Escape and destination binding. The move and heading suite passed 22 tests, including save-before-move, no move on save failure and exact custom destination copy. No Discord requests or production writes were made.
