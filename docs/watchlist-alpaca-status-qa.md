@@ -449,3 +449,7 @@ A read-only production ledger check found recent Main Session → Overnight Watc
 ## Single Free Chat composer
 
 The direct Free Chat action now presents editable text, the post preview, automatic-update preference, and the latest receipt in one dialog. After confirmation it checks only the exact receipt until the post is sent or reaches a terminal state. The Premium ticker preview keeps a masked heading and warns against adding identifying details. A narrow 390px Chromium fixture exercised the actual owner script, Platform handler and isolated SQLite receipt through edited preview, queued, and posted with one dialog and no real send. The 22 Runtime move/heading checks passed. Pair this slice with the Platform composer API and additive receipt migration.
+
+## Free Chat action on published ticker-only listings
+
+The direct Free Chat dialog now explains that the ticker must be published to the Watchlist. A website-confirmed listing without analysis receives a text-only preview and enabled confirmation through the paired Platform API. Isolated Chromium verified editable text and queued-to-posted status for a masked listing-only fixture. The 22 Runtime move and heading tests passed. No live ticker was changed and no Discord post was sent.

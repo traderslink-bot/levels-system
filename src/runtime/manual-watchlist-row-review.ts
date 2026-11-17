@@ -362,7 +362,7 @@ function attachX(entry, actions, state, more = actions) {
         const detail = receipt ? (messages[receipt.state] || receipt.status_message || 'Free Chat: '+receipt.state) : '';
         status.textContent = receipt
           ? detail+(receipt.sent_at_ms ? ' '+new Date(receipt.sent_at_ms).toLocaleString() : '')
-          : current?.preview ? 'Review how the post will appear in Free Chat.' : 'Publish an analysis before sharing it to Free Chat.';
+          : current?.preview ? 'Review how the post will appear in Free Chat.' : 'Publish this ticker to the Watchlist before sharing it to Free Chat.';
         syncControls();
       };
       const scheduleCheck = () => {
