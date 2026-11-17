@@ -75,3 +75,26 @@ test("owner restores omitted breakout and preview preserves the correction witho
   assert.equal(inconsistent.payload.breakoutContinuation.price, 0.49);
   assert.equal(inconsistent.warnings.length, 2);
 });
+
+test("summary-only catalyst patches save in detailed and simplified formats without the retired field", () => {
+  const simple = {
+    ...base(), analysisFormat: "simple", riskSummary: [], simpleAnalysis: {
+      setup: "Owner setup", breakout: { price: 0.6, explanation: "Breakout", confirmation: "Volume" },
+      pullbacks: [{ low: 0.4, high: 0.45, explanation: "Pullback", confirmation: "Hold", invalidation: null }],
+      upside: [{ low: 0.7, high: 0.8, explanation: "Target" }], invalidation: null,
+    },
+  } as unknown as TradersLinkAiReadPayload;
+  for (const original of [base(), simple]) {
+    const edited = applyOwnerAnalysisEdit(original, { catalystRealityCheck: { summary: "My edited news context" } });
+    assert.equal(edited.payload.catalystRealityCheck.summary, "My edited news context");
+    assert.equal(edited.payload.catalystRealityCheck.dayTradeRelevance, original.catalystRealityCheck.dayTradeRelevance);
+    assert.deepEqual(edited.payload.catalystRealityCheck.sourceUrls, original.catalystRealityCheck.sourceUrls);
+    assert.equal(edited.payload.catalystRealityCheck.status, original.catalystRealityCheck.status);
+    assert.equal(original.catalystRealityCheck.summary, "Original news");
+    assert.equal(edited.payload.generationId, original.generationId);
+    const legacy = applyOwnerAnalysisEdit(original, { catalystRealityCheck: { summary: "Legacy window", dayTradeRelevance: "Old editor value" } });
+    assert.equal(legacy.payload.catalystRealityCheck.summary, "Legacy window");
+    assert.equal(legacy.payload.catalystRealityCheck.dayTradeRelevance, original.catalystRealityCheck.dayTradeRelevance);
+    assert.throws(() => applyOwnerAnalysisEdit(original, { catalystRealityCheck: { summary: "My text", sourceUrls: [] } }), /Unexpected analysis field/);
+  }
+});

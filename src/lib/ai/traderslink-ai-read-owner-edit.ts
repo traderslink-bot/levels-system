@@ -33,6 +33,13 @@ function shape(value: unknown, schema: Shape, allowNullPrices = true): Record<st
   return output;
 }
 
+function catalystEdit(original: TradersLinkAiReadPayload["catalystRealityCheck"], value: unknown) {
+  const input = { ...record(value) };
+  // Older editor windows can still submit the retired field.
+  delete input.dayTradeRelevance;
+  return { ...original, ...shape(input, { summary: "text" }) };
+}
+
 /** Technical edit validation only. Trading inconsistencies are warnings, never
  * AI regeneration or an automatic rewrite of the owner's entered prices.
  */
@@ -54,8 +61,8 @@ export function applyOwnerAnalysisEdit(original: TradersLinkAiReadPayload, rawPa
       const breakout = record(record(patch.simpleAnalysis).breakout);
       shape(breakout, {price:"price",explanation:"text",confirmation:"text"}, false);
     }
-    const catalyst = patch.catalystRealityCheck === undefined ? original.catalystRealityCheck : {
-      ...original.catalystRealityCheck, ...shape(patch.catalystRealityCheck, {summary:"text",dayTradeRelevance:"text"}) };
+    const catalyst = patch.catalystRealityCheck === undefined ? original.catalystRealityCheck :
+      catalystEdit(original.catalystRealityCheck, patch.catalystRealityCheck);
     const risks = patch.riskSummary ?? original.riskSummary;
     if (!Array.isArray(risks) || risks.length > 20) throw new Error("At most 20 risk notes are supported.");
     const payload = { ...structuredClone(original), catalystRealityCheck:catalyst, riskSummary:risks.map(text), simpleAnalysis, ownerHiddenSections:[...new Set(hidden)],
@@ -109,7 +116,9 @@ export function applyOwnerAnalysisEdit(original: TradersLinkAiReadPayload, rawPa
     else if (key === "riskSummary") {
       if (!Array.isArray(value) || value.length > 20) throw new Error("At most 20 risk notes are supported.");
       output[key] = value.map(text);
-    } else if (["catalystRealityCheck", "dilutionRisk", "listingStatus"].includes(key)) {
+    } else if (key === "catalystRealityCheck") {
+      result.catalystRealityCheck = catalystEdit(original.catalystRealityCheck, value);
+    } else if (["dilutionRisk", "listingStatus"].includes(key)) {
       const fields = shape(value, { summary: "text", dayTradeRelevance: "text" });
       output[key] = { ...record(output[key]), ...fields };
     } else if (key === "ownerHiddenSections") {
