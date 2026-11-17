@@ -58,6 +58,8 @@ li.watchlist-control-row > .entry-main > .entry-title > strong:first-child { col
 .watchlist-free-chat-preview { box-sizing:border-box; width:min(480px,90vw); max-height:85vh; overflow:auto; border:1px solid; border-radius:8px; padding:20px; background:Canvas; color:CanvasText; }
 .watchlist-free-chat-preview h2 { margin:0 0 16px; }
 .watchlist-free-chat-preview-copy { white-space:pre-wrap; overflow-wrap:anywhere; }
+.watchlist-free-chat-message { box-sizing:border-box; display:block; width:100%; min-height:92px; margin:6px 0 12px; resize:vertical; }
+.watchlist-free-chat-preview-actions > [hidden] { display:none; }
 .watchlist-free-chat-preview-actions { display:flex; flex-wrap:wrap; gap:8px; }
 .watchlist-free-chat-preview-actions > button { min-height:40px; padding:6px 12px; margin:0; }
 @media(max-width:600px) { .watchlist-free-chat-preview-actions > button { min-height:44px; } }
@@ -298,43 +300,118 @@ function attachX(entry, actions, state, more = actions) {
     const free = document.createElement('button'); free.type = 'button'; free.className = 'secondary'; free.textContent = 'Post to Free Chat';
     free.disabled = !entry.publicationReview?.cycleId;
     free.onclick = async () => {
-      const dialog = document.createElement('dialog'); dialog.style.cssText = 'width:min(480px,90vw);max-height:85vh;overflow:auto';
+      const dialog = document.createElement('dialog');
+      dialog.className = 'watchlist-free-chat-preview';
+      dialog.setAttribute('aria-label','Post to Free Chat');
       const heading = document.createElement('h2'); heading.textContent = entry.symbol + ' — Free Chat';
-      const message = document.createElement('p'); message.setAttribute('role','status'); message.textContent = 'Loading…';
-      const close = document.createElement('button'); close.type = 'button'; close.textContent = 'Close'; close.onclick = () => dialog.close();
-      dialog.append(heading,message,close); dialog.addEventListener('close',()=>dialog.remove()); document.body.append(dialog); dialog.showModal();
+      const status = document.createElement('p'); status.setAttribute('role','status'); status.textContent = 'Loading…';
+      const preview = document.createElement('section'); preview.hidden = true;
+      const copy = document.createElement('p'); copy.className = 'watchlist-free-chat-preview-copy';
+      const attachment = document.createElement('p');
+      const messageLabel = document.createElement('label');
+      const message = document.createElement('textarea'); message.className = 'watchlist-free-chat-message'; message.maxLength = 1200;
+      messageLabel.append(document.createTextNode('Post message'),message);
+      const privacy = document.createElement('p');
+      preview.append(messageLabel,privacy,copy,attachment);
+      const label = document.createElement('label');
+      const automatic = document.createElement('input'); automatic.type = 'checkbox'; automatic.disabled = true; automatic.style.width = 'auto';
+      label.append(automatic,document.createTextNode(' Automatically post analysis updates to Free Chat'));
+      const close = document.createElement('button'); close.type = 'button'; close.className = 'secondary'; close.textContent = 'Close';
+      close.onclick = () => dialog.close();
+      const send = document.createElement('button'); send.type = 'button'; send.textContent = 'Confirm Free Chat post'; send.disabled = true;
+      const check = document.createElement('button'); check.type = 'button'; check.className = 'secondary'; check.textContent = 'Check delivery status'; check.hidden = true;
+      const actions = document.createElement('div'); actions.className = 'watchlist-free-chat-preview-actions';
+      actions.append(close,send,check);
+      dialog.append(heading,status,preview,label,actions); document.body.append(dialog); dialog.showModal();
       const position = () => {
         if (window.parent === window || !window.frameElement) return;
         const frame = window.frameElement.getBoundingClientRect();
-        const top = Math.max(0, -frame.top), bottom = Math.min(window.innerHeight, window.parent.innerHeight - frame.top);
-        dialog.style.position = 'fixed'; dialog.style.margin = '0 auto'; dialog.style.left = '0'; dialog.style.right = '0';
-        dialog.style.maxHeight = Math.max(120, bottom - top - 24) + 'px';
-        dialog.style.top = Math.max(top + 12, top + (bottom - top - dialog.offsetHeight) / 2) + 'px';
+        const top = Math.max(0,-frame.top), bottom = Math.min(window.innerHeight,window.parent.innerHeight-frame.top);
+        Object.assign(dialog.style,{position:'fixed',inset:(top+12)+'px 0 auto',margin:'0 auto',maxHeight:Math.max(120,bottom-top-24)+'px'});
       };
       position(); window.parent.addEventListener('scroll',position,true); window.parent.addEventListener('resize',position);
-      dialog.addEventListener('close',()=>{window.parent.removeEventListener('scroll',position,true);window.parent.removeEventListener('resize',position);});
+      let current, timer, stopping = false, working = false, checksLeft = 0, requestBusy = false;
+      dialog.addEventListener('close',()=>{
+        stopping = true; clearTimeout(timer);
+        window.parent.removeEventListener('scroll',position,true); window.parent.removeEventListener('resize',position);
+        dialog.remove();
+      });
+      const path = '/free-chat?symbol=' + encodeURIComponent(entry.symbol);
+      const waiting = () => ['pending','sending','retry'].includes(current?.delivery?.state);
+      const canSend = () => !!current?.preview && (!current.delivery || current.delivery.state === 'failed');
+      const renderPreview = () => {
+        const value = current?.preview;
+        preview.hidden = !value;
+        if (!value) return;
+        const title = document.createElement('strong');
+        title.textContent = value.heading.replace(/^\*\*|\*\*$/g,'');
+        copy.replaceChildren(title,document.createTextNode('\n\n'+(message.value.trim()||value.defaultMessage)+'\n\n'+value.footer));
+        privacy.textContent = value.visibilityKey[0] === '1' ? 'Leave out the ticker, company name, and any details that identify it.' : '';
+        privacy.hidden = !privacy.textContent;
+        attachment.textContent = value.includeImages ? 'Analysis images will be attached when available.' : 'Text-only post.';
+      };
+      const syncControls = () => {
+        automatic.disabled = working || !current;
+        send.disabled = working || !canSend();
+        send.textContent = current?.delivery?.state === 'failed' ? 'Retry Free Chat post' : 'Confirm Free Chat post';
+        message.disabled = send.disabled;
+      };
+      const renderReceipt = () => {
+        const receipt = current?.delivery;
+        const messages = {pending:'Queued for Free Chat…',sending:'Posting to Free Chat…',sent:'Posted to Free Chat.'};
+        const detail = receipt ? (messages[receipt.state] || receipt.status_message || 'Free Chat: '+receipt.state) : '';
+        status.textContent = receipt
+          ? detail+(receipt.sent_at_ms ? ' '+new Date(receipt.sent_at_ms).toLocaleString() : '')
+          : current?.preview ? 'Review how the post will appear in Free Chat.' : 'Publish an analysis before sharing it to Free Chat.';
+        syncControls();
+      };
+      const scheduleCheck = () => {
+        clearTimeout(timer);
+        if (stopping || !waiting()) return;
+        if (checksLeft > 0) timer = setTimeout(refreshDelivery, 3500);
+        else check.hidden = false;
+      };
+      async function refreshDelivery() {
+        if (stopping || !current?.approvalRevision || requestBusy) return;
+        requestBusy = true; checksLeft--;
+        try {
+          const query = new URLSearchParams({cycleId:current.cycleId,delivery:String(current.approvalRevision)});
+          const result = await request(path+'&'+query);
+          if (!stopping) { current.delivery = result.delivery; check.hidden = true; renderReceipt(); }
+        } catch {
+          if (!stopping) { check.hidden = false; status.textContent = 'Delivery status could not refresh. Check again.'; }
+        } finally { requestBusy = false; scheduleCheck(); }
+      }
+      check.onclick = () => { checksLeft = 30; void refreshDelivery(); };
+      message.oninput = renderPreview;
+      automatic.onchange = async () => {
+        working = true; syncControls();
+        try {
+          const result = await request('/free-chat',{action:'automatic',symbol:entry.symbol,cycleId:current.cycleId,enabled:automatic.checked});
+          current.automaticEnabled = result.automaticEnabled;
+        } catch (error) { status.textContent = String(error.message || error); }
+        finally { automatic.checked = current.automaticEnabled; working = false; syncControls(); }
+      };
+      send.onclick = async () => {
+        if (working || !canSend()) return;
+        working = true; syncControls(); status.textContent = 'Queuing Free Chat post…';
+        try {
+          const result = await request('/free-chat',{
+            action:'send', symbol:entry.symbol,cycleId:current.cycleId,approvalRevision:current.approvalRevision,
+            visibilityKey:current.preview.visibilityKey,message:message.value,
+          });
+          if (!stopping) { current = result; renderPreview(); renderReceipt(); checksLeft = 30; scheduleCheck(); }
+        } catch (error) {
+          if (!stopping) status.textContent = String(error.message || error);
+        } finally { working = false; syncControls(); }
+      };
       try {
-        let current = await request('/free-chat?symbol=' + encodeURIComponent(entry.symbol));
-        const show = () => { const receipt = current.posts[0]; message.textContent = receipt ? (receipt.status_message || 'Free Chat: ' + receipt.state) + (receipt.sent_at_ms ? ' ' + new Date(receipt.sent_at_ms).toLocaleString() : '') : 'No Free Chat post sent for this ticker.'; };
-        const label = document.createElement('label'), automatic = document.createElement('input'); automatic.type = 'checkbox'; automatic.style.width = 'auto'; automatic.checked = current.automaticEnabled;
-        label.append(automatic,document.createTextNode(' Automatically post analysis updates to Free Chat'));
-        const send = document.createElement('button'); send.type = 'button'; send.textContent = 'Post to Free Chat'; send.disabled = !current.hasPublishedAnalysis;
-        const update = async body => {
-          automatic.disabled = send.disabled = true;
-          try { current = await request('/free-chat',Object.assign({symbol:entry.symbol,cycleId:current.cycleId},body)); automatic.checked = current.automaticEnabled; show(); }
-          catch(error) { automatic.checked = current.automaticEnabled; message.textContent = String(error.message || error); }
-          finally { automatic.disabled = false; send.disabled = !current.hasPublishedAnalysis; }
-        };
-        automatic.onchange = () => update({action:'automatic',enabled:automatic.checked});
-        send.onclick = async () => {
-          send.disabled = true;
-          try { if (await window.watchlistConfirmFreeChat(entry.symbol,'published')) await update({action:'send'}); }
-          catch (error) { message.textContent = String(error.message || error); }
-          finally { send.disabled = !current.hasPublishedAnalysis; }
-        };
-        const check = document.createElement('button'); check.type = 'button'; check.textContent = 'Refresh delivery status'; check.onclick = async () => { try { current = await request('/free-chat?symbol=' + encodeURIComponent(entry.symbol)); show(); } catch(error) { message.textContent = String(error.message || error); } };
-        dialog.insertBefore(label,close); dialog.insertBefore(send,close); dialog.insertBefore(check,close); show(); position();
-      } catch(error) { message.textContent = String(error.message || error); }
+        current = await request(path);
+        if (!stopping) {
+          automatic.checked = current.automaticEnabled; message.value = current.savedMessage ?? current.preview?.defaultMessage ?? '';
+          renderPreview(); renderReceipt(); checksLeft = 30; scheduleCheck(); position();
+        }
+      } catch (error) { if (!stopping) status.textContent = String(error.message || error); }
     };
     if(entry.watchlistGroup !== "private") more.append(free);
     const cachedState = queue.get(entry.symbol);
