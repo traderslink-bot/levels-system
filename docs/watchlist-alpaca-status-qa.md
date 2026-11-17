@@ -304,3 +304,34 @@ previous Day-trade-impact removal and requires normal integration/release.
 ## 2026-11-16 · Free Chat preview
 
 Manual Free Chat shares and retries, opt-in approval, and opted-in moves open an owner confirmation dialog using the Platform preview endpoint. The dialog shows the message and whether attachments will be included. Existing automatic sends use the Platform delivery policy without an owner dialog. Validate with an isolated Chromium fixture and intercepted requests. All eight previews, cancel/Escape, and manual confirmation passed. The move suite passed 13 tests. Four owner-row fixture failures also reproduce on unchanged Runtime HEAD and are unrelated to Free Chat. No Discord or hosted requests.
+
+## November 10 — retire Day-trade impact (source-only)
+
+Owner requested removing the catalyst's Day-trade impact display and AI request,
+without a database migration. Both simple and detailed schemas now omit the
+catalyst dayTradeRelevance field; prompts no longer request that commentary.
+Normalization retains an empty compatibility string in new stored payloads, so
+existing readers and saved analyses need no migration. Existing originals/edits
+are not rewritten. Runtime review editing no longer offers the retired field.
+No trading logic, candle inputs, target/pullback generation, approval or delivery
+rules changed. No paid requests, live data edits or posts were made.
+
+Three focused schema/hash/real-service-with-mocked-fetch tests pass, including
+normalizing a response with the field absent. Seven review-panel regressions
+pass; full Runtime TypeScript passes. The owner-review prompt/schema hashes were
+intentionally repinned. An additionally selected existing owner-review narrative
+test failed on target-list equality (the engine includes breakout 1.65 ahead of
+its six targets); that unrelated assertion and target logic were not changed and
+full CI is not claimed green. Paired Platform tests cover both old saved formats,
+catalyst text retained, retired commentary hidden, premium preview and editors.
+
+Separate live incident during this work: actual Platform-configured Runtime
+origin returned HTTP429 plaintext rate limited (12 bytes), while authenticated
+Runtime localhost healthz, watchlist API and root document all returned200.
+Coordinator independently found Railway LAX edge rejection before app ingress;
+VPS through ORD1 returned200. Hosted recovery is Coordinator-owned and not mixed
+into this source slice. No authenticated owner session was forged.
+
+## Custom text on notified Watchlist moves
+
+A read-only production ledger check found recent Main Session → Overnight Watches moves with confirmed default copy and no saved draft for their exact activation and destination. Closing the editor without saving previously discarded the typed text. The move editor now retains pending edits for the selected ticker, activation and destination, and a notified move saves them before submitting. Save failure stops the move so it cannot post default copy or delete prior messages. Silent moves and delivery retries keep their existing paths. A 390px Chromium fixture verified Close, reopen, Escape and destination binding. The move and heading suite passed 22 tests, including save-before-move, no move on save failure and exact custom destination copy. No Discord requests or production writes were made.

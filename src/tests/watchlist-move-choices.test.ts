@@ -102,3 +102,52 @@ test('delivery-only retry cannot place a ticker, create a move, or retry a sent,
  await assert.rejects(service.execute(input),/no retryable delivery/);
  assert.equal(sent,1);
 });
+
+test('edited move copy is saved before notifying or deleting from the old channel', async () => {
+ const {MANUAL_WATCHLIST_PAGE}=await import('../runtime/manual-watchlist-page.js');
+ const start=MANUAL_WATCHLIST_PAGE.indexOf('moveButton.addEventListener("click", async () =>');
+ const end=MANUAL_WATCHLIST_PAGE.indexOf('const placementControls',start);
+ const run=(saveFails:boolean,notify:boolean)=>{
+  const calls:string[]=[];
+  let click:()=>Promise<void>;
+  const moveSelect={value:'top_watches:2026-11-17',disabled:false,options:[{text:'Overnight Watches'}],selectedIndex:0};
+  const document=new Map();
+  const window={watchlistDiscordText:{saveMoveText:async(key:string)=>{
+   assert.equal(key,'TEST:cycle:move:top_watches:2026-11-17');
+   calls.push('save');
+   if(saveFails)throw Error('Post text changed.');
+  }}};
+  const request=async (_url:string,options:RequestInit)=>{
+   const body=JSON.parse(String(options.body));
+   assert.equal(body.to,moveSelect.value);
+   assert.equal(body.notify,notify);
+   assert.equal(body.deleteSource,true);
+   calls.push('move');
+   return Response.json({move:{notice:'Moved.'}});
+  };
+  const factory=new Function('moveButton','moveSelect','entry','currentGroup','window','fetch','movingSymbols','pendingMoveGroups','moveRequests','notifyMove','freeMove','deleteMove','moveTextKey','setStatus','moveNotifyChoices','moveFreeChatChoices','moveDeleteChoices','loadEntries','loadRuntimeStatus','renderEntries','moveSelectionEntries',MANUAL_WATCHLIST_PAGE.slice(start,end));
+  factory({addEventListener:(_name:string,callback:()=>Promise<void>)=>{click=callback;}},moveSelect,{symbol:'TEST',publicationReview:{cycleId:'cycle'}},'main',window,request,new Set(),new Map(),new Map(),{checked:notify},{checked:false},{checked:true},()=> 'TEST:cycle:move:'+moveSelect.value,()=>{},document,document,document,async()=>{},async()=>{},()=>{},[]);
+  return click!().then(()=>calls);
+ };
+ assert.deepEqual(await run(false,true),['save','move']);
+ assert.deepEqual(await run(true,true),['save']);
+ assert.deepEqual(await run(false,false),['move']);
+});
+
+test('the overnight destination receives saved owner copy and existing links',async t=>{
+ const prior=process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL;
+ process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL='https://watchlist.test';
+ t.after(()=>{if(prior===undefined)delete process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL;else process.env.TRADERSLINK_WATCHLIST_PUBLIC_URL=prior;});
+ const {CategoryMoveService}=await import('../lib/alerts/watchlist-category-move-service.js');
+ const entry={active:true,activatedAt:100,watchlistGroup:'main',publicationReview:{cycleId:'cycle'}};
+ const review:any={events:[{revision:1,body:{kind:'approve',publication:{discordWatchlistGroup:'main'}}},{revision:2,body:{kind:'delivery',channel:'website',status:'acknowledged',approvalRevision:1}}]};
+ let saved:any, sent:string|undefined;
+ const store={read:()=>saved?[saved]:[],get:()=>saved,save:(value:any)=>{saved=value;}};
+ const service=new CategoryMoveService({entry:()=>entry,review:()=>review,place:async(_symbol,to)=>{entry.watchlistGroup=to;},
+  send:async message=>{assert.equal(message.watchlistGroup,'top_watches:2026-11-17');sent=message.content;return receipt;},verify:async()=>assert.fail('unexpected verify')},store as any);
+ const result=await service.execute({symbol:'TEST',id:'move',to:'top_watches:2026-11-17',notify:true,deleteSource:true,actor:'owner',discordText:'My overnight notes\nWatch how volume develops.'});
+ assert.equal(result.destination,'confirmed');
+ assert.match(sent??'',/^### My overnight notes\nWatch how volume develops\./);
+ assert.match(sent??'',/\/watchlist\/TEST/);
+ assert.doesNotMatch(sent??'',/See the analysis for potential setups/);
+});

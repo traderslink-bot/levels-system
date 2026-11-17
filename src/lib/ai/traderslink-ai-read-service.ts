@@ -406,10 +406,9 @@ const CATALYST_CONTEXT_SCHEMA = {
       type: "string",
       enum: ["confirmed", "conditional", "unverified", "none"],
     },
-    dayTradeRelevance: { type: "string" },
     sourceUrls: SOURCE_URLS_SCHEMA,
   },
-  required: ["summary", "status", "dayTradeRelevance", "sourceUrls"],
+  required: ["summary", "status", "sourceUrls"],
 } as const;
 
 const DILUTION_TIMING_LANE_SCHEMA = {
@@ -623,7 +622,7 @@ Interpretation contract:
 - Distinguish a real catalyst from catalyst-free momentum. Do not treat an announced transaction valuation as guaranteed value for current shares.
 - For TradersLink database records, use the supplied sourceSummary, positivePoints, and negativePoints to explain the concrete catalyst and its balanced trader-relevant implications. Treat those fields as source-limited evidence, not permission to add facts that they do not contain. If only a title is supplied, list or paraphrase only that title-level fact and clearly leave details unverified.
 - A timely stocktitan_rss title confirms that ticker-specific news exists. Treat it as a catalyst only when the title itself names a concrete company event; generic mover, watchlist, or analysis headlines do not confirm one. Do not infer catalyst strength, article-body details, financial quality, dilution terms, listing status, or causal market impact beyond the title. Describe strength as unverified unless another supplied source supports it.
-- Support material catalyst claims with exact source URLs in catalystRealityCheck.sourceUrls, not in visible prose. Dilution Risk and Listing Status are unavailable features: do not generate these sections or relocate their assessments into currentRead or riskSummary. The supplied database records include a source excerpt/title, publication metadata, retrieval time, and a limited-window supersession status: never claim facts beyond that record's explicit excerpt/title. If evidence is absent, mark it unverified or unknown instead of filling gaps.
+- Support material catalyst claims with exact source URLs in catalystRealityCheck.sourceUrls, not in visible prose. Do not add a separate day-trade impact or relevance commentary. Dilution Risk and Listing Status are unavailable features: do not generate these sections or relocate their assessments into currentRead or riskSummary. The supplied database records include a source excerpt/title, publication metadata, retrieval time, and a limited-window supersession status: never claim facts beyond that record's explicit excerpt/title. If evidence is absent, mark it unverified or unknown instead of filling gaps.
 - Account for reverse splits, warrants, offerings, thin liquidity, halts, and failed spikes when relevant.
 - Do not tell the reader to buy, sell, short, average down, or use a specific position size. This is preparation context, not personalized financial advice.
 - Avoid hype and false certainty. If evidence conflicts or is stale, lower confidence and say so.
@@ -919,23 +918,21 @@ function normalizeCatalystContext(
       ? {
           status: "none",
           summary: "No source-backed active catalyst was established.",
-          dayTradeRelevance: "Treat the move as price-action driven unless a verified catalyst appears.",
+          dayTradeRelevance: "",
           sourceUrls: [],
         }
       : {
           status: "unverified",
           summary: "No source-backed catalyst conclusion was established.",
-          dayTradeRelevance: "Do not rely on an unverified catalyst to sustain momentum.",
+          dayTradeRelevance: "",
           sourceUrls: [],
         };
   }
   return {
     status: rawStatus,
     summary: normalizeText(candidate.summary, "Source-backed catalyst details were not summarized."),
-    dayTradeRelevance: normalizeText(
-      candidate.dayTradeRelevance,
-      "Watch whether price and volume confirm the catalyst response.",
-    ),
+    // Retain the stored payload shape without generating the retired subsection.
+    dayTradeRelevance: "",
     sourceUrls,
   };
 }

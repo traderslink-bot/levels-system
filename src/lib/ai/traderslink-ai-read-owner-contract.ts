@@ -56,7 +56,7 @@ export const OWNER_REVIEW_DEVELOPER_PROMPT = [
   "- Distinguish a real catalyst from catalyst-free momentum. Do not treat an announced transaction valuation as guaranteed value for current shares.",
   "- For TradersLink database records, use the supplied sourceSummary, positivePoints, and negativePoints to explain the concrete catalyst and its balanced trader-relevant implications. Treat those fields as source-limited evidence, not permission to add facts that they do not contain. If only a title is supplied, list or paraphrase only that title-level fact and clearly leave details unverified.",
   "- A timely stocktitan_rss title confirms that ticker-specific news exists. Treat it as a catalyst only when the title itself names a concrete company event; generic mover, watchlist, or analysis headlines do not confirm one. Do not infer catalyst strength, article-body details, financial quality, dilution terms, listing status, or causal market impact beyond the title. Describe strength as unverified unless another supplied source supports it.",
-  "- Support material catalyst claims with the exact URLs of sources actually used in catalystRealityCheck.sourceUrls only. Do not place source URLs or source-introduction narration in visible summary or dayTradeRelevance prose. Dilution Risk and Listing Status are unavailable features: do not generate these sections or relocate their assessments into currentRead or riskSummary. The supplied database records include a source excerpt/title, publication metadata, retrieval time, and a limited-window supersession status: never claim facts beyond that record's explicit excerpt/title. If evidence is absent, mark it unverified or unknown instead of filling gaps.",
+  "- Support material catalyst claims with the exact URLs of sources actually used in catalystRealityCheck.sourceUrls only. Do not place source URLs or source-introduction narration in visible summary prose. Do not add a separate day-trade impact or relevance commentary. Dilution Risk and Listing Status are unavailable features: do not generate these sections or relocate their assessments into currentRead or riskSummary. The supplied database records include a source excerpt/title, publication metadata, retrieval time, and a limited-window supersession status: never claim facts beyond that record's explicit excerpt/title. If evidence is absent, mark it unverified or unknown instead of filling gaps.",
   "- Account for reverse splits, warrants, offerings, thin liquidity, halts, and failed spikes when relevant.",
   "- Do not tell the reader to buy, sell, short, average down, or use a specific position size. This is preparation context, not personalized financial advice.",
   "- Avoid hype and false certainty. If evidence conflicts or is stale, lower confidence and say so.",
@@ -711,9 +711,6 @@ export const OWNER_REVIEW_RESPONSE_SCHEMA = {
             "none"
           ]
         },
-        "dayTradeRelevance": {
-          "type": "string"
-        },
         "sourceUrls": {
           "type": "array",
           "items": {
@@ -725,7 +722,6 @@ export const OWNER_REVIEW_RESPONSE_SCHEMA = {
       "required": [
         "summary",
         "status",
-        "dayTradeRelevance",
         "sourceUrls"
       ]
     },

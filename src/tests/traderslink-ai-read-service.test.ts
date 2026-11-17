@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { buildBreakoutEvidence } from "../lib/ai/traderslink-ai-read-breakout-selection.js";
 import { validatePullbackSection, validatePullbackPair } from "../lib/ai/traderslink-ai-read-section-validation.js";
 import { describe, it } from "node:test";
+import { SIMPLE_ANALYSIS_SCHEMA } from "../lib/ai/watchlist-simple-analysis.js";
 
 import type { LevelSnapshotPayload } from "../lib/alerts/alert-types.js";
 import {
@@ -73,11 +74,32 @@ it("owner-reviewed generation can use supplied chart evidence beyond the catalog
   assert.equal(AI_READ_SCHEMA.properties.breakoutCandidates.properties.primary.properties.targets.maxItems, 4);
 });
 
-it("release reconciliation pins the owner-approved research-removal prompt and schema", () => {
+it("release reconciliation pins the owner-approved catalyst-only prompt and schema", () => {
   assert.equal(createHash("sha256").update(buildTradersLinkAiReadDeveloperPrompt(true)).digest("hex"),
-    "d76f5370b2c73b0f12282558370201a684ba24dfecb25ecf801389de17d24d2f");
+    "96b7ee1164819631cba6d0393964b320a924bc483054e60b8e9ec04c7c1b8d5d");
   assert.equal(createHash("sha256").update(JSON.stringify(buildTradersLinkAiReadResponseSchema(true))).digest("hex"),
-    "14227d279b0009a0303884deb4e6557040d0da8c8a3f272d6ec2906183b50094");
+    "5e92811bfc1a9170b4f823ffea2f3201e5057de5b1667f358c8f5e1a721fa215");
+});
+
+it("both formats request catalyst facts without a day-trade impact field", () => {
+  for (const schema of [buildTradersLinkAiReadResponseSchema(false), buildTradersLinkAiReadResponseSchema(true), SIMPLE_ANALYSIS_SCHEMA]) {
+    const catalyst = schema.properties.catalystRealityCheck;
+    assert.equal(Object.hasOwn(catalyst.properties, "dayTradeRelevance"), false);
+    assert.ok(!catalyst.required.includes("dayTradeRelevance"));
+    assert.ok(Object.hasOwn(catalyst.properties, "summary"));
+    assert.ok(Object.hasOwn(catalyst.properties, "sourceUrls"));
+  }
+});
+
+it("new catalyst responses without impact normalize to the compatible stored shape", async () => {
+  const draft = modelRead() as any;
+  delete draft.catalystRealityCheck.dayTradeRelevance;
+  const service = new OpenAITradersLinkAiReadService({ apiKey: "isolated-test-key", model: "test-model",
+    fetchImpl: async () => new Response(JSON.stringify({ status: "completed", output: [{ type: "message",
+      content: [{ type: "output_text", text: JSON.stringify(draft) }] }] }), { status: 200 }) });
+  const read = await service.generate({ snapshot: snapshot(), priceAction: priceAction(), ownerReviewRequired: true,
+    research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
+  assert.equal(read.catalystRealityCheck.dayTradeRelevance, "");
 });
 
 it("owner review cannot fabricate a draft from a truncated response", async () => {
