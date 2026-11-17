@@ -453,3 +453,7 @@ The direct Free Chat action now presents editable text, the post preview, automa
 ## Free Chat action on published ticker-only listings
 
 The direct Free Chat dialog now explains that the ticker must be published to the Watchlist. A website-confirmed listing without analysis receives a text-only preview and enabled confirmation through the paired Platform API. Isolated Chromium verified editable text and queued-to-posted status for a masked listing-only fixture. The 22 Runtime move and heading tests passed. No live ticker was changed and no Discord post was sent.
+
+## Owner analysis save compatibility
+
+The owner reported repeated generic save failures. An authenticated read-only inspection of installed Runtime source on deployment 3093d7fb confirmed the owner-edit validator still required the retired dayTradeRelevance field in catalyst edits. The released Platform editor submits only summary in both formats. Replayed actual Platform makeAnalysisEdit output against the old validator and reproduced the missing text failure in both formats. The corrected validator accepts summary-only catalyst edits, preserves recorded catalyst sources and generation identity, and tolerates the retired field from an older open editor. Focused regression checks and full Runtime TypeScript passed. Two unrelated stale owner-edit suite assertions fail identically against the unmodified parent. No live save, approval, regeneration or notification was performed. No migration is required.
