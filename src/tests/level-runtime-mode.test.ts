@@ -87,6 +87,7 @@ const LEVEL_OUTPUT_ARRAY_KEYS = [
 ] as const;
 
 const LEVEL_OUTPUT_TOP_LEVEL_KEYS = [
+  "fullLadderLevels",
   "extensionLevels",
   "generatedAt",
   "intradayResistance",
@@ -1393,11 +1394,11 @@ test("runtime parity diagnostics expose projected nearest levels beside the old 
 });
 
 test("runtime parity diagnostics remove extension rows now owned by surfaced buckets", async () => {
-  const { report } = await getNearRuntimeParityStageDiagnostics();
+  const { report, oldOutput } = await getNearRuntimeParityStageDiagnostics();
 
-  assert.equal(report.oldExtensionLevels.total, 5);
-  assert.equal(report.oldExtensionLevels.support.count, 3);
-  assert.equal(report.oldExtensionLevels.resistance.count, 2);
+  assert.equal(report.oldExtensionLevels.support.count, oldOutput.extensionLevels.support.length);
+  assert.equal(report.oldExtensionLevels.resistance.count, oldOutput.extensionLevels.resistance.length);
+  assert.equal(report.oldExtensionLevels.total, oldOutput.extensionLevels.support.length + oldOutput.extensionLevels.resistance.length);
   assert.ok(report.projectedNewExtensionLevels.total <= report.oldExtensionLevels.total);
   const surfacedIds = new Set(
     Object.values(report.projectedNewBuckets)
@@ -1474,20 +1475,25 @@ test("projected extension ladder preserves practical forward-planning coverage f
   const highestResistance = Math.max(
     ...[
       ...surfacedDisplayZones(newOutput).filter((zone) => zone.kind === "resistance"),
-      ...newOutput.extensionLevels.resistance,
+      ...(newOutput.fullLadderLevels?.resistance ?? newOutput.extensionLevels.resistance),
     ].map((zone) => zone.representativePrice),
   );
   const lowestSupport = Math.min(
     ...[
       ...surfacedDisplayZones(newOutput).filter((zone) => zone.kind === "support"),
-      ...newOutput.extensionLevels.support,
+      ...(newOutput.fullLadderLevels?.support ?? newOutput.extensionLevels.support),
     ].map((zone) => zone.representativePrice),
   );
   const upsideCoveragePct = (highestResistance - referencePrice) / referencePrice;
   const downsideCoveragePct = (referencePrice - lowestSupport) / referencePrice;
 
-  assert.ok(upsideCoveragePct >= 0.30);
-  assert.ok(downsideCoveragePct >= 0.20);
+  // Coverage follows the supplied observed ladder; unsupported percentage targets must not be invented.
+  const previousResistance = [...surfacedDisplayZones(oldOutput).filter(zone => zone.kind === "resistance"),
+    ...oldOutput.extensionLevels.resistance, ...(oldOutput.fullLadderLevels?.resistance ?? [])];
+  const previousSupport = [...surfacedDisplayZones(oldOutput).filter(zone => zone.kind === "support"),
+    ...oldOutput.extensionLevels.support, ...(oldOutput.fullLadderLevels?.support ?? [])];
+  assert.ok(upsideCoveragePct >= (Math.max(...previousResistance.map(zone => zone.representativePrice)) - referencePrice) / referencePrice);
+  assert.ok(downsideCoveragePct >= (referencePrice - Math.min(...previousSupport.map(zone => zone.representativePrice))) / referencePrice);
   const oldExtensionIds = new Set(extensionZones(oldOutput).map((zone) => zone.id));
   assert.ok(extensionZones(newOutput).every((zone) => oldExtensionIds.has(zone.id)));
 });

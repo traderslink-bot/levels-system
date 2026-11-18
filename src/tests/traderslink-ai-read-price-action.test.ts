@@ -210,7 +210,7 @@ describe("TradersLink AI one-minute evidence", () => {
       bar(acceptanceStartIndex + 2, 1.325, 1.345, 0),
     );
     const facts = evidence(candles);
-    const candidates = facts.pullbackCandidates as Array<Record<string, number | string>>;
+    const candidates = facts.momentumContextCandidates as Array<Record<string, number | string>>;
     const candidate = candidates.find(
       (item) => item.id === `1m-acceptance-${START + acceptanceStartIndex * 60_000}`,
     );
@@ -219,6 +219,8 @@ describe("TradersLink AI one-minute evidence", () => {
     assert.equal(candidate.kind, "one_minute_acceptance");
     assert.equal(candidate.zoneLow, 1.31);
     assert.equal(candidate.zoneHigh, 1.345);
+    assert.equal((facts.pullbackCandidates as Array<{ id: string }>).some(item => item.id === candidate.id), false,
+      "nearby acceptance remains momentum context, not an automatic dip-buy candidate");
   });
 
   it("retains the broader move origin separately from a nested fast impulse", () => {

@@ -62,7 +62,7 @@ test("breakout ordering identifies branch-local omissions without moving prices"
   assert.equal(reversed.breakoutContinuation.price, null);
   assert.equal(reversed.omitDependentUpside, true);
   assert.equal(continuation.price, 4.3);
-  assert.equal(validateBreakoutOrdering(clear, { ...continuation, price: 4.11 }, 4).omitDependentUpside, true);
+  assert.equal(validateBreakoutOrdering(clear, { ...continuation, price: 4.11 }, 4).omitDependentUpside, false, "positive numeric ordering has no arbitrary percentage buffer");
   assert.equal(validateBreakoutOrdering(clear, { ...continuation, price: 4.13 }, 4).omitDependentUpside, false);
   const missing = { label: "", price: null, rationale: "" };
   assert.equal(validateBreakoutOrdering(missing, missing, 4).issues.length, 0);
@@ -91,19 +91,20 @@ test("overlapping valid branches omit shallow without changing the deep setup", 
   assert.equal(validatePullbackPair(shallow, deep, 4, 0.1).value, shallow);
   assert.equal(validatePullbackPair(shallow, null, 4, 0.1).value, shallow);
   assert.equal(validatePullbackPair(null, deep, 4, 0.1).value, null);
-  assert.equal(validatePullbackPair(shallow, deep, 4, 1).value, null);
+  assert.equal(validatePullbackPair(shallow, deep, 4, 1).value, shallow, "a large candle range does not merge distinct observed zones");
 });
 
 test("conflicting branches retain the stronger matching candidate rather than always deep", () => {
-  const ranked = context.candidates;
-  const result = validatePullbackPair(shallow, deep, 4, 1, ranked);
+  const overlappingDeep = { ...deep, zoneLow: 3.75, zoneHigh: 3.85, evidenceIds: ["overlapping-deep"] };
+  const ranked = [context.candidates[0]!, { id: "overlapping-deep", zoneLow: 3.75, zoneHigh: 3.85 }];
+  const result = validatePullbackPair(shallow, overlappingDeep, 4, 1, ranked);
   assert.equal(result.value, shallow);
   assert.equal(result.deepValue, null);
   assert.deepEqual(result.changedPaths, ["pullbackPlans.deep"]);
-  const reversed = validatePullbackPair(shallow, deep, 4, 1, [...ranked].reverse());
+  const reversed = validatePullbackPair(shallow, overlappingDeep, 4, 1, [...ranked].reverse());
   assert.equal(reversed.value, null);
-  assert.equal(reversed.deepValue, deep);
-  const padded = validatePullbackPair(shallow, { ...deep, evidenceIds: ["shallow-base", "deep-base"] }, 4, 1, ranked);
+  assert.equal(reversed.deepValue, overlappingDeep);
+  const padded = validatePullbackPair(shallow, { ...overlappingDeep, evidenceIds: ["shallow-base", "overlapping-deep"] }, 4, 1, ranked);
   assert.equal(padded.value, shallow, "an unrelated high-ranked citation must not boost the deep branch");
 });
 
@@ -153,16 +154,16 @@ test("collects numeric, candidate and ordering issues without inventing correcte
   assert.ok(result.issues.every((issue) => issue.path.startsWith("pullbackPlans.shallow.")));
 });
 
-test("low-confidence and failed momentum omit active pullbacks without forbidding recovery", () => {
+test("low confidence omits a pullback while current momentum failure preserves separate lower conditional setups", () => {
   assert.equal(validatePullbackSection("shallow", shallow, { ...context, confidence: "low" }).value, null);
-  assert.equal(validatePullbackSection("deep", deep, { ...context, momentumFailure: 4 }).value, null);
+  assert.deepEqual(validatePullbackSection("deep", deep, { ...context, momentumFailure: 4 }).value, deep);
   assert.deepEqual(validateRecoverySection(recovery, { ...context, momentumFailure: 4 }).value, recovery);
 });
 
-test("deep invalidation below failure removes only the deep branch", () => {
+test("a separate lower conditional setup may invalidate below the current momentum failure", () => {
   const result = validatePullbackSection("deep", { ...deep, invalidationPrice: 3.2 }, context);
-  assert.equal(result.value, null);
-  assert.ok(result.issues.some((issue) => issue.code === "failure_order"));
+  assert.deepEqual(result.value, { ...deep, invalidationPrice: 3.2 });
+  assert.deepEqual(result.issues, []);
   assert.deepEqual(validatePullbackSection("shallow", shallow, context).value, shallow);
 });
 

@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { TradersLinkAiReadReviewStore } from "../lib/ai/traderslink-ai-read-review-store.js";
+import { LevelStore } from "../lib/monitoring/level-store.js";
+import { WatchlistStore } from "../lib/monitoring/watchlist-store.js";
 import { ManualWatchlistRuntimeManager } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
 
 test("listing-only manager publishes once without AI or images and acknowledges a replay", async () => {
@@ -11,7 +13,12 @@ test("listing-only manager publishes once without AI or images and acknowledges 
   try {
     const store = new TradersLinkAiReadReviewStore(directory);
     store.begin("cycle", "PDSB", true, "owner");
-    const manager = Object.create(ManualWatchlistRuntimeManager.prototype) as any;
+    const manager = new ManualWatchlistRuntimeManager({
+      candleFetchService: {} as any, levelStore: new LevelStore(), monitor: {} as any,
+      discordAlertRouter: {} as any, opportunityRuntimeController: {} as any,
+      watchlistStore: new WatchlistStore(), watchlistStatePersistence: { load: () => null, save() {} } as any,
+      tradersLinkAiReadReviewStore: store, now: () => 1000,
+    }) as any;
     const entry = { symbol: "PDSB", active: true, publicationReview: { cycleId: "cycle", required: true } };
     manager.watchlistStore = { getEntry: () => entry, getActiveEntries: () => [entry] };
     const website: any[] = [], discord: any[] = [];

@@ -125,7 +125,7 @@ test("DiscordRestThreadGateway announces a ticker without creating a thread", as
   assert.match(String(calls[0]?.init?.body), /View the live watchlist/);
   assert.match(String(calls[0]?.init?.body), /View ALBT ticker page/);
   assert.deepEqual(JSON.parse(String(calls[0]?.init?.body)).allowed_mentions, {
-    parse: ["everyone"], roles: ["12345678901234567"],
+    parse: ["everyone"], roles: ["12345678901234567"], users: [], replied_user: false,
   });
   restoreEnv("TRADERSLINK_WATCHLIST_PUBLIC_URL", originalPublicUrl);
 });

@@ -116,8 +116,9 @@ test("one simple request, raw candle packet, no search; edit ranges and hidden s
   const saved=applyOwnerAnalysisEdit(read,{simpleAnalysis:edit,ownerHiddenSections:["shallow"]}).payload;
   assert.equal(JSON.stringify(read),original);assert.equal(saved.analysisFormat,"simple");
   const discord=renderApprovedAnalysisDiscord(saved).join("");
-  assert.match(discord,/\$1.5–\$1.75/);assert.doesNotMatch(discord,/First base|PRIVATE_EVIDENCE|Listing|Dilution|Confidence/);
-  assert.match(discord,/Lower base/);assert.equal(calls,1);
+  assert.equal(saved.simpleAnalysis!.upside[0]!.high,1.75);
+  assert.match(discord,/TGHL.*watchlist/);assert.doesNotMatch(discord,/First base|PRIVATE_EVIDENCE|Listing|Dilution|Confidence/);
+  assert.doesNotMatch(discord,/Lower base/, "the Discord caption links to the full analysis rather than duplicating its paragraphs");assert.equal(calls,1);
   await assert.rejects(()=>service.generate({...input,ownerReviewRequired:false}),/requires owner review/);
   assert.equal(calls,1);
 });

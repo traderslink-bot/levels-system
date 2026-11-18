@@ -508,3 +508,53 @@ Persistence rollback readback additionally compares the saved and effective
 three-role configurations. A mismatch is explicitly `persisted:false`, never a
 successful complete-pair acknowledgment. Same-profile Apply can repair the saved
 configuration. All 17 focused cases and full Runtime TypeScript pass.
+
+## November 17 Eastern — inherited Runtime CI test-contract repair in progress
+
+Production Coordinator's exact released Runtime source is
+`08d5c5a3632cac671448c81e833a69fdd92cb7fb`. GitHub Node 22 baseline run
+44216198902 on previous live `5c726c4b11369759ca3127594eb8fdc734cb6315` and
+candidate run 44215294329 have the same 179 failed leaf cases / 183 not-OK
+records, with no added or removed failure titles. Provider changes introduced
+no failures in that comparison. This finding does not waive the old failures.
+
+A coherent test-only current-contract repair is underway across the 16 failing
+files. Test source runs in the exact 08d Git-tree projection recorded *before*
+creation in `runtime-ci-test-repair-manifest.json`. Only explicit test postimages
+are overlaid; no held Composer or dirty feature source is copied. Shared
+O_EXCL + flock admission, bounded heap/concurrency, disabled compile caches and
+an unexpected-network guard apply. Broad CI is reserved for the final batch.
+
+Main repairs: native pinned open-session test clocks; explicit closed-session
+review/store/feed fixtures; real constructor state for publication-policy tests;
+complete DOM/owner review read-model fixtures; preserved additive ladder/mention
+contracts; current prompt/schema and concise Discord caption expectations;
+separate breakout checkpoint assertions; and retained candle/event scenarios
+that now assert the owner-retired narrator and its requests remain disabled.
+Production source, stored owner policy, deployed analyses and delivery settings
+are unchanged. The existing exact prompt/schema source guard hashes remain
+unchanged. Final focused qualification passes 396/396 cases with no skipped,
+cancelled or todo cases; all 16 files retain their test registrations. Full Runtime
+TypeScript passes on the exact released source with only these tests overlaid.
+The other 792 tracked source files match the release byte for byte. Final full
+GitHub CI remains pending with the Production Coordinator. Shared heavy-lock
+collisions were respected rather than overlapping another lane's work.
+The sealed test-only patch and pre/postimages are recorded in the manifest;
+held Composer code is excluded. No production redeployment is requested for
+this test-only repair.
+
+
+## November 17 Eastern — owner editing follow-up after Runtime release
+
+Owner reports the generic edit-save error again. Current Runtime deployment
+`c2db86e8-c806-4bd5-bf3d-d53555349e80` has the corrected owner-edit helper
+byte-identical to the deployed `5c726c4` fix (summary-only catalyst edit).
+A read-only SSH probe ran the actual current Platform `makeAnalysisEdit` source
+and installed Runtime `applyOwnerAnalysisEdit` entirely in memory against the
+30 most recent review cycles: 23 contained drafts, all 23 round-tripped without
+a validation failure. It did not call save, approve, publish, generate or any
+market-data/delivery operation and wrote no production data. This verifies the
+current stored-shape/editor contract, not a successful owner browser save or
+the particular unrecorded failed edit. The API's generic catch does not log its
+underlying exception; current logs therefore cannot establish its cause.
+No approval or owner editing policy was added or changed.

@@ -46,7 +46,10 @@ test("old approved posts retain no mentions; updated analysis links remain intac
 test("mention endpoint requires owner actor and panel routes through authenticated proxy",async()=>{
   const result=await dispatchAnalysisReviewRequest({method:"POST",pathname:"/api/watchlist/analysis-review/discord-mentions",searchParams:new URLSearchParams(),actor:undefined,body:{everyone:true,roles:[]}},{} as any);
   assert.equal(result.status,403);
-  const script=WATCHLIST_DISCORD_MENTIONS_PANEL.match(/<script>([\s\S]*)<\/script>/)![1]!; new Function(script);
+  const scripts=[...WATCHLIST_DISCORD_MENTIONS_PANEL.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(match=>match[1]);
+  assert.ok(scripts.length > 0);
+  for(const source of scripts) new Function(source);
+  const script=scripts.join("\n");
   assert.ok(script.includes('fetch("/api/watchlist/analysis-review/discord-mentions"'));
   assert.ok(script.includes("textContent = text"));
 });
