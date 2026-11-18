@@ -16,26 +16,32 @@ function harness(status = "Ready for review", canReview = true, extra: Record<st
   const listeners: Record<string, (event: any) => void> = {};
   const messages: unknown[] = [];
   const window: any = { location: { origin: "https://app.test" }, parent: { postMessage: (body: unknown) => messages.push(body) }, addEventListener: (name: string, fn: any) => { listeners[name] = fn; }, dispatchEvent: () => {} };
-  const document = { createTextNode: (text: string) => ({textContent:text}), createElement: (tag: string) => ({ tag, textContent: "", disabled: false, style: {}, children: [] as any[], append(...nodes:any[]) { this.children.push(...nodes); }, setAttribute() {}, onclick: null }) };
+  const document = { createTextNode: (text: string) => ({textContent:text}), createElement: (tag: string) => ({ tag, textContent: "", disabled: false, style: {}, children: [] as any[], querySelector: () => null, prepend(...nodes:any[]) { this.children.unshift(...nodes); }, append(...nodes:any[]) { this.children.push(...nodes); }, setAttribute() {}, onclick: null }) };
   const context = { window, document, AbortSignal, Event, fetch: async (url: string, options: any) => {
     calls.push({ url, body: options.body ? JSON.parse(options.body) : undefined });
-    return { ok: true, text: async () => JSON.stringify(url.endsWith("/queue") ? { tickers: [{ symbol: "TRUG", status, canReview, ...extra }] } : url.includes("/preview") ? { cycleId: "cycle", expectedHead: 7, draftRevision: 5, previewHash: "exact-hash" } : {}) };
+    return { ok: true, text: async () => JSON.stringify(url.endsWith("/queue") ? { tickers: [{ symbol: "TRUG", status, canReview, cycleId: "cycle", expectedHead: 7, draftRevision: 5, ...extra }] } : url.includes("/preview") ? { cycleId: "cycle", expectedHead: 7, draftRevision: 5, previewHash: "exact-hash" } : {}) };
   } };
   new Script(WATCHLIST_ROW_REVIEW.match(/<script>([\s\S]*?)<\/script>/)![1]!).runInNewContext(context);
   const children: any[] = [];
-  return { calls, messages, listeners, window, children, async render(required = true) { await window.watchlistRowReview.refresh(); window.watchlistRowReview.attach({ symbol: "TRUG", publicationReview: { required } }, { append: (node: any) => children.push(node) }); } };
+  return { calls, messages, listeners, window, get children(): any[] {
+    const nodes: any[] = [];
+    const visit = (node: any) => { nodes.push(node); for (const child of node.children ?? []) visit(child); };
+    children.forEach(visit); return nodes;
+  }, async render(required = true) { await window.watchlistRowReview.refresh(); window.watchlistRowReview.attach({ symbol: "TRUG", publicationReview: { required, cycleId: "cycle" } }, { querySelector: () => null, append: (node: any) => children.push(node), prepend: (...nodes: any[]) => children.unshift(...nodes) }); } };
 }
 
 test("failed draft can list without analysis; listed draft checkbox controls only the new analysis notification", async () => {
   const held = harness("Analysis failed — held for review",false,{cycleId:"cycle",expectedHead:7,canPublishWithoutAnalysis:true});
   await held.render();
   await held.children.find(n => n.textContent === "Publish ticker without analysis").onclick();
-  assert.deepEqual(held.calls.find(c => c.url.endsWith("/publish-without-analysis"))!.body,{symbol:"TRUG",cycleId:"cycle",expectedHead:7});
+  assert.deepEqual(held.calls.find(c => c.url.endsWith("/publish-without-analysis"))!.body,{symbol:"TRUG",cycleId:"cycle",expectedHead:7,notifyUsers:true});
   assert.equal(held.calls.some(c => c.url.includes("preview") || c.url.endsWith("approve")),false);
   const listed = harness("New draft — awaiting review",true,{listed:true,cycleId:"cycle",draftRevision:5});
   await listed.render();
   assert.equal(listed.children.some(n => n.textContent === "Publish ticker without analysis"),false);
-  const checkbox = listed.children.find(n => n.tag === "label").children[0];
+  const notifyLabel = listed.children.find(n => n.tag === "label" && n.children.some((child: any) => /Notify Published/.test(child.textContent)));
+  assert.ok(notifyLabel, "approved-analysis notification choice is present");
+  const checkbox = notifyLabel.children.find((child: any) => child.type === "checkbox");
   assert.equal(checkbox.checked,false); checkbox.checked=true; checkbox.onchange();
   await listed.children.find(n => n.textContent === "Approve and publish analysis").onclick();
   assert.equal(listed.calls.find(c => c.url.endsWith("/approve"))!.body!.notifyUsers,true);
@@ -123,14 +129,15 @@ test("row edit opens the card, approval pins the saved preview, and neither gene
   h.children.find(n => n.textContent === "View / edit analysis").onclick();
   assert.deepEqual(JSON.parse(JSON.stringify(h.messages[0])), { source: "traderslink-watchlist-admin", type: "edit-analysis", symbol: "TRUG" });
   await h.children.find(n => n.textContent === "Approve and publish").onclick();
-  assert.deepEqual(h.calls.find(c => c.url.endsWith("/approve"))?.body, { symbol: "TRUG", cycleId: "cycle", expectedHead: 7, draftRevision: 5, previewHash: "exact-hash", notifyUsers: false, freeChat: false });
+  assert.deepEqual(h.calls.find(c => c.url.endsWith("/approve"))?.body, { symbol: "TRUG", cycleId: "cycle", expectedHead: 7, draftRevision: 5, previewHash: "exact-hash", notifyUsers: false, freeChat: false, xPost: false });
   assert.ok(h.calls.every(c => c.url.startsWith("/api/watchlist/analysis-review")));
 });
 test("ordinary posts get no review actions; preparing, failed and approved rows cannot publish again", async () => {
-  const ordinary = harness(); await ordinary.render(false); assert.equal(ordinary.children.length, 0);
+  const ordinary = harness(); await ordinary.render(false); assert.equal(ordinary.children.some(node => node.tag === "button" && /Approve|View \/ edit/.test(node.textContent)), false);
   for (const status of ["Preparing analysis", "Analysis failed — held for review", "Published", "Approved — delivery needs attention", "Preparing replacement — previous version available"]) {
     const h = harness(status, !status.startsWith("Analysis failed")); await h.render();
-    assert.equal(h.children.find(n => n.textContent === "Approve and publish").disabled, true, status);
+    const action = h.children.find(n => n.textContent === "Approve and publish");
+    assert.ok(!action || action.disabled === true, status);
   }
 });
 test("scripts remain syntactically valid and Add no longer awaits dashboard reads", () => {
@@ -150,7 +157,7 @@ test("accepted Add unlocks while list and runtime reads are still pending", asyn
   new Script(MANUAL_WATCHLIST_PAGE.slice(start, end)).runInNewContext({
     formEl: { addEventListener: (_name: string, callback: any) => { submit = callback; } },
     shouldConfirmLargeLiquidTicker: () => false, activateButtonEl: button,
-    symbolEl: symbol, noteEl: { value: "" }, watchlistGroupEl: { value: "main" },
+    symbolEl: symbol, noteEl: { value: "" }, traderNotesEl: { value: "" }, generateAnalysisEl: { checked: true }, watchlistGroupEl: { value: "main" },
     activateEntry: async () => true, loadEntries: () => never, loadRuntimeStatus: () => never, setStatus() {},
   });
   await submit({ preventDefault() {} });

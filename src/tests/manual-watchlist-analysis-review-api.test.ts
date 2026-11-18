@@ -4,7 +4,7 @@ import { dispatchAnalysisReviewRequest } from "../runtime/manual-watchlist-analy
 
 function setup() {
   const calls: Array<{ method: string; input: unknown }> = [];
-  const call = (method: string) => (input: unknown) => { calls.push({ method, input }); return { saved: true }; };
+  const call = (method: string) => (input: unknown) => { calls.push({ method, input }); return method === "read" ? { symbol: "PDSB", cycleId: "cycle", events: [{ revision: 2, body: { kind: "original" } }] } : { saved: true }; };
   const manager = {
     getTradersLinkAiReadReview: call("read"), getTradersLinkAiReadPublicationPreview: call("preview"),
     listTradersLinkAiReadReviews: call("queue"),
@@ -22,7 +22,7 @@ test("listing without analysis needs only current cycle/head; approval validates
   const { calls, send } = setup();
   const body = { symbol: "PDSB", cycleId: "cycle", expectedHead: 2 };
   assert.equal((await send("/publish-without-analysis", body)).status, 200);
-  assert.equal(calls[0]!.method, "listing");
+  assert.equal(calls.find(call => call.method === "listing")?.method, "listing");
   assert.equal((await send("/publish-without-analysis", { ...body, actor: "spoof" })).status, 400);
   const approval = { ...body, draftRevision: 2, previewHash: "a".repeat(64), notifyUsers: false };
   assert.equal((await send("/approve", { ...approval, notifyUsers: "false" })).status, 400);
@@ -71,7 +71,7 @@ test("approval selects the exact draft without requiring a preview hash; Discord
   assert.equal((await send("/approve", withoutHash)).status, 200);
   assert.equal((await send("/approve", body)).status, 200);
   assert.equal((await send("/retry-discord", { symbol: "PDSB", cycleId: "cycle", approvalRevision: 3 })).status, 200);
-  assert.deepEqual(calls.map((call) => call.method), ["approve", "approve", "approve", "retry"]);
+  assert.deepEqual(calls.filter(call => call.method !== "read").map((call) => call.method), ["approve", "approve", "approve", "retry"]);
 });
 
 test("conflicts are actionable but provider response details stay private", async () => {

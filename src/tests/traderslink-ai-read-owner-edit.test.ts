@@ -32,7 +32,7 @@ test("trading inconsistencies warn but preserve exactly the owner's values", () 
   } } });
   assert.equal(payload.pullbackPlans.deep?.zoneLow, 0.46);
   assert.equal(payload.pullbackPlans.deep?.zoneHigh, 0.44);
-  assert.ok(warnings.length >= 2);
+  assert.deepEqual(warnings, ["deep pullback low is above its high."]);
   assert.deepEqual(payload.pullbackPlans.deep?.evidenceIds, []);
 });
 
@@ -69,8 +69,9 @@ test("owner restores omitted breakout and preview preserves the correction witho
   assert.equal(edited.payload.generatedAt, original.generatedAt);
   assert.equal(edited.warnings.length, 0);
   const preview = renderApprovedAnalysisDiscord(edited.payload).join("");
-  assert.match(preview, /Breakout continuation/);
-  assert.match(preview, /My corrected confirmation/);
+  assert.match(preview, /PDSB/);
+  assert.match(preview, /View PDSB details/);
+  assert.doesNotMatch(preview, /My corrected confirmation/, "the Discord caption links to the complete analysis rather than copying its sections");
   const inconsistent = applyOwnerAnalysisEdit(edited.payload, { breakoutContinuation: { ...correction, price: 0.49 } });
   assert.equal(inconsistent.payload.breakoutContinuation.price, 0.49);
   assert.equal(inconsistent.warnings.length, 2);
