@@ -728,3 +728,53 @@ without blocking approval or the remaining analysis. Final receipts retained at
 Only narrow local source commits are authorized here. Coordinator must preserve
 current provider/Help/worker changes and integrate under the existing20:15
 America/Toronto handoff; no early push/restart/deployment or live sends here.
+
+## Nov18 — Admin information audit and cleanup
+
+Owner requested every Admin section audited, historical Failed/Missing/Requests
+moved into Runtime, and misleading legacy AI cards removed. Scope is presentation
+and existing information only; no settings, providers, request cadence, approval,
+AI generation, saved analyses or delivery behavior changed.
+
+Findings: Showing is filtered analysis-audit ticker rows (current saved records
+plus recent-event symbols), not public listings. Published is published analysis
+records, not tickers listed without analysis. Failed/Missing count retained audit
+events; Requests counts generation-start events, not API billing attempts. One
+generation can create multiple failure events. The old active-only subtitle was
+incorrect and is replaced. Audit refresh is separate from ordinary list updates.
+Legacy AI Model/Service/Generated/Last Generated read the separate commentary
+service, and Clean Read Model is another legacy route. Neither identifies the
+current Watchlist analysis configuration. Old thread-post records do not prove
+current website/Discord analysis delivery.
+
+Implemented: top audit summary now Audit tickers, Published analyses, Needs
+attention. Runtime contains Failed audit events, Missing audit events, Analysis
+requests with scope explanation. Runtime config uses aiReadConfigured/model/
+reasoning/fallback fields from actual status; Configured does not assert external
+provider health. Removed obsolete commentary/Clean Read/zero counters, obsolete
+thread-post delivery cards, unconditional IBKR/Moomoo badges and internal log/
+cache/config filenames. Source logs, audit API and operational controls remain.
+Provider-neutral Indicator Audit wording and Help are in the Platform companion.
+
+All11 sections were source-audited: Watchlist, Runtime, Market Data, AI Controls,
+Discord notifications, Live Website Controls, Automatic Low-Float Selection,
+Usage, Daily Recaps, Indicator Audit, Setup Detection/Results. Full decisions and
+suggestions are in the Platform progress record's matching Nov18 entry. Keep
+working selection/reversal/setup controls; Off does not establish obsolete.
+Recommend actual generation/in-flight/delivery queues, loaded timestamps and an
+effective-provider summary as separate future improvements. Setup alert preference
+currently does not connect a delivery sender; preserve the honest existing copy.
+
+Verification:14/14 focused renderer and existing row-review regressions pass;
+full Runtime tsc --noEmit passes; Platform targeted ESLint passes. Isolated
+Playwright uses actual expanded Runtime page and Platform navigation with
+synthetic audit/config fixtures and blocked network. All8 viewport/scheme cases
+(320/390/844/1280, light/dark browser preference) keep3 current audit cards in the
+persistent summary and3 historical cards solely in Runtime; Watchlist/Runtime
+switching,17 audit rows, actual model and removal of legacy model labels pass.
+Provider controls are stubbed in this render fixture; no signed-in live walkthrough
+or all-control functional acceptance is claimed. Browser preference does not
+establish production theme styling. Receipts: /tmp/watchlist-admin-audit-20261118
+(tests-final.log, types.log, render.log, lint.log). No full build needed for this
+presentation-only slice. No migration, push, restart, deployment or real send.
+Include in the existing20:15 Eastern handoff, preserving newer source work.

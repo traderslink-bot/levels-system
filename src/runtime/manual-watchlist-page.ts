@@ -543,7 +543,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         <div class="ai-read-console-toolbar">
           <div>
             <div class="ai-read-console-title">AI Read Operations</div>
-            <div class="ai-read-console-subtitle">Active watchlist tickers only. Select a row to inspect the latest operation, then expand its complete prior history of outcomes, reasons, requests, attempts, and cost. Removed and inactive ticker records remain preserved for a later long-term view.</div>
+            <div class="ai-read-console-subtitle">Analysis audit for saved ticker records and recent activity. This can include tickers that are not currently published. Select a row to inspect its recorded outcomes, reasons, requests, attempts and cost. Refresh the audit to update these counts.</div>
           </div>
           <div class="ai-read-console-controls">
             <select id="ai-read-audit-status-filter" class="ai-read-filter-select" aria-label="AI Read status filter">
@@ -624,13 +624,16 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         </div>
         <div class="inline-status" id="same-day-candle-provider-status"></div>
       </div>
-      <div class="notice" id="ai-notice"></div>
+      <div class="notice" id="ai-notice" hidden></div>
       <div class="runtime-grid" id="config-grid"></div>
     </section>
 
     <section>
       <h2>Runtime Status</h2>
       <div class="runtime-grid" id="runtime-grid"></div>
+      <h3>Analysis audit history</h3>
+      <p class="field-hint">Counts from retained audit events, not current ticker problems. A request can record multiple failure events. Analysis requests count generation starts; API Cost Explorer shows API usage.</p>
+      <div class="runtime-grid" id="ai-read-runtime-audit-grid"></div>
     </section>
 
     ${WATCHLIST_DISCORD_MENTIONS_PANEL}
@@ -729,6 +732,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     const aiReadAuditStatusFilterEl = document.getElementById("ai-read-audit-status-filter");
     const aiReadAuditRefreshEl = document.getElementById("ai-read-audit-refresh");
     const aiReadAuditGridEl = document.getElementById("ai-read-audit-grid");
+    const aiReadRuntimeAuditGridEl = document.getElementById("ai-read-runtime-audit-grid");
     const aiReadAuditCurrentListEl = document.getElementById("ai-read-audit-current-list");
     const aiReadAuditEventListEl = document.getElementById("ai-read-audit-event-list");
     const aiReadDetailEl = document.getElementById("ai-read-detail");
@@ -1013,7 +1017,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       const selectorState = entry.selectorManagedState;
       if (entry.lifecycle !== "active" || selectorState === "followup") header.appendChild(createBadge(
         selectorState === "followup"
-          ? "Follow-up Ã¢â‚¬â€ not on public watchlist"
+          ? "Follow-up — not on public watchlist"
           : lifecycleLabel(entry.lifecycle),
         selectorState === "followup" ? "badge badge-working" : lifecycleBadgeClass(entry.lifecycle),
       ));
@@ -1037,7 +1041,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         failure.textContent =
           "AI Read failed (" + String(aiReadFailure.stage || "unknown") + "): " +
           String(aiReadFailure.reason || "unknown reason") +
-          " Ã¢â‚¬â€ trigger: " + String(aiReadFailure.trigger || "unknown") +
+          " — trigger: " + String(aiReadFailure.trigger || "unknown") +
           " at " + formatTime(aiReadFailure.failedAt);
         meta.appendChild(failure);
       }
@@ -1106,38 +1110,17 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       renderProviderHealth(status);
 
       const health = status.runtimeHealth || {};
-      const sameDayHealth = status.runtimeConfig?.sameDayCandleProviderHealth || {};
       const lastPrice = health.lastPriceUpdateAt
         ? health.lastPriceUpdateSymbol + " at " + formatTime(health.lastPriceUpdateAt)
         : "";
-      const lastPost = health.lastThreadPostAt
-        ? health.lastThreadPostSymbol + " " + health.lastThreadPostKind + " at " + formatTime(health.lastThreadPostAt)
-        : "";
-      const lastDeliveryFailure = health.lastDeliveryFailureAt
-        ? health.lastDeliveryFailureSymbol + " at " + formatTime(health.lastDeliveryFailureAt) + ": " + health.lastDeliveryFailureMessage
-        : "";
+
 
       const cards = [
         ["Startup", status.startupState],
-        ["IBKR", status.ibkrConnected ? "connected" : status.ibkrReconnecting ? "reconnecting" : "disconnected"],
-        ["Provider", status.providerName],
         ["Watchlist Market Data", lifecycleLabel(status.marketDataStatus || "offline")],
-        ["Moomoo Connection", lifecycleLabel(sameDayHealth.moomooConnectionStatus || "waiting")],
         ["Last Price", lastPrice],
-        ["Last Website Post", lastPost],
-        ["Last Website Failure", lastDeliveryFailure],
+        ["Active admin tickers", String(status.activeSymbolCount ?? 0)],
         ["Diagnostics", status.diagnosticsEnabled ? "on" : "off"],
-        ["Active Count", String(status.activeSymbolCount ?? 0)],
-        ["Session Folder", status.sessionDirectory],
-        ["Review Log", "manual-watchlist-operational.log"],
-        ["Diagnostic Log", "manual-watchlist-diagnostics.log"],
-        ["Discord Audit", "discord-delivery-audit.jsonl"],
-        ["Structure Posts", status.runtimeConfig?.marketStructureStandalonePostMode],
-        ["Structure Lifecycle", "market-structure-lifecycle.jsonl"],
-        ["Structure Memory", "market-structure-story-memory.json"],
-        ["Structure Delivery Audit", "market-structure-delivery-audit.md"],
-        ["Structure Outcome Audit", "market-structure-outcome-calibration.md"],
-        ["Thread Summary", "thread-summaries.json"],
       ];
 
       for (const [label, value] of cards) {
@@ -1171,9 +1154,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         health.lastPriceSymbol && health.lastPriceAgeMs !== null && health.lastPriceAgeMs !== undefined
           ? health.lastPriceSymbol + " " + formatAge(health.lastPriceAgeMs)
           : "";
-      const lastPost = health.lastPostAgeMs !== null && health.lastPostAgeMs !== undefined
-        ? formatAge(health.lastPostAgeMs)
-        : "";
       const seedAverage = seedStats.averageDurationMs !== null && seedStats.averageDurationMs !== undefined
         ? formatAge(seedStats.averageDurationMs).replace(" ago", "")
         : "";
@@ -1187,10 +1167,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ["Watchlist Market Data", lifecycleLabel(status.marketDataStatus || "offline")],
         ["Price Feed", lifecycleLabel(health.priceFeedStatus || "waiting")],
         ["Last Price Age", lastPrice],
-        ["Discord Delivery", lifecycleLabel(health.discordStatus || "waiting")],
-        ["Last Post Age", lastPost],
         ["Historical Data", lifecycleLabel(health.historicalDataStatus || "waiting")],
-        ["Moomoo Connection", lifecycleLabel(sameDayHealth.moomooConnectionStatus || "waiting")],
         ["Same-Day Candles", providerLabel(sameDayHealth.primaryProvider || status.runtimeConfig?.sameDayCandleProvider || "moomoo") +
           " primary | " +
           (sameDayHealth.activeProvider
@@ -1476,9 +1453,9 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       aiReadSessionStatusEl.textContent = availability?.allowed && availability.session === "closed"
         ? "Market closed: additions and manual refresh use the latest completed session. Automatic updates remain paused."
         : availability?.allowed
-        ? "Current session: " + availability.session + " Ã¢â‚¬â€ AI Reads allowed."
+        ? "Current session: " + availability.session + " — AI Reads allowed."
         : "Current session: " + String(availability?.session || "unknown") +
-          " Ã¢â‚¬â€ " + String(availability?.reason || "AI Reads blocked.");
+          " — " + String(availability?.reason || "AI Reads blocked.");
       aiReadTopRegularActivationStatusEl.textContent =
         aiReadGenerationSettings.topRegularActivationEnabled
           ? "On: all manually curated Top Regular watches may receive AI Reads with no ticker or read-count limit, even when the current session is off. The master switch still blocks every OpenAI request."
@@ -1741,7 +1718,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         return;
       }
       aiReadDetailEl.hidden = false;
-      aiReadDetailTitleEl.textContent = row.symbol + " Ã¢â‚¬â€ " + auditStatusLabel(row.state);
+      aiReadDetailTitleEl.textContent = row.symbol + " — " + auditStatusLabel(row.state);
       aiReadDetailSummaryEl.textContent = row.reason;
       aiReadDetailGridEl.innerHTML = "";
       [
@@ -1810,14 +1787,17 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         .sort((left, right) => Number(right.latestEvent?.occurredAt || right.current?.lastReadGeneratedAt || 0) - Number(left.latestEvent?.occurredAt || left.current?.lastReadGeneratedAt || 0));
       aiReadAuditGridEl.innerHTML = "";
       [
-        ["Showing", String(filteredRows.length)],
-        ["Published", String(rows.filter((row) => row.current?.status === "published").length)],
+        ["Audit tickers", String(filteredRows.length)],
+        ["Published analyses", String(rows.filter((row) => row.current?.status === "published").length)],
         ["Needs attention", String(rows.filter((row) => row.needsAttention).length)],
-        ["Failed", String(byOutcome.failed || 0)],
-        ["Skipped", String(byOutcome.skipped || 0)],
-        ["Missing", String(byOutcome.missing || 0)],
-        ["Requests", String(byOutcome.request_started || 0)],
       ].forEach(([label, value]) => aiReadAuditGridEl.appendChild(createRuntimeCard(label, value)));
+      aiReadRuntimeAuditGridEl.innerHTML = "";
+      [
+        ["Failed audit events", String(byOutcome.failed || 0)],
+        ["Missing audit events", String(byOutcome.missing || 0)],
+        ["Analysis requests", String(byOutcome.request_started || 0)],
+      ].forEach(([label, value]) => aiReadRuntimeAuditGridEl.appendChild(createRuntimeCard(label, value)));
+      aiReadAuditGridEl.title = "Ticker rows in the selected audit view; not the number of tickers published to members. Counts update when the audit is refreshed.";
 
       aiReadAuditCurrentListEl.innerHTML = "";
       if (filteredRows.length === 0) {
@@ -2060,14 +2040,14 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       for (const decision of (selector.recentDecisions || [])) {
         const item = document.createElement("li");
         const title = document.createElement("strong");
-        title.textContent = decision.symbol + " Ã¢â‚¬â€ qualification " + decision.score + " Ã¢â‚¬â€ live rank " + decision.rankingScore + " Ã¢â‚¬â€ current slot " + decision.slotSurvivalScore + (
+        title.textContent = decision.symbol + " — qualification " + decision.score + " — live rank " + decision.rankingScore + " — current slot " + decision.slotSurvivalScore + (
           decision.qualified
             ? decision.promotionReady === false
-              ? " Ã¢â‚¬â€ qualifies, promotion held"
-              : " Ã¢â‚¬â€ qualifies, promotion-ready"
+              ? " — qualifies, promotion held"
+              : " — qualifies, promotion-ready"
             : decision.haltRetentionProtected
-              ? " Ã¢â‚¬â€ confirmed halt, retention protected"
-              : " Ã¢â‚¬â€ rejected"
+              ? " — confirmed halt, retention protected"
+              : " — rejected"
         );
         const detail = document.createElement("div");
         detail.className = "activity-detail";
@@ -2132,15 +2112,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       if (config.publicWatchlistUrl) {
         openLiveWatchlistLinkEl.href = config.publicWatchlistUrl;
       }
-      const health = status.runtimeHealth || {};
-      const ai = health.aiCommentary || {};
-      const lastAiGenerated = ai.lastGeneratedAt
-        ? ai.lastGeneratedSymbol + " at " + formatTime(ai.lastGeneratedAt) + " via " + ai.lastGeneratedModel
-        : "";
-      const lastAiFailure = ai.lastFailedAt
-        ? ai.lastFailedSymbol + " at " + formatTime(ai.lastFailedAt) + ": " + ai.lastFailureMessage
-        : "";
-
       configGridEl.innerHTML = "";
       renderHistoricalProviderControl(config);
       renderLiveProviderControl(config);
@@ -2152,43 +2123,23 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       renderTopRegularWatchlistVisibilityControl(status);
       renderAiReadControls(status);
       renderAutoSelectorControl(status);
-      aiNoticeEl.textContent =
-        "AI commentary can add separate AI read posts after deterministic alerts and can enhance optional symbol recaps. Snapshots, continuity, and follow-through posts still use deterministic text.";
+      aiNoticeEl.hidden = true;
+      aiNoticeEl.textContent = "";
 
+      const modelLabel = (model) => ({"gpt-5.6-luna":"GPT-5.6 Luna","gpt-5.6-terra":"GPT-5.6 Terra","gpt-6-luna":"GPT-6 Luna","gpt-6-sol":"GPT-6 Sol"}[model] || model || "Not configured");
       const cards = [
-        ["Server", (config.bindHost || "127.0.0.1") + ":" + (config.port || "3010")],
         ["Historical Provider", config.historicalProvider],
         ["Live Provider", config.liveProvider],
         ["Same-Day Candle Provider", config.sameDayCandleProvider],
-        ["Trader Read Card", health.liveTraderReadCardVisible === false ? "hidden" : "visible"],
-        ["Potential Gain Card", health.potentialGainCardVisible === false ? "hidden" : "visible"],
-        ["Lifecycle Labels", health.watchlistLifecycleLabelsVisible === true ? "visible" : "hidden"],
-        ["Reversal Watchlist", health.reversalWatchlistVisible === false ? "hidden" : "visible"],
+        ["Analysis service", status.aiReadConfigured ? "Configured" : "Not configured"],
+        ["Analysis model", modelLabel(status.aiReadModel)],
+        ["Reasoning effort", status.aiReadReasoningEffort || "Not configured"],
+        ["Fallback model", status.aiReadFallbackModel ? modelLabel(status.aiReadFallbackModel) + " / " + String(status.aiReadFallbackReasoningEffort || "Not configured") : "Off"],
+        ["External research", status.aiReadExternalResearchEnabled ? "On" : "Off"],
         ["Automatic Selection", status.autoWatchlistSelector?.enabled ? "enabled" : "disabled"],
-        ["TradersLink AI Read", status.aiReadConfigured ? "available" : "unavailable"],
-        ["AI External Research", status.aiReadExternalResearchEnabled ? "enabled" : "disabled"],
-        ["Provider Config", config.providerConfigPath],
-        ["IBKR Timeout", config.ibkrHistoricalTimeoutMs ? config.ibkrHistoricalTimeoutMs + "ms" : ""],
         ["Candle Cache", config.candleCacheMode],
         ["Runtime Candle Cache", config.runtimeCandleCacheMode],
         ["Startup Cache", config.startupCandleCacheEnabled ? "enabled" : "disabled"],
-        ["Candle Cache Dir", config.candleCacheDirectoryPath],
-        ["Structure Posts", config.marketStructureStandalonePostMode],
-        ["Structure Lifecycle Log", config.marketStructureLifecyclePath],
-        ["Structure Memory", config.marketStructureStoryMemoryPath],
-        ["Diagnostics Requested", config.monitoringDiagnosticsRequested ? "yes" : "no"],
-        ["AI Requested", config.aiCommentaryRequested ? "yes" : "no"],
-        ["AI Service", config.aiCommentaryServiceAvailable ? "available" : "unavailable"],
-        ["OpenAI Key", config.openAiApiKeyPresent ? "present" : "missing"],
-        ["AI Model", config.aiCommentaryModel],
-        ["AI Route", config.aiCommentaryRoute],
-        ["Clean Read Model", config.aiCleanReadModel],
-        ["Clean Read Reasoning", config.aiCleanReadReasoningEffort],
-        ["Clean Read Route", config.aiCleanReadRoute],
-        ["AI Generated", String(ai.generatedCount || 0)],
-        ["AI Failed", String(ai.failedCount || 0)],
-        ["Last AI Generated", lastAiGenerated],
-        ["Last AI Failure", lastAiFailure],
       ];
 
       for (const [label, value] of cards) {
