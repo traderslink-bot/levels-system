@@ -1,3 +1,4 @@
+import { WatchlistBreakoutLifecycle, omitFollowupBreakout, publishedBreakoutPrice, type CrossedBreakout } from "../ai/watchlist-breakout-lifecycle.js";
 import { WatchlistNotesPublication } from "../alerts/watchlist-notes-publication.js";
 import { applyDiscordOwnerText, discordTextParts, formatWatchlistDiscordHeading } from "../alerts/watchlist-discord-owner-text.js";
 import { categoryMoveCopy } from "../alerts/watchlist-category-move-receipts.js";
@@ -4191,6 +4192,65 @@ export class ManualWatchlistRuntimeManager {
     return { cancelled: true };
   }
 
+  private breakoutLifecycle?: WatchlistBreakoutLifecycle;
+  private readonly breakoutSeeded = new Set<string>();
+  private readonly breakoutWarnings = new Set<string>();
+  private breakoutIdentity(entry: WatchlistEntry): string {
+    return entry.indicatorPublicationIdentity ?? `${entry.symbol}:${entry.activatedAt ?? entry.publicationReview?.cycleId ?? "legacy"}`;
+  }
+  private crossedPublishedBreakout(symbol: string, priceAction?: TradersLinkAiReadPriceActionContext): CrossedBreakout | undefined {
+    const entry=this.watchlistStore.getEntry(symbol);if(!entry?.active)return;
+    const identity=this.breakoutIdentity(entry), ledger=this.breakoutLifecycle ??= new WatchlistBreakoutLifecycle();
+    try {
+      if(!this.breakoutSeeded.has(identity)) {
+        const records: Array<{at:number;read:unknown}>=[];
+        let review=entry.publicationReview?.cycleId ? this.options.tradersLinkAiReadReviewStore?.read(entry.publicationReview.cycleId) : undefined;
+        const seen=new Set<string>();
+        while(review && !seen.has(review.cycleId)) {
+          seen.add(review.cycleId);
+          for(const event of review.events) {
+            if(event.body.kind!=="delivery" || event.body.channel!=="website" || event.body.status!=="acknowledged")continue;
+            const revision=event.body.approvalRevision;
+            const approval=review.events.find(item=>item.revision===revision);
+            if(approval?.body.kind!=="approve")continue;
+            const cards=approval.body.publication?.website.cards as {tradersLinkAiRead?:{body?:unknown}}|undefined;
+            if(typeof cards?.tradersLinkAiRead?.body==='string') {
+              try{records.push({at:event.at,read:JSON.parse(cards.tradersLinkAiRead.body)});}catch{/* An unreadable older card is not invented evidence. */}
+            }
+          }
+          const actor=review.events[0]?.actor??"",prior=actor.startsWith("runtime:private:")?actor.slice("runtime:private:".length):"";
+          review=prior?this.options.tradersLinkAiReadReviewStore?.read(prior):undefined;
+        }
+        for(const record of records.sort((a,b)=>a.at-b.at)) {
+          const price=publishedBreakoutPrice(record.read);
+          if(price!==null && record.at >= (entry.activatedAt??0)) {ledger.register(identity,symbol,price,record.at);break;}
+        }
+        this.breakoutSeeded.add(identity);
+      }
+      const now=this.options.now?.()??Date.now();
+      if(typeof entry.lastPrice==='number' && typeof entry.lastPriceUpdateAt==='number')ledger.observe(identity,entry.lastPrice,entry.lastPriceUpdateAt,now);
+      if(priceAction) {
+        const cutoff=Math.min(now,priceAction.fetchedAt);
+        ledger.observeBars(identity,priceAction.oneMinuteCandles??[],60000,cutoff);
+        ledger.observeBars(identity,priceAction.intradayCandles,300000,cutoff);
+      }
+      this.breakoutWarnings.delete(identity);
+      return ledger.crossed(identity);
+    } catch { if(!this.breakoutWarnings.has(identity)){this.breakoutWarnings.add(identity);console.warn("[Watchlist] Breakout history could not be checked; saved analysis and owner controls remain available.");}return; }
+  }
+  private rememberPublishedBreakout(published: TradersLinkAiReadPayload | LiveWatchlistPublishedPatch) {
+    try {
+      if (!("symbol" in published)) return;
+      const symbol=normalizeSymbol(published.symbol),entry=this.watchlistStore.getEntry(symbol);
+      const content="generationId" in published ? published : "cards" in published ? JSON.parse(published.cards.tradersLinkAiRead?.body ?? "null") : null;
+      const price=publishedBreakoutPrice(content);
+      if(!entry?.active || price===null)return;
+      this.crossedPublishedBreakout(symbol);
+      (this.breakoutLifecycle ??= new WatchlistBreakoutLifecycle()).register(this.breakoutIdentity(entry),symbol,price,this.options.now?.()??Date.now());
+      this.crossedPublishedBreakout(symbol);
+    } catch { console.warn("[Watchlist] Breakout history could not be saved; analysis publication remains available."); }
+  }
+
   private async generateTradersLinkAiRead(
     symbolInput: string,
     force: boolean,
@@ -4601,6 +4661,7 @@ export class ManualWatchlistRuntimeManager {
               this.getTradersLinkAiReadDailyCostBudgetStatus().canStartRequest;
           },
           analysisFormat,
+          crossedOriginalBreakout: this.crossedPublishedBreakout(symbol,priceAction),
           ownerReviewRequired: Boolean(reviewCycleId),
           onValidationDecision: (decision) => { validationDecisions.push(decision); },
           snapshot,
@@ -4663,6 +4724,8 @@ export class ManualWatchlistRuntimeManager {
         throw error;
       }
       cancellation.signal.throwIfAborted();
+      // Price may cross the original level while the model request is running.
+      read = omitFollowupBreakout(read,this.crossedPublishedBreakout(symbol,priceAction));
       this.cancellableAnalysis.delete(symbol); // Generation is complete; publication is no longer cancellable.
       if (reviewCycleId) this.options.tradersLinkAiReadReviewStore!.recordGeneration(reviewCycleId, { ...generationAudit, status: "completed" });
       if (recordedAttemptCount === 0) {
@@ -4829,6 +4892,7 @@ export class ManualWatchlistRuntimeManager {
         deliveredBody !== JSON.stringify(draft.payload)) return;
       store.recordDelivery(review.cycleId, review.head, approval.revision, "website", "acknowledged", `website:${approval.revision}`);
     }
+    this.rememberPublishedBreakout(published);
     const pending = entry?.pendingTradersLinkAiReadGeneration;
     if (!entry || !pending || pending.generationId !== read.generationId) {
       return;
@@ -11453,6 +11517,7 @@ export class ManualWatchlistRuntimeManager {
       lastPrice: update.lastPrice,
       operationStatus: "monitoring live price",
     });
+    this.crossedPublishedBreakout(update.symbol);
     this.tickerHaltStateBySymbol.set(normalizeSymbol(update.symbol), {
       status: "live",
       reason: null,

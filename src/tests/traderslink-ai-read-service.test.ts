@@ -2526,3 +2526,32 @@ describe("optional fallback", () => {
     assert.equal(service.getConfiguredModel(),"gpt-5.6-terra");assert.equal(calls,2);
   });
 });
+
+it("crossed original breakout is included in both request formats and new generated breakout sections are omitted", async()=>{
+ for(const format of ['current','simple'] as const){
+  const raw=format==='simple'?{setup:'Current trade remains active.',breakout:{price:1.65,explanation:'Another ceiling',confirmation:'Wait for volume'},pullbacks:[{low:1.2,high:1.25,explanation:'Tested area',confirmation:'Buyer response'}],upside:[{low:1.9,high:2,explanation:'Observed resistance'}],catalystRealityCheck:{status:'none',summary:'No fresh supplied catalyst.',sourceUrls:[]},riskSummary:['Volatile stock.']}:modelRead();
+  let calls=0,requestBody:any;
+  const service=new OpenAITradersLinkAiReadService({apiKey:'synthetic-test',model:'test-model',fetchImpl:async(_url,init)=>{calls++;requestBody=JSON.parse(String(init?.body));return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(raw)}]}]});}});
+  const crossedOriginalBreakout={originalPrice:1.5,crossedAt:DATA_AS_OF-1000};
+  const result=await service.generate({snapshot:snapshot(),priceAction:priceAction(),analysisFormat:format,ownerReviewRequired:true,crossedOriginalBreakout,research:{ticker:'TGHL',businessDays:5,count:0,articles:[]}});
+  const packet=JSON.parse(requestBody.input[1].content[0].text);
+  assert.deepEqual(format==='simple'?packet.marketPacket.crossedOriginalBreakout:packet.crossedOriginalBreakout,crossedOriginalBreakout);
+  assert.equal(calls,1);assert.equal(result.breakoutContinuation.price,null);assert.equal(result.breakoutContinuation.rationale,'');assert.ok(result.targets.every(target=>target.label!=='Breakout level'));assert.ok(result.targets.length>0);assert.ok(result.riskSummary.length>0);
+  if(format==='simple'){assert.equal(result.simpleAnalysis?.breakout,null);assert.equal(result.simpleAnalysis?.pullbacks[0]?.low,1.2);assert.equal(result.simpleAnalysis?.setup,'Current trade remains active.');}
+ }
+});
+
+it("a quote crossing during the request removes the follow-up breakout without losing other objectives", async()=>{
+ const {WatchlistBreakoutLifecycle,omitFollowupBreakout}=await import('../lib/ai/watchlist-breakout-lifecycle.js');
+ const {mkdtempSync,rmSync}=await import('node:fs');const {join}=await import('node:path');const {tmpdir}=await import('node:os');
+ const directory=mkdtempSync(join(tmpdir(),'inflight-breakout-test-'));
+ try{
+  const ledger=new WatchlistBreakoutLifecycle(directory);ledger.register('activation','TGHL',1.5,DATA_AS_OF-10000);
+  let complete!:()=>void;const gate=new Promise<void>(resolve=>{complete=resolve;});let calls=0;
+  const service=new OpenAITradersLinkAiReadService({apiKey:'synthetic-test',model:'test-model',fetchImpl:async()=>{calls++;await gate;return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(modelRead())}]}]});}});
+  const pending=service.generate({snapshot:snapshot(),priceAction:priceAction(),ownerReviewRequired:true,research:{ticker:'TGHL',businessDays:5,count:0,articles:[]}});
+  ledger.observe('activation',1.6,DATA_AS_OF);complete();
+  const raw=await pending,read=omitFollowupBreakout(raw,ledger.crossed('activation'));
+  assert.equal(read.breakoutContinuation.price,null);assert.ok(read.targets.every(target=>target.label!=='Breakout level'));assert.deepEqual(read.targets.map(t=>t.price),raw.targets.map(t=>t.price));assert.deepEqual(read.pullbackPlans,raw.pullbackPlans);assert.equal(calls,1);
+ }finally{rmSync(directory,{recursive:true,force:true});}
+});
