@@ -3138,6 +3138,7 @@ export class ManualWatchlistRuntimeManager {
   private readonly startupCacheRestoredAt = new Map<string, number>();
   private readonly startupCacheFreshRefreshFailures = new Map<string, string>();
   private readonly aiReadInFlight = new Set<string>();
+  private providerProfileTransition: Promise<void> | null = null;
   private readonly aiReadState = new Map<string, TradersLinkAiReadRefreshState>();
   private readonly aiReadLifecyclePlanBySymbol = new Map<string, TradersLinkAiLifecyclePlan>();
   private readonly aiReadInitialGenerationSuppressedSymbols = new Set<string>();
@@ -3416,6 +3417,13 @@ export class ManualWatchlistRuntimeManager {
 
   getHistoricalLookbackBars(): ManualWatchlistHistoricalLookbacks {
     return { ...this.historicalLookbackBars };
+  }
+
+  setHistoricalLookbackBars(value: ManualWatchlistHistoricalLookbacks): void {
+    for (const timeframe of ["daily", "4h", "5m"] as const) {
+      if (!Number.isSafeInteger(value[timeframe]) || value[timeframe] <= 0) throw new Error("Invalid historical lookback.");
+    }
+    Object.assign(this.historicalLookbackBars, value);
   }
 
   private emitLifecycle(
@@ -4225,6 +4233,10 @@ export class ManualWatchlistRuntimeManager {
     runId: string,
     preparedPriceAction?: TradersLinkAiReadPriceActionContext,
   ): Promise<TradersLinkAiReadPayload | null> {
+    if (this.providerProfileTransition) {
+      await this.providerProfileTransition.catch(() => undefined);
+      preparedPriceAction = undefined;
+    }
     const requestActivationEpoch = this.activationEpochs.get(symbol);
     if (requestedTrigger === "manual" || requestedTrigger === "activation") this.cancelledAutomaticAnalysis.delete(symbol);
     else if (this.cancelledAutomaticAnalysis.has(symbol) && this.cancelledAutomaticAnalysis.get(symbol) === this.watchlistStore.getEntry(symbol)?.tradersLinkAiReadBoundaryState?.generatedAt) return null;
@@ -11654,7 +11666,12 @@ export class ManualWatchlistRuntimeManager {
     await restartTask;
   }
 
-  async switchLivePriceProvider(provider: LivePriceProvider): Promise<void> {
+  /** Provider switching waits for data preparation; it never changes review/approval rules. */
+  hasActiveMarketDataPreparation(): boolean {
+    return this.aiReadInFlight.size > 0 || this.pendingActivations.size > 0;
+  }
+
+  async switchLivePriceProvider(provider: LivePriceProvider, transition?: { commit: () => void; rollback: () => void }): Promise<void> {
     const restartTask = this.monitoringRestartQueue
       .catch(() => undefined)
       .then(async () => {
@@ -11666,11 +11683,12 @@ export class ManualWatchlistRuntimeManager {
           : [];
         await this.options.monitor.stop();
         const previousProvider = this.options.monitor.setLivePriceProvider(provider);
-        if (!this.isStarted) {
-          return;
-        }
-
+        let transitionStarted = false;
         try {
+          if (transition && this.hasActiveMarketDataPreparation()) throw new Error("Market data preparation is running.");
+          transitionStarted = Boolean(transition);
+          transition?.commit();
+          if (!this.isStarted) return;
           if (startableEntries.length === 0) {
             this.emitLifecycle("monitor_restart_completed", {
               details: {
@@ -11702,6 +11720,7 @@ export class ManualWatchlistRuntimeManager {
             console.warn(`[ManualWatchlistRuntimeManager] Failed to stop rejected live provider: ${message}`);
           });
           this.options.monitor.setLivePriceProvider(previousProvider);
+          if (transitionStarted) transition?.rollback();
           if (startableEntries.length > 0) {
             try {
               await this.options.monitor.start(
@@ -11718,7 +11737,9 @@ export class ManualWatchlistRuntimeManager {
         }
       });
     this.monitoringRestartQueue = restartTask;
-    await restartTask;
+    if (transition) this.providerProfileTransition = restartTask;
+    try { await restartTask; }
+    finally { if (this.providerProfileTransition === restartTask) this.providerProfileTransition = null; }
   }
 
   async start(): Promise<void> {

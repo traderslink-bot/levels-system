@@ -15,6 +15,7 @@ import type {
 export type ValidationCandleCacheMode = "off" | "read_write" | "refresh" | "replay";
 
 type CandleFetchClient = {
+  getProviderRevision?(): number;
   getProviderName(): CandleProviderName;
   fetchCandles(request: HistoricalFetchRequest): Promise<CandleProviderResponse>;
 };
@@ -247,6 +248,8 @@ export class ValidationCachedCandleFetchService extends CandleFetchService {
     return this.delegate.getProviderName();
   }
 
+  override getProviderRevision(): number { return this.delegate.getProviderRevision?.() ?? 0; }
+
   getCacheRuntimeInfo(): ValidationCandleCacheRuntimeInfo {
     return {
       mode: this.mode,
@@ -263,14 +266,21 @@ export class ValidationCachedCandleFetchService extends CandleFetchService {
       return this.delegate.fetchCandles(request);
     }
 
-    const provider = request.preferredProvider ?? this.delegate.getProviderName();
+    const selectedProvider = this.delegate.getProviderName(), revision = this.getProviderRevision();
+    const checked = (response: CandleProviderResponse) => {
+      if (selectedProvider !== this.delegate.getProviderName() || revision !== this.getProviderRevision()) {
+        throw new Error("Historical provider changed during the cached candle request.");
+      }
+      return response;
+    };
+    const provider = request.preferredProvider ?? selectedProvider;
     const cachePath = cachePathForRequest(this.cacheDirectoryPath, request, provider);
 
     if (this.mode !== "refresh") {
       const cached = await readCacheEntry(cachePath);
       if (cached) {
         this.exactHits += 1;
-        return withRequestMetadata(cached.response, request);
+        return checked(withRequestMetadata(cached.response, request));
       }
 
       const nearbyCachePath = await findNearestReusableCachePath(
@@ -283,7 +293,7 @@ export class ValidationCachedCandleFetchService extends CandleFetchService {
         const nearbyCached = await readCacheEntry(nearbyCachePath);
         if (nearbyCached) {
           this.reusableHits += 1;
-          return withRequestMetadata(nearbyCached.response, request);
+          return checked(withRequestMetadata(nearbyCached.response, request));
         }
       }
 
@@ -296,7 +306,7 @@ export class ValidationCachedCandleFetchService extends CandleFetchService {
     }
 
     this.misses += 1;
-    const response = withRequestMetadata(await this.delegate.fetchCandles(request), request);
+    const response = checked(withRequestMetadata(await this.delegate.fetchCandles(request), request));
     const cacheEntry: ValidationCandleCacheEntry = {
       schemaVersion: CACHE_SCHEMA_VERSION,
       cachedAt: Date.now(),
@@ -311,6 +321,6 @@ export class ValidationCachedCandleFetchService extends CandleFetchService {
     };
     await writeCacheEntry(cachePath, cacheEntry);
     this.writes += 1;
-    return response;
+    return checked(response);
   }
 }
