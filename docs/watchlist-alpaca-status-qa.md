@@ -558,3 +558,14 @@ current stored-shape/editor contract, not a successful owner browser save or
 the particular unrecorded failed edit. The API's generic catch does not log its
 underlying exception; current logs therefore cannot establish its cause.
 No approval or owner editing policy was added or changed.
+
+
+Final full CI 44223627575 passes 1729/1730 cases with zero skipped, cancelled or
+todo. One additional inherited stale assertion was outside the initial 16-file
+repair: VRAX confirmed-flip expected the only remaining observed resistance to
+be absent, contradicting the current full-ladder fallback. The same failure is
+present in original source08 CI 44215294329. The test now verifies that actual
+resistance, its nearest/must-clear projection, and the unchanged support flip.
+All 17 affected files pass 402/402 focused cases on exact08 source; 791 other
+tracked files remain byte-identical. A separate one-file patch is sealed in the
+manifest for Coordinator integration and final CI. No product behavior changed.

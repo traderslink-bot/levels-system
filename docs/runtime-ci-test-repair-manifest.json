@@ -867,7 +867,8 @@
     "src/tests/watchlist-discord-mentions.test.ts": "059e178ee535879afafcef427fcc2763c8ca3372978ec53d6cca04a360682ea2",
     "src/tests/watchlist-listing-only-publication.test.ts": "41bdd3f0bfb567b4a7f5e04d4bb2da9c95eee3c790fe88dc7d5c02ef8f8be7f3",
     "src/tests/watchlist-simple-analysis.test.ts": "1a945288e661b5b689ccc90f2ccc7c47b6318745a47ada21444c80881b2764e4",
-    "src/tests/watchlist-simple-integration.test.ts": "15a06599e0bb32ccb185b1ef8d9a86fda8d0137016a0a5cdd0347a1680fa7bca"
+    "src/tests/watchlist-simple-integration.test.ts": "15a06599e0bb32ccb185b1ef8d9a86fda8d0137016a0a5cdd0347a1680fa7bca",
+    "src/tests/small-cap-level-regressions.test.ts": "09a527244422215961bd0eb7fd6db071849bfa2375a97e175bb007087d8613b8"
   },
   "preimages": {
     "src/tests/discord-rest-thread-gateway.test.ts": "83dd9fd2c9c9317afbf1fc05f2f17d6fe79778f149fae771152684430dc9010b",
@@ -885,7 +886,8 @@
     "src/tests/watchlist-discord-mentions.test.ts": "842290c0bca65bc1374f026490923c497d1616b09ca385a75e62d74968fbef83",
     "src/tests/watchlist-listing-only-publication.test.ts": "99005e99b75eeb21a2ff29f457a4891cad64450abb50c21ef08c28860608be36",
     "src/tests/watchlist-simple-analysis.test.ts": "28fd40128c4f5a6da008faa3ce775c6405c2b04f022e5755921e5d2713425bac",
-    "src/tests/watchlist-simple-integration.test.ts": "0670a42f100a9012f7e29e1c13cde435370ce8755ab4c7eaeb5895948d9416c5"
+    "src/tests/watchlist-simple-integration.test.ts": "0670a42f100a9012f7e29e1c13cde435370ce8755ab4c7eaeb5895948d9416c5",
+    "src/tests/small-cap-level-regressions.test.ts": "58e8f9b84bca47d778595de3aa2f9a955428e2f4486e6b631e8bc7f8bf7a8b37"
   },
   "rootIdentity": {
     "device": 2049,
@@ -991,7 +993,7 @@
       "removedObsoleteAssertions": 3
     }
   ],
-  "status": "FOCUSED_PASS_TYPES_PASS_FULL_CI_PENDING",
+  "status": "FOCUSED_17_PASS_TYPES_PASS_FINAL_CI_PENDING",
   "qualificationLogs": {
     "qa-focused-passing-focused.log": {
       "sha256": "1d16ea8fe32c89a1d7af7930243a8fbc9607acf54e7a45edf0d39d94c6da1675",
@@ -1223,5 +1225,37 @@
     ],
     "base": "08d5c5a3632cac671448c81e833a69fdd92cb7fb"
   },
-  "artifactDisposition": "Retain source projection, patch, manifest and final focused/type receipts until Coordinator seals complete CI evidence and confirms integration. Then remove the exact recorded projection only after root device/inode and absence of owned processes are checked. Failed intermediate logs are disposable after final CI acceptance; retain the small final summary/manifest. No production data or secrets are present."
+  "artifactDisposition": "Retain source projection, patch, manifest and final focused/type receipts until Coordinator seals complete CI evidence and confirms integration. Then remove the exact recorded projection only after root device/inode and absence of owned processes are checked. Failed intermediate logs are disposable after final CI acceptance; retain the small final summary/manifest. No production data or secrets are present.",
+  "followup": {
+    "ciRun": 44223627575,
+    "ciTests": 1730,
+    "ciPassed": 1729,
+    "ciFailed": 1,
+    "failure": "VRAX confirmed_flip stale assertion also present in original08CI",
+    "path": "src/tests/small-cap-level-regressions.test.ts",
+    "reason": "Current full-ladder fallback intentionally retains nearest actual13.35 resistance when6 becomes support; stale assertion expected empty resistance. No product source changes.",
+    "patch": "/tmp/watchlist-runtime-ci-08d-test-qa-11637deaef/runtime-vrax-test-contract-followup.patch",
+    "patchSha256": "88df03bf455d78a3384304abb8895969d797fed5a8921d801b8ce4bd3980bad6",
+    "preimageSha256": "58e8f9b84bca47d778595de3aa2f9a955428e2f4486e6b631e8bc7f8bf7a8b37",
+    "postimageSha256": "09a527244422215961bd0eb7fd6db071849bfa2375a97e175bb007087d8613b8",
+    "registrationBefore": 1,
+    "registrationAfter": 1,
+    "focusedLog": "/tmp/watchlist-runtime-ci-08d-test-qa-11637deaef/qa-focused-final17.log",
+    "focusedLogSha256": "077bb6e4941feee71088c2013d7fb1ce535ecf674c3a424617e194f0d8e3d2b6",
+    "focusedSummary": [
+      "# tests 402",
+      "# pass 402",
+      "# fail 0",
+      "# cancelled 0",
+      "# skipped 0",
+      "# todo 0"
+    ],
+    "untouchedTrackedFilesVerified": 791,
+    "sourceDifferences": [],
+    "fullTypes": {
+      "status": "PASS",
+      "log": "/tmp/watchlist-runtime-ci-08d-test-qa-11637deaef/qa-full-types-final17.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
 }

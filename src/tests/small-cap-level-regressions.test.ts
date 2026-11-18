@@ -43,7 +43,11 @@ for (const fixture of SMALL_CAP_LEVEL_REGRESSION_FIXTURES) {
       const flipped = map.supportLevels.find((level) => level.price === 6);
       assert.equal(flipped?.roleFlipState, "confirmed");
       assert.equal(flipped?.roleFlipFromSide, "resistance");
-      assert.equal(map.resistanceLevels.some((level) => level.price === 13.35), false);
+      // With no nearer resistance remaining after the role flip, preserve the
+      // nearest actual full-ladder level instead of implying empty resistance.
+      assert.deepEqual(map.resistanceLevels.map((level) => level.price), [13.35]);
+      assert.equal(map.nearestResistance?.price, 13.35);
+      assert.equal(map.tradePlan.mustClear?.price, 13.35);
     }
     if (fixture.expected === "catalyst_references") {
       assert.deepEqual(
