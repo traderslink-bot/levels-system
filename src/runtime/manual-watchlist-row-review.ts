@@ -72,6 +72,7 @@ li.watchlist-control-row > .entry-main > .entry-title > strong:first-child { col
   let reviewError = '';
   const pending = new Set(), errors = new Map(), notificationChoices = new Map();
   const notesDrafts = new Map();
+  const notesRequests = new Map();
   const freeChatChoices = new Map();
 
   const pendingMoveText = new Map();
@@ -479,17 +480,31 @@ function attachX(entry, actions, state, more = actions) {
       const message = document.createElement('p'); message.setAttribute('role','status');
       const save = document.createElement('button'); save.textContent = 'Save draft'; save.type = 'button';
       const publish = document.createElement('button'); publish.textContent = 'Publish notes'; publish.type = 'button';
+      const notifyLabel = document.createElement('label'); notifyLabel.style.cssText='display:inline-flex;align-items:center;gap:.4rem';
+      const notify = document.createElement('input'); notify.type='checkbox'; notify.style.width='auto';
+      notifyLabel.append(notify,document.createTextNode('Notify users about updated notes'));
+      const hint=document.createElement('p'); hint.className='field-hint'; hint.textContent='Leave unchecked if you will send a move, analysis or other Watchlist alert.';
+      let publicationRequest=notesRequests.get(key);
+      const updateNotify=()=>{notify.disabled=!text.value.trim();if(notify.disabled)notify.checked=false;};
+      const keepDraft=text.oninput; text.oninput=()=>{keepDraft();updateNotify();}; updateNotify();
       const close = document.createElement('button'); close.textContent = 'Close'; close.type = 'button'; close.className = 'secondary';
       const write = async (publishNow) => {
-        save.disabled = publish.disabled = true; message.textContent = 'Saving notes…';
-        try { await request('/save-notes',{symbol:entry.symbol,cycleId:state.cycleId,text:text.value,publish:publishNow});
-          notesDrafts.set(key,text.value); message.textContent = publishNow ? 'Notes published.' : 'Draft saved. Not visible to members until published.';
+        const requestedNotify=publishNow&&notify.checked, savedText=text.value;
+        save.disabled = publish.disabled = text.disabled = notify.disabled = true; message.textContent = 'Saving notes…';
+        try {
+          const selection=JSON.stringify([savedText,publishNow,requestedNotify]);
+          if(!publicationRequest || publicationRequest.selection!==selection)publicationRequest={selection,id:crypto.randomUUID()};
+          notesRequests.set(key,publicationRequest);
+          const result=await request('/save-notes',{symbol:entry.symbol,cycleId:state.cycleId,text:savedText,publish:publishNow,
+            ...(publishNow?{id:publicationRequest.id,notifyUsers:requestedNotify}:{} )});
+          notesDrafts.set(key,savedText); message.textContent = result.notesWarning || (publishNow ? requestedNotify ? 'Notes published. Update notifications queued.' : 'Notes published.' : 'Draft saved. Not visible to members until published.');
+          if(!result.notesWarning){publicationRequest=undefined;notesRequests.delete(key);}
           window.dispatchEvent(new Event('watchlist-review-updated'));
         } catch(error) { message.textContent = String(error.message || error); }
-        finally { save.disabled = publish.disabled = false; }
+        finally { save.disabled = publish.disabled = text.disabled = false; updateNotify(); }
       };
       save.onclick = () => write(false); publish.onclick = () => write(true); close.onclick = () => dialog.close();
-      dialog.append(title,text,message,save); if(state.listed) dialog.append(publish); dialog.append(close);
+      dialog.append(title,text,message,save); if(state.listed && entry.watchlistGroup!=='private') dialog.append(publish,notifyLabel,hint); dialog.append(close);
       dialog.addEventListener('close',()=>dialog.remove()); document.body.append(dialog); dialog.showModal();
     };
     // Append after the analysis button to keep the primary action order stable.

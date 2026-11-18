@@ -10,11 +10,12 @@ type ReviewManager = Pick<ManualWatchlistRuntimeManager,
   "getDiscordTextPreview" | "getCategoryMoves" | "moveCategory" | "getTradersLinkAiReadReview" | "getTradersLinkAiReadPublicationPreview" | "listTradersLinkAiReadReviews" |
   "listTradersLinkAiReadHistory" | "getHistoricalTradersLinkAiReadReview" |
   "getAutomaticAnalysisEvents" | "exportFreeChatPublication" | "cancelAnalysisGeneration" |
-  "saveTraderNotes" | "saveTradersLinkAiReadOwnerEdit" | "approveTradersLinkAiRead" | "publishTickerWithoutAnalysis" |
+  "getNotesPublication" | "sendNotesNotification" | "saveTraderNotes" | "saveTradersLinkAiReadOwnerEdit" | "approveTradersLinkAiRead" | "publishTickerWithoutAnalysis" |
   "verifyTradersLinkAiReadDiscordReceipt" |
   "publishApprovedTradersLinkAiReadToDiscord">;
 
 export const ANALYSIS_REVIEW_PATHS = new Set([
+  "/api/watchlist/analysis-review/notes-notification",
   "/api/watchlist/analysis-review/discord-text",
   "/api/watchlist/analysis-review/category-move",
   "/api/watchlist/analysis-review/cancel-generation",
@@ -138,6 +139,13 @@ export async function dispatchAnalysisReviewRequest(input: {
       return {status:200,body:{ok:true,move}};
     }catch{return {status:400,body:{error:'Move could not complete. Refresh the ticker list and check move delivery status before retrying.'}};}
   }
+  if (input.pathname.endsWith("/notes-notification")) {
+    if(input.method!=="GET" && input.method!=="POST")return {status:405,body:{error:"Method not allowed."}};
+    const fields = input.method === "GET" ? Object.fromEntries(input.searchParams) : input.body as Record<string,unknown>;
+    if (!fields || Object.keys(fields).some(key=>!["symbol","id"].includes(key)) || typeof fields.symbol!=="string" || typeof fields.id!=="string" || !/^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,2})?$/.test(fields.symbol) || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(fields.id)) return {status:400,body:{error:"Invalid notes request."}};
+    try { return {status:200,body:{notesPublication:input.method==="GET"?manager.getNotesPublication(fields.symbol,fields.id,input.actor!):await manager.sendNotesNotification(fields.symbol,fields.id,input.actor!)}}; }
+    catch { return {status:503,body:{error:"Notes notification status is unavailable. Your notes remain saved."}}; }
+  }
   if (input.pathname.endsWith("/discord-mentions")) {
     if (input.method !== "GET" && input.method !== "POST") return { status: 405, body: { error: "Method not allowed." } };
     try {
@@ -218,7 +226,7 @@ export async function dispatchAnalysisReviewRequest(input: {
       ? manager.getTradersLinkAiReadPublicationPreview(symbol)
       : { review: selectedCycle ? manager.getHistoricalTradersLinkAiReadReview(symbol, selectedCycle) : manager.getTradersLinkAiReadReview(symbol), historical: Boolean(selectedCycle) } };
     const action = input.pathname.split("/").at(-1);
-    const allowed = action === "save-notes" ? ["symbol", "cycleId", "text", "publish"]
+    const allowed = action === "save-notes" ? ["symbol", "cycleId", "text", "publish", "notifyUsers", "id"]
       : action === "publish-without-analysis" ? ["symbol", "cycleId", "expectedHead", "notifyUsers", "discordText"]
       : action === "save" ? ["symbol", "cycleId", "expectedHead", "patch"]
       : action === "approve" ? ["symbol", "cycleId", "expectedHead", "draftRevision", "previewHash", "notifyUsers", "discordText"]
@@ -233,8 +241,8 @@ export async function dispatchAnalysisReviewRequest(input: {
       return value;
     };
     if (action === "save-notes") {
-      if (typeof fields.text !== "string" || fields.text.length > 12000 || typeof fields.publish !== "boolean") throw new Error("Invalid notes request.");
-      return { status: 200, body: await manager.saveTraderNotes({ symbol, cycleId, text: fields.text, publish: fields.publish, actor: input.actor }) };
+      if (typeof fields.text !== "string" || fields.text.length > 12000 || typeof fields.publish !== "boolean" || (fields.notifyUsers !== undefined && typeof fields.notifyUsers !== "boolean") || (fields.id !== undefined && (typeof fields.id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(fields.id))) || (fields.notifyUsers === true && (!fields.id || !fields.publish))) throw new Error("Invalid notes request.");
+      return { status: 200, body: await manager.saveTraderNotes({ symbol, cycleId, text: fields.text, publish: fields.publish, actor: input.actor, ...(fields.id ? {id:fields.id as string} : {}), ...(fields.notifyUsers !== undefined ? {notifyUsers:fields.notifyUsers as boolean} : {}) }) };
     }
     if (action === "publish-without-analysis" && fields.notifyUsers !== undefined && typeof fields.notifyUsers !== "boolean") throw new Error("Invalid review request.");
     if (action === "publish-without-analysis") return { status: 200, body: { review: await manager.publishTickerWithoutAnalysis({
@@ -268,10 +276,11 @@ export async function dispatchAnalysisReviewRequest(input: {
         : "Your analysis is approved. Discord could not accept the notification (HTTP " + error.status + "). Your approval is saved." },
     };
     const message = error instanceof Error ? error.message : "";
-    if (message === "Invalid review request.") return { status: 400, body: { error: message } };
+    if (message === "Invalid review request." || message === "Invalid notes request.") return { status: 400, body: { error: message } };
     // Only fixed product messages are exposed. Provider errors can contain
     // response bodies or private paths and must not be returned to the browser.
     const safe = new Set([
+      "Notes request changed. Reopen your notes.", "Save your notes, then publish the ticker.", "Notes publication status unavailable.",
       "Enter Discord post text.", "Use Discord notification settings for mentions.", "Discord post text is too long.",
       "Draft changed. Review the latest version.", "Draft changed. Reload before saving.",
       "Publication preview changed. Review it before publishing.", "Review changed. Reload before saving.",

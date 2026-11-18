@@ -627,3 +627,34 @@ and move-destination preview context, now with these QA repairs. Coordinator
 must integrate against exact live preimages and pair with the additive Platform
 Composer migration before activating the newer composer UI. No push, deploy,
 restart, provider request, approval, generation or notifications during this QA.
+
+## November 18 — owner-approved Trader Notes alerts
+
+Add optional default-off Notify users about updated notes beside Publish notes.
+Draft saves remain silent; normal analysis/move alerts remain independently
+controlled. Publish operation IDs are retained on failed acknowledgement so an
+explicit retry can recover its existing receipt. Notes publication/Discord
+receipts use an independent durable ledger, never an analysis review head or
+approval revision. Website receipt precedes standalone alerts. Private entries
+remain drafts; moved, removed, reactivated, expired or superseded operations
+cannot send old alerts. Discord uses existing category routing and mention
+settings, no analysis image. Confirmed rate limits can retry after cooldown;
+uncertain sends never blindly repeat. Saved receipts participate in ordinary
+ticker removal and optional source-channel deletion on moves. Paired Platform
+outbox sends existing opted-in email/push and polls durable receipt state.
+All QA uses temporary synthetic storage and fake transports; no real sends.
+
+Notes final qualification:41 focused Runtime cases pass, plus paired Platform
+103 and existing notification27 cases (171 total). Full Runtime TypeScript
+passes. Actual console Chromium tests pass8 viewport/theme cases, including
+explicit notify, default-off, silent draft, empty-note disable and request-ID
+recovery after lost acknowledgement and reopening. The paired actual card/style
+fixtures pass48 layout/type/empty/long-note cases in both formats. A same-time
+operation-order regression prevents failed older notes replacing newer ones.
+No notes event changes an analysis head/approval, posted date/price or provider
+settings. Sender never attaches analysis images or automatically shares Free
+Chat/X. Notes receipt files are durable and independent; both removal and
+optional source-channel cleanup include them. No real notifications were sent.
+Coordinator allocated additive Platform0220/order295. Backend/schema before new
+Runtime notes UI; preserve all prior migration SQL and exact current provider,
+Help and worker integration. No push, deployment or service restart here.

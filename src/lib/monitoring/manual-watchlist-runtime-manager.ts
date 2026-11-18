@@ -1,3 +1,4 @@
+import { WatchlistNotesPublication } from "../alerts/watchlist-notes-publication.js";
 import { applyDiscordOwnerText, discordTextParts, formatWatchlistDiscordHeading } from "../alerts/watchlist-discord-owner-text.js";
 import { categoryMoveCopy } from "../alerts/watchlist-category-move-receipts.js";
 import { CategoryMoveService } from "../alerts/watchlist-category-move-service.js";
@@ -5178,7 +5179,7 @@ export class ManualWatchlistRuntimeManager {
     return text.trim() ? { title: "Trader notes", body: text, updatedAt: this.options.now?.() ?? Date.now(), priceWhenPosted: null, source: "owner" } : null;
   }
 
-  async saveTraderNotes(input: { symbol: string; cycleId: string; text: string; publish: boolean; actor: string }) {
+  async saveTraderNotes(input: { symbol: string; cycleId: string; text: string; publish: boolean; actor: string; notifyUsers?: boolean; id?: string }) {
     const symbol = normalizeSymbol(input.symbol);
     const entry = this.watchlistStore.getEntry(symbol);
     const review = this.getTradersLinkAiReadReview(symbol);
@@ -5187,6 +5188,7 @@ export class ManualWatchlistRuntimeManager {
     const listed = review.preserveExistingPublication === true || review.events.some(event => event.body.kind === "delivery" && event.body.channel === "website" && event.body.status === "acknowledged");
     if (entry.watchlistGroup === "private") input = { ...input, publish: false };
     if (input.publish && !listed) throw new Error("Save your notes, then publish the ticker.");
+    if (input.publish && input.id) return this.notesPublications().publish({ ...input, symbol, id: input.id });
     this.watchlistStore.patchEntry(symbol, { traderNotesDraft: input.text });
     this.persistWatchlist();
     if (input.publish) {
@@ -5195,6 +5197,26 @@ export class ManualWatchlistRuntimeManager {
     }
     return { saved: true, published: input.publish };
   }
+
+  private notesPublicationService?: WatchlistNotesPublication;
+  private notesPublications(): WatchlistNotesPublication {
+    return this.notesPublicationService ??= new WatchlistNotesPublication({
+      current: symbol => {
+        const entry = this.watchlistStore.getEntry(symbol), review = this.getTradersLinkAiReadReview(symbol);
+        return { active: Boolean(entry?.active && review && !review.cancelled), cycleId: entry?.publicationReview?.cycleId ?? "",
+          group: entry?.watchlistGroup ?? "main", listed: Boolean(review?.preserveExistingPublication || review?.events.some(event => event.body.kind === "delivery" && event.body.channel === "website" && event.body.status === "acknowledged")) };
+      },
+      saveDraft: (symbol, text) => { this.watchlistStore.patchEntry(symbol, { traderNotesDraft: text }); this.persistWatchlist(); },
+      publish: async (symbol, text, at) => {
+        if (!this.liveWatchlistPublisher) throw Error("Website publisher is unavailable. Your draft is saved.");
+        await this.liveWatchlistPublisher.publish({symbol,updatedAt:at,cards:{traderNotes:text.trim()?{...this.buildTraderNotesCard(text)!,updatedAt:at}:null}});
+      },
+      send: input => this.options.discordAlertRouter.routeApprovedAnalysisChunk(input),
+      receipt: (symbol,cycleId,group,receipt) => this.categoryMoves().recordLateReceipt(symbol,cycleId,group,receipt),
+    }, undefined, this.options.now ?? Date.now);
+  }
+  getNotesPublication(symbol: string, id: string, actor: string) { return this.notesPublications().status(normalizeSymbol(symbol),id,actor); }
+  sendNotesNotification(symbol: string, id: string, actor: string) { return this.notesPublications().send(normalizeSymbol(symbol),id,actor); }
 
   async publishTickerWithoutAnalysis(input: { symbol: string; cycleId: string; expectedHead: number; actor: string; notifyUsers?: boolean; discordText?: string }) {
     const symbol = normalizeSymbol(input.symbol);
@@ -12086,12 +12108,13 @@ export class ManualWatchlistRuntimeManager {
   }
 
   private categoryMoveService?: CategoryMoveService;
-  private categoryMoves(){
+  private categoryMoves(): CategoryMoveService {
     return this.categoryMoveService ??= new CategoryMoveService({
       entry:symbol=>this.watchlistStore.getEntry(symbol),review:symbol=>this.getTradersLinkAiReadReview(symbol)??null,
       place:(symbol,group)=>this.moveSymbolToWatchlistGroup(symbol,group as WatchlistGroup),
       send:input=>this.options.discordAlertRouter.routeApprovedAnalysisChunk(input),
       verify:(input,messageId,at)=>this.options.discordAlertRouter.verifyApprovedAnalysisMessage(input,messageId,at),
+      additionalReceipts:(symbol,cycleId,group)=>this.notesPublications().receipts(symbol,cycleId,group),
     });
   }
   getDiscordTextPreview(symbol:string,kind:string,to:string,actor:string){
@@ -14322,6 +14345,7 @@ export class ManualWatchlistRuntimeManager {
     }
     this.persistMarketStructureStoryMemory();
     this.persistWatchlist();
+    for(const entry of entries)queueCategoryMoveRemovals(entry.symbol,this.notesPublications().receipts(entry.symbol));
     for(const item of removalReviews)if(item.review)queueCategoryMoveRemovals(item.symbol,this.categoryMoves().removalReceipts(item.symbol,item.review.cycleId));
     for (const item of removalReviews) {
       queueDiscordRemoval(item.symbol,item.review);
