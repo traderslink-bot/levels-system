@@ -39,6 +39,11 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     .badge-confidence-low { background: #fee2e2; color: #991b1b; }
     .error-line { color: #991b1b; margin-top: 4px; overflow-wrap: anywhere; }
     .status { min-height: 20px; font-size: 14px; margin-bottom: 12px; color: #1d4ed8; }
+    .runtime-delivery-wrap { overflow-x: auto; scrollbar-width: thin; scrollbar-color: #94a3b8 transparent; }
+    .runtime-delivery-table { width: 100%; min-width: 470px; border-collapse: collapse; font-size: 13px; }
+    .runtime-delivery-table th, .runtime-delivery-table td { padding: 8px; text-align: left; border-bottom: 1px solid rgba(148,163,184,0.3); }
+    .runtime-delivery-table thead th { font-size: 12px; }
+    .runtime-delivery-table tbody th { font-weight: 400; }
     .runtime-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
     .runtime-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; min-height: 58px; }
     .runtime-label { color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
@@ -631,9 +636,17 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     <section>
       <h2>Runtime Status</h2>
       <div class="runtime-grid" id="runtime-grid"></div>
+      <h3>Analysis activity</h3>
+      <div class="runtime-grid" id="analysis-activity-grid"></div>
+      <p class="field-hint" id="runtime-refreshed-at">Runtime status has not loaded yet.</p>
+      <h3>Delivery status</h3>
+      <p class="field-hint">Saved receipts, not audit events. Pending includes scheduled retries. Unconfirmed means delivery was not acknowledged; it is not a safe retry. Failures include retained records. Member email/push counts are per recipient/device. Watchlist and move posts cover current active public ticker approvals/moves; other rows cover retained queues. X status ends at Buffer acceptance.</p>
+      <div class="runtime-delivery-wrap" tabindex="0" aria-label="Delivery status; scroll horizontally for all columns"><table class="runtime-delivery-table"><thead><tr><th scope="col">Destination</th><th scope="col">Pending</th><th scope="col">Sending</th><th scope="col">Failed</th><th scope="col">Unconfirmed</th></tr></thead><tbody id="runtime-deliveries"></tbody></table></div>
+      <p class="field-hint" id="delivery-refreshed-at">Delivery records have not loaded yet.</p>
       <h3>Analysis audit history</h3>
       <p class="field-hint">Counts from retained audit events, not current ticker problems. A request can record multiple failure events. Analysis requests count generation starts; API Cost Explorer shows API usage.</p>
       <div class="runtime-grid" id="ai-read-runtime-audit-grid"></div>
+      <p class="field-hint" id="audit-refreshed-at">Audit has not loaded yet.</p>
     </section>
 
     ${WATCHLIST_DISCORD_MENTIONS_PANEL}
@@ -1104,7 +1117,54 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    function runtimeTimestamp(value) {
+      return Number.isFinite(value) && value > 0
+        ? new Date(value).toLocaleString("en-US", {timeZone:"America/New_York",month:"short",day:"numeric",hour:"numeric",minute:"2-digit",hour12:true}) + " ET"
+        : "Unavailable";
+    }
+
+    function renderAnalysisOperations(status) {
+      const grid = document.getElementById("analysis-activity-grid");
+      if (!grid) return;
+      const operations = status.analysisOperations;
+      let running = grid.querySelector('[data-analysis-running]');
+      if (!running) {
+        running = createRuntimeCard("Analyses running", "Unavailable");
+        running.dataset.analysisRunning = "true";
+        grid.appendChild(running);
+      }
+      running.querySelector(".runtime-value").textContent = Number.isInteger(status.runningAnalysisCount) && status.runningAnalysisCount >= 0 ? String(status.runningAnalysisCount) : "Unavailable";
+      document.getElementById("runtime-refreshed-at").textContent = "Status refreshed: " + runtimeTimestamp(status.statusRefreshedAt) + ". Details refresh with the existing one-minute status check.";
+      if (!operations) return; // Compact refreshes must not clear the last detailed snapshot.
+      grid.querySelectorAll('[data-analysis-detail]').forEach(node => node.remove());
+      const latest = operations.lastSuccessfulAnalysis;
+      const value = latest ? latest.symbol + " — " + runtimeTimestamp(latest.at) + (operations.analysisHistoryAvailable ? "" : " (partial history)")
+        : operations.analysisHistoryAvailable ? "None recorded" : "Unavailable";
+      const card = createRuntimeCard("Last successful analysis", value);
+      card.dataset.analysisDetail = "true";
+      grid.appendChild(card);
+      const refreshed = createRuntimeCard("Analysis details refreshed", runtimeTimestamp(operations.refreshedAt));
+      refreshed.dataset.analysisDetail = "true";
+      grid.appendChild(refreshed);
+      const deliveries = document.getElementById("runtime-deliveries");
+      deliveries.replaceChildren();
+      const platform = status.platformDeliveries;
+      const rows = [...(operations.deliveries || []), ...(platform?.deliveries || [{label:"Platform delivery records",available:false}])];
+      for (const row of rows) {
+        const tr = document.createElement("tr");
+        const label = document.createElement("th"); label.scope = "row"; label.textContent = row.label; tr.appendChild(label);
+        for (const key of ["pending","sending","failed","uncertain"]) {
+          const cell = document.createElement("td");
+          cell.textContent = row.available && Number.isSafeInteger(row[key]) && row[key] >= 0 ? String(row[key]) : "Unavailable";
+          tr.appendChild(cell);
+        }
+        deliveries.appendChild(tr);
+      }
+      document.getElementById("delivery-refreshed-at").textContent = "Watchlist receipts refreshed: " + runtimeTimestamp(operations.refreshedAt) + " · Notification queues refreshed: " + runtimeTimestamp(platform?.refreshedAt);
+    }
+
     function renderRuntimeStatus(status) {
+      renderAnalysisOperations(status);
       runtimeGridEl.innerHTML = "";
       renderWatchlistHealth(status);
       renderProviderHealth(status);
@@ -1150,10 +1210,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       providerHealthGridEl.innerHTML = "";
       restartReadinessListEl.innerHTML = "";
       const notes = Array.isArray(health.notes) ? health.notes.join(" | ") : "";
-      const lastPrice =
-        health.lastPriceSymbol && health.lastPriceAgeMs !== null && health.lastPriceAgeMs !== undefined
-          ? health.lastPriceSymbol + " " + formatAge(health.lastPriceAgeMs)
-          : "";
       const seedAverage = seedStats.averageDurationMs !== null && seedStats.averageDurationMs !== undefined
         ? formatAge(seedStats.averageDurationMs).replace(" ago", "")
         : "";
@@ -1166,7 +1222,6 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       const cards = [
         ["Watchlist Market Data", lifecycleLabel(status.marketDataStatus || "offline")],
         ["Price Feed", lifecycleLabel(health.priceFeedStatus || "waiting")],
-        ["Last Price Age", lastPrice],
         ["Historical Data", lifecycleLabel(health.historicalDataStatus || "waiting")],
         ["Same-Day Candles", providerLabel(sameDayHealth.primaryProvider || status.runtimeConfig?.sameDayCandleProvider || "moomoo") +
           " primary | " +
@@ -1841,6 +1896,8 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           aiReadAuditCurrentListEl.appendChild(tableRow);
         }
       }
+      const stamp = document.getElementById("audit-refreshed-at");
+      if (stamp) stamp.textContent = "Audit refreshed: " + runtimeTimestamp(payload.generatedAt);
       renderAiReadDetail();
     }
 

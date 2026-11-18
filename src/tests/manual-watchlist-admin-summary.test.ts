@@ -17,7 +17,7 @@ for(const match of MANUAL_WATCHLIST_PAGE.matchAll(/<script>([\s\S]*?)<\/script>/
 function extract(name:string){const found=functions.get(name);assert.ok(found,name);return found;}
 
 function context(extra:Record<string,unknown>={}){
- const context:any={document:{createElement:()=>new Element()},createRuntimeCard:(label:string,value:unknown)=>({label,value}),configGridEl:new Element(),runtimeGridEl:new Element(),aiNoticeEl:new Element(),openLiveWatchlistLinkEl:new Element(),formatTime:(value:unknown)=>String(value),lifecycleLabel:(value:unknown)=>String(value),renderWatchlistHealth:()=>{},renderProviderHealth:()=>{},...extra};
+ const context:any={document:{createElement:()=>new Element(),getElementById:()=>null},createRuntimeCard:(label:string,value:unknown)=>({label,value}),configGridEl:new Element(),runtimeGridEl:new Element(),aiNoticeEl:new Element(),openLiveWatchlistLinkEl:new Element(),formatTime:(value:unknown)=>String(value),lifecycleLabel:(value:unknown)=>String(value),renderWatchlistHealth:()=>{},renderProviderHealth:()=>{},renderAnalysisOperations:()=>{},...extra};
  for(const name of ['renderHistoricalProviderControl','renderLiveProviderControl','renderSameDayCandleProviderControl','renderLiveTraderReadVisibilityControl','renderPotentialGainVisibilityControl','renderWatchlistLifecycleLabelsVisibilityControl','renderReversalWatchlistVisibilityControl','renderTopRegularWatchlistVisibilityControl','renderAiReadControls','renderAutoSelectorControl'])context[name]=()=>{};
  return context;
 }
@@ -39,4 +39,10 @@ test('filtering the operations table does not turn retained event counts into cu
 });
 test('Runtime does not mislabel old Discord thread records as current website delivery',()=>{
  const c=context();new Script(extract('renderRuntimeStatus')+'\nrenderRuntimeStatus(status)').runInNewContext({...c,status:{startupState:'ready',activeSymbolCount:17,marketDataStatus:'live',runtimeHealth:{lastThreadPostSymbol:'OLD',lastThreadPostAt:1000,lastThreadPostKind:'snapshot'},runtimeConfig:{}}});const labels=(c.runtimeGridEl.children as any[]).map(card=>card.label);for(const label of ['Last Website Post','Last Website Failure','Session Folder','Review Log','Discord Audit','Structure Lifecycle','Moomoo Connection','IBKR'])assert.ok(!labels.includes(label),label);assert.ok(labels.includes('Active admin tickers'));
+});
+test('removed price-age card stays removed and operational metrics use existing status cadence',()=>{
+ assert.doesNotMatch(MANUAL_WATCHLIST_PAGE,/\["Last Price Age"/);
+ assert.match(MANUAL_WATCHLIST_PAGE,/if \(!operations\) return;/);
+ assert.match(MANUAL_WATCHLIST_PAGE,/one-minute status check/);
+ assert.equal((MANUAL_WATCHLIST_PAGE.match(/fetchJson\("\/api\/runtime\/status"/g)||[]).length,1);
 });

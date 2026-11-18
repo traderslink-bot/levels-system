@@ -1,3 +1,4 @@
+import { countReviewDelivery, emptyDeliveryCounts, latestSuccessfulAnalysis } from "./watchlist-operations-summary.js";
 import { WatchlistBreakoutLifecycle, omitFollowupBreakout, publishedBreakoutPrice, type CrossedBreakout } from "../ai/watchlist-breakout-lifecycle.js";
 import { WatchlistNotesPublication } from "../alerts/watchlist-notes-publication.js";
 import { applyDiscordOwnerText, discordTextParts, formatWatchlistDiscordHeading } from "../alerts/watchlist-discord-owner-text.js";
@@ -12567,6 +12568,38 @@ export class ManualWatchlistRuntimeManager {
     return {
       visible: this.topRegularWatchlistVisible,
       refreshedSymbols,
+    };
+  }
+
+  getRunningAnalysisCount(): number {
+    return this.aiReadInFlight.size;
+  }
+
+  /** Status reads never generate, approve, retry or contact delivery providers. */
+  getAnalysisOperationsSummary() {
+    const snapshot = this.options.tradersLinkAiReadRunLedger?.readSnapshot() ?? null;
+    const discord = emptyDeliveryCounts("Watchlist Discord");
+    const moves = emptyDeliveryCounts("Move posts");
+    if (!this.options.tradersLinkAiReadReviewStore) discord.available = false;
+    for (const entry of this.watchlistStore.getActiveEntries()) {
+      if (entry.watchlistGroup === "private") continue;
+      if (entry.publicationReview) {
+        try { countReviewDelivery(discord, this.getTradersLinkAiReadReview(entry.symbol)); }
+        catch { discord.available = false; }
+      }
+      try {
+        for (const move of this.getCategoryMoves(entry.symbol).filter(move => move.current && move.notify)) {
+          if (move.destination === "failed") moves.failed++;
+          else if (move.destination === "pending") moves.pending++;
+          else if (move.destination === "sending" || move.destination === "uncertain") moves.uncertain++;
+        }
+      } catch { moves.available = false; }
+    }
+    return {
+      refreshedAt: this.options.now?.() ?? Date.now(),
+      lastSuccessfulAnalysis: snapshot ? latestSuccessfulAnalysis(snapshot.events) : null,
+      analysisHistoryAvailable: snapshot?.complete === true,
+      deliveries: [discord, moves],
     };
   }
 

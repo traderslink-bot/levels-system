@@ -778,3 +778,47 @@ establish production theme styling. Receipts: /tmp/watchlist-admin-audit-2026111
 (tests-final.log, types.log, render.log, lint.log). No full build needed for this
 presentation-only slice. No migration, push, restart, deployment or real send.
 Include in the existing20:15 Eastern handoff, preserving newer source work.
+
+## Nov18 — useful Runtime activity/delivery details (owner requested)
+
+Added actual analyses-running count from the live in-flight set to existing
+compact/full status responses. Detailed status reads full retained validation
+history for the last successful analysis (including privately saved drafts), not
+attempt success, website publication time or the disabled commentary service.
+A new read-only ledger snapshot distinguishes missing/damaged history from no
+recorded successful analysis. Damaged histories identify a known result as
+partial; missing evidence shows Unavailable. Current active public review-cycle
+latest approval Discord receipts and current move destinations provide saved
+pending/failed/unconfirmed counts. Cancelled/private/silent approvals and older
+move attempts cannot create new pending delivery counts. Started but unacknowledged
+Runtime deliveries are unconfirmed, not assumed still-running or safe to retry.
+
+Runtime UI adds compact Analysis activity cards and a scrollable Delivery status
+table. It joins the companion Platform SELECT-only queue summary on the existing
+detailed status relay: Free Chat, member email/push (publication/update/move/notes),
+owner Discord, notes Discord, Gain/Recap posts and X/Buffer. Member counts are per
+recipient/device. Table scope explains Runtime rows versus retained queue rows;
+failed receipts are not current failed-ticker counts. Silent/completed/cancelled/
+expired receipts are excluded as applicable; expired/cancelled notes intents do
+not contribute Discord pending/failure counts. X acceptance ends at Buffer.
+Unreadable/missing schema is Unavailable rather than0. Source read times shown
+for Runtime status, analysis details, Watchlist receipts, notification queues and
+the independently loaded audit. Last Price Age card removed as requested.
+
+Uses existing5-second compact/60-second detailed Admin checks only: no additional
+browser/provider polling, workers, retries, paid generation, approvals, settings,
+notifications, saved-analysis or data mutation. No new migration. Status reads
+preserve prior detailed displays across compact responses; failed reads preserve
+the existing snapshot/time instead of inventing a refresh. No services/previews
+restarted; no deployment/push. Preserve the scheduled20:15 Eastern handoff.
+
+Final QA:20/20 focused Runtime tests and19/19 Platform queue/relay/FreeChat move
+regressions pass. Full Runtime TypeScript, targeted Platform helper TypeScript and
+changed Platform TypeScript lint pass. Eight isolated actual-page/navigation
+Playwright cases at320/390/844/1280 with light/dark browser preference pass activity,
+queue count placement, compact refresh preservation, unavailable-not-zero states,
+ET timestamp rendering, contained keyboard-scrollable delivery table and tab
+switching. All browser network blocked. Fixtures stub provider controls and do
+not establish hosted/signed-in or production-theme acceptance. Evidence under
+/tmp/watchlist-runtime-details-20261118 (tests-final/types/platform-tests/
+platform-types/lint/render logs and isolated fixture scripts). Diff checks pass.
