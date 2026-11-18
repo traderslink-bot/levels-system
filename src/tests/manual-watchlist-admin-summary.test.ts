@@ -46,3 +46,19 @@ test('removed price-age card stays removed and operational metrics use existing 
  assert.match(MANUAL_WATCHLIST_PAGE,/one-minute status check/);
  assert.equal((MANUAL_WATCHLIST_PAGE.match(/fetchJson\("\/api\/runtime\/status"/g)||[]).length,1);
 });
+test('provider cards use actual Watchlist roles; an unused Moomoo connection never means waiting',()=>{
+ const status={marketDataStatus:'live',runtimeConfig:{liveProvider:'alpaca',historicalProvider:'alpaca',sameDayCandleProvider:'alpaca',sameDayCandleProviderHealth:{selectedProvider:'alpaca',fallbackProvider:null,activeProvider:'alpaca',moomooConnectionStatus:'waiting'}}};
+ const before=JSON.stringify(status);const rows:any[]=new Script(extract('watchlistProviderUsage')+'\nwatchlistProviderUsage(status)').runInNewContext({status});
+ assert.equal(rows.length,5);assert.equal(rows.find(r=>r.provider==='alpaca').state,'In use');assert.match(rows.find(r=>r.provider==='alpaca').roles,/Live prices.*Historical candles.*Same-day candles/);for(const provider of ['moomoo','ibkr','eodhd','yahoo'])assert.equal(rows.find(r=>r.provider===provider).state,'Off');assert.equal(JSON.stringify(status),before);
+});
+test('split roles and fallback standby/actual use remain distinct from connectivity',()=>{
+ const status:any={marketDataStatus:'offline',runtimeConfig:{liveProvider:'alpaca',historicalProvider:'eodhd',sameDayCandleProvider:'moomoo',sameDayCandleProviderHealth:{selectedProvider:'moomoo',fallbackProvider:'yahoo',fallbackActive:false,activeProvider:null}}};
+ const run=()=>new Script(extract('watchlistProviderUsage')+'\nwatchlistProviderUsage(status)').runInNewContext({status}) as any[];
+ let rows=run();for(const provider of ['alpaca','eodhd','moomoo'])assert.equal(rows.find(r=>r.provider===provider).state,'In use');assert.equal(rows.find(r=>r.provider==='yahoo').state,'Standby');
+ Object.assign(status.runtimeConfig.sameDayCandleProviderHealth,{activeProvider:'yahoo',fallbackActive:true});rows=run();assert.equal(rows.find(r=>r.provider==='yahoo').state,'In use');assert.equal(rows.find(r=>r.provider==='yahoo').roles,'Last candle response');
+ status.runtimeConfig.sameDayCandleProvider='alpaca';rows=run();assert.equal(rows.find(r=>r.provider==='moomoo').state,'Off');assert.equal(rows.find(r=>r.provider==='yahoo').state,'Off');
+});
+test('missing provider configuration does not invent Off or infer use from an old connection',()=>{
+ const rows:any[]=new Script(extract('watchlistProviderUsage')+'\nwatchlistProviderUsage(status)').runInNewContext({status:{runtimeConfig:{sameDayCandleProviderHealth:{moomooConnectionStatus:'connected'}}}});
+ assert.ok(rows.every(row=>row.state==='Unknown'));
+});

@@ -854,3 +854,36 @@ source loss. Shared resource lease respected.20:15 Eastern reminder remains acti
 Preserve source/Help/providers/workers and backend/schema-before-Runtime order;
 Composer0213 canonical270, row0218/293, Added0219/294, notes0220/295, existing
 Home0214/269 and combined manifest. No early deployment/push requested.
+
+## Nov18 — compact provider-usage cards (owner requested)
+
+Owner reports obsolete top Moomoo Connection/waiting despite Alpaca use and asks
+for smaller cards per market-data provider. Runtime now emits marked usage cards
+for Alpaca, Moomoo, EODHD, IBKR and Yahoo from the actual status-configured live,
+historical and same-day roles. No role => Off when configuration is complete;
+missing configuration => Unknown. Existing Moomoo connection-loader diagnostics
+cannot imply use. Yahoo may be Standby for a configured fallback or In use with
+Last candle response when existing diagnostics record fallback use; stale
+fallback diagnostics from another selected profile are ignored. In use is role/
+recorded-fallback attribution, not a connection-health assertion. Overall
+Watchlist Market Data remains independent. Same-day diagnostic display no longer
+invents Moomoo when provider evidence is missing. No provider switching, probe,
+new request, background work, setting or stream change.
+
+Platform companion clones explicitly marked provider cards plus overall market
+data; it never clones the old unconditionally waiting Moomoo badge, including
+older Runtime compatibility. Compact responsive summary uses smaller card width/
+padding and clear role subtitles. Actual provider change observations refresh
+cards using existing status/navigation observers. Help explains status scope.
+
+QA18/18 focused Admin summary/provider/row regressions pass, Runtime full
+TypeScript and Platform targeted ESLint pass. Eight isolated actual-page + actual
+navigation browser cases (320/390/844/1280, light/dark preference) verify exactly
+6 summary cards, Alpaca roles + unused Moomoo Off despite legacy waiting field,
+profile changes observed back/forth, compact desktop widths (<180px), contained
+mobile grid, existing activity/queue cards and Runtime/Watchlist navigation.
+No external network; no signed-in/hosted or production-theme acceptance claimed.
+Receipts /tmp/watchlist-provider-cards-qa-20261118 (tests/types/render/lint logs).
+No migration/dependency, live data/generation/notification, push/restart/deploy.
+Include this extension in tonight's existing20:15Eastern handoff, preserving newer
+canonical provider profile and Help/navigation changes by narrow integration.

@@ -1203,6 +1203,25 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       return Math.round(minutes / 60) + "h ago";
     }
 
+    function watchlistProviderUsage(status) {
+      const config = status.runtimeConfig || {};
+      const sameDay = config.sameDayCandleProviderHealth || {};
+      const assigned = [
+        [config.liveProvider, "Live prices"],
+        [config.historicalProvider, "Historical candles"],
+        [config.sameDayCandleProvider, "Same-day candles"],
+      ];
+      const complete = assigned.every(([provider]) => typeof provider === "string" && provider.length > 0);
+      const providers = [...new Set(["alpaca","moomoo","eodhd","ibkr","yahoo",...assigned.map(([provider]) => provider).filter(Boolean)])];
+      return providers.map(provider => {
+        const roles = assigned.filter(([selected]) => selected === provider).map(([,role]) => role);
+        const fallback = provider === sameDay.fallbackProvider && config.sameDayCandleProvider === sameDay.selectedProvider;
+        const fallbackUsed = fallback && sameDay.fallbackActive === true && sameDay.activeProvider === provider;
+        return {provider, roles: roles.join(" · ") || (fallbackUsed ? "Last candle response" : fallback ? "Available if needed" : ""),
+          state: roles.length || fallbackUsed ? "In use" : fallback ? "Standby" : complete ? "Off" : "Unknown"};
+      });
+    }
+
     function renderProviderHealth(status) {
       const health = status.runtimeHealth?.providerHealth || {};
       const sameDayHealth = status.runtimeConfig?.sameDayCandleProviderHealth || {};
@@ -1223,7 +1242,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ["Watchlist Market Data", lifecycleLabel(status.marketDataStatus || "offline")],
         ["Price Feed", lifecycleLabel(health.priceFeedStatus || "waiting")],
         ["Historical Data", lifecycleLabel(health.historicalDataStatus || "waiting")],
-        ["Same-Day Candles", providerLabel(sameDayHealth.primaryProvider || status.runtimeConfig?.sameDayCandleProvider || "moomoo") +
+        ["Same-Day Candles", providerLabel(sameDayHealth.primaryProvider || status.runtimeConfig?.sameDayCandleProvider || "unknown") +
           " primary | " +
           (sameDayHealth.activeProvider
             ? providerLabel(sameDayHealth.activeProvider) + " active"
@@ -1242,6 +1261,20 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       ];
       for (const [label, value] of cards) {
         providerHealthGridEl.appendChild(createRuntimeCard(label, value));
+      }
+
+      for (const usage of watchlistProviderUsage(status)) {
+        const card = createRuntimeCard(providerLabel(usage.provider), usage.state);
+        card.dataset.watchlistProvider = usage.provider;
+        card.dataset.providerState = usage.state;
+        card.title = "In use identifies assigned Watchlist roles or the recorded candle fallback, not a connection test. Watchlist Market Data shows feed status.";
+        if (usage.roles) {
+          const roles = document.createElement("div");
+          roles.className = "provider-roles";
+          roles.textContent = usage.roles;
+          card.appendChild(roles);
+        }
+        providerHealthGridEl.appendChild(card);
       }
 
       const readiness = Array.isArray(health.restartReadiness) ? health.restartReadiness.slice(0, 16) : [];
