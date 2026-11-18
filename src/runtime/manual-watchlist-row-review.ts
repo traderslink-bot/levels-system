@@ -331,7 +331,7 @@ function attachX(entry, actions, state, more = actions) {
         Object.assign(dialog.style,{position:'fixed',inset:(top+12)+'px 0 auto',margin:'0 auto',maxHeight:Math.max(120,bottom-top-24)+'px'});
       };
       position(); window.parent.addEventListener('scroll',position,true); window.parent.addEventListener('resize',position);
-      let current, timer, stopping = false, working = false, checksLeft = 0, requestBusy = false;
+      let current, timer, stopping = false, working = false, checksLeft = 0, requestBusy = false, automaticUnknown = false;
       dialog.addEventListener('close',()=>{
         stopping = true; clearTimeout(timer);
         window.parent.removeEventListener('scroll',position,true); window.parent.removeEventListener('resize',position);
@@ -353,6 +353,7 @@ function attachX(entry, actions, state, more = actions) {
       };
       const syncControls = () => {
         automatic.disabled = working || !current;
+        automatic.indeterminate = automaticUnknown;
         send.disabled = working || !canSend();
         send.textContent = current?.delivery?.state === 'failed' ? 'Retry Free Chat post' : 'Confirm Free Chat post';
         message.disabled = send.disabled;
@@ -374,11 +375,22 @@ function attachX(entry, actions, state, more = actions) {
       };
       async function refreshDelivery() {
         if (stopping || !current?.approvalRevision || requestBusy) return;
+        const selected = {cycleId:current.cycleId,approvalRevision:current.approvalRevision};
         requestBusy = true; checksLeft--;
         try {
-          const query = new URLSearchParams({cycleId:current.cycleId,delivery:String(current.approvalRevision)});
+          const query = new URLSearchParams({cycleId:selected.cycleId,delivery:String(selected.approvalRevision)});
           const result = await request(path+'&'+query);
-          if (!stopping) { current.delivery = result.delivery; check.hidden = true; renderReceipt(); }
+          if (!stopping) {
+            if (!current.delivery && result.delivery) {
+              // A receipt recovered after an unknown send also needs its saved
+              // copy. Normal pending/sent polling remains receipt-only.
+              const saved = await request(path);
+              if (stopping) return;
+              if (!saved.delivery) throw Error('Saved post unavailable.');
+              adoptSendResult(saved,selected);
+            } else { current.delivery = result.delivery; renderReceipt(); }
+            check.hidden = true;
+          }
         } catch {
           if (!stopping) { check.hidden = false; status.textContent = 'Delivery status could not refresh. Check again.'; }
         } finally { requestBusy = false; scheduleCheck(); }
@@ -386,24 +398,57 @@ function attachX(entry, actions, state, more = actions) {
       check.onclick = () => { checksLeft = 30; void refreshDelivery(); };
       message.oninput = renderPreview;
       automatic.onchange = async () => {
+        const cycleId = current.cycleId;
         working = true; syncControls();
         try {
-          const result = await request('/free-chat',{action:'automatic',symbol:entry.symbol,cycleId:current.cycleId,enabled:automatic.checked});
-          current.automaticEnabled = result.automaticEnabled;
-        } catch (error) { status.textContent = String(error.message || error); }
-        finally { automatic.checked = current.automaticEnabled; working = false; syncControls(); }
+          const result = await request('/free-chat',{action:'automatic',symbol:entry.symbol,cycleId,enabled:automatic.checked});
+          if (result.cycleId !== cycleId || typeof result.automaticEnabled !== 'boolean') throw Error('Saved setting unavailable.');
+          current.automaticEnabled = result.automaticEnabled; automaticUnknown = false;
+        } catch {
+          try {
+            const saved = await request(path);
+            if (saved.cycleId !== cycleId || typeof saved.automaticEnabled !== 'boolean') throw Error('Saved setting unavailable.');
+            current.automaticEnabled = saved.automaticEnabled; automaticUnknown = false;
+            if (!stopping) status.textContent = 'Current automatic-sharing setting reloaded.';
+          } catch {
+            automaticUnknown = true;
+            if (!stopping) status.textContent = 'The saved automatic-sharing setting is unknown. Try again or reopen Free Chat.';
+          }
+        }
+        finally { automatic.checked = automaticUnknown ? false : current.automaticEnabled; working = false; syncControls(); }
+      };
+      const adoptSendResult = (result, selected) => {
+        if (result.cycleId !== selected.cycleId || result.approvalRevision !== selected.approvalRevision) throw Error('The published entry changed. Reopen Free Chat to check delivery.');
+        current = result;
+        // A duplicate request can return the already queued immutable copy.
+        // Display that copy, never the later text that was not queued.
+        if (current.delivery) message.value = current.savedMessage ?? current.preview?.defaultMessage ?? '';
+        renderPreview(); renderReceipt(); checksLeft = 30; scheduleCheck();
       };
       send.onclick = async () => {
         if (working || !canSend()) return;
+        const selected = {cycleId:current.cycleId,approvalRevision:current.approvalRevision};
         working = true; syncControls(); status.textContent = 'Queuing Free Chat post…';
         try {
           const result = await request('/free-chat',{
             action:'send', symbol:entry.symbol,cycleId:current.cycleId,approvalRevision:current.approvalRevision,
             visibilityKey:current.preview.visibilityKey,message:message.value,
           });
-          if (!stopping) { current = result; renderPreview(); renderReceipt(); checksLeft = 30; scheduleCheck(); }
+          if (!stopping) adoptSendResult(result,selected);
         } catch (error) {
-          if (!stopping) status.textContent = String(error.message || error);
+          // Reconcile a possible committed send using GET only. The owner may
+          // retry explicitly, but recovery must never enqueue a second post.
+          if (!stopping) {
+            try {
+              const saved = await request(path);
+              if (stopping) return;
+              if (saved.cycleId !== selected.cycleId || saved.approvalRevision !== selected.approvalRevision) throw Error('The published entry changed. Reopen Free Chat to check delivery.');
+              if (saved.delivery) adoptSendResult(saved,selected);
+              else status.textContent = String(error.message || error);
+            } catch {
+              if (!stopping) { check.hidden = false; status.textContent = 'The post could not be confirmed. Check delivery status or reopen Free Chat before retrying. Your text remains here.'; }
+            }
+          }
         } finally { working = false; syncControls(); }
       };
       try {

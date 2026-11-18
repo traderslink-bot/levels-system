@@ -597,3 +597,33 @@ listing copy, saved owner edits, retry identity and source-post deletion choices
 remain unchanged. Focused heading and move suites pass all 23 cases without any
 real delivery or production writes. Pair with the Platform push/email and Free
 Chat copy change. No migration or runtime restart was performed. Not deployed.
+
+
+## November 18 — remaining Watchlist batch QA corrections
+
+Completed consolidated discovery and repair with the paired Platform worktree.
+The Free Chat composer now reads back a possibly committed send after a lost
+acknowledgement, displays its actual saved copy, and keeps reconciliation scoped
+to the same cycle and published approval revision. Normal polling remains
+receipt-only; manual recovery of an unknown receipt also loads its saved copy.
+No automatic send retry or new approval restriction. A late reply after Close
+cannot reopen the dialog. Automatic-sharing preference recovery uses GET only,
+validates the cycle and boolean value, and shows an accessible unknown state
+if the saved preference cannot be checked. Explicit owner choices remain usable.
+
+New eight-case recovery regression suite passes; combined existing row, move,
+heading and recovery suites pass40 cases. Full Runtime TypeScript passes.
+Paired actual-script Chromium testing passes18 scenarios and the retained
+custom move editor Close/Escape/reopen/destination checks. Synthetic Platform
+SQLite confirms immutable queued text remains unchanged; no real delivery or
+production write occurred. The paired Platform correction coalesces initial
+access reads and represents unknown saved access honestly; full final evidence
+is recorded in its docs/migration/watchlist-alpaca-independent-qa.md.
+
+Custom move draft save-before-move is already present in live Runtime08d5c5a
+and was only regression-tested here; do not reintroduce the old35ab slice by
+ancestry alone. Pending Runtime work remains held composer plus moved wording
+and move-destination preview context, now with these QA repairs. Coordinator
+must integrate against exact live preimages and pair with the additive Platform
+Composer migration before activating the newer composer UI. No push, deploy,
+restart, provider request, approval, generation or notifications during this QA.
