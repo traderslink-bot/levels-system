@@ -822,3 +822,35 @@ switching. All browser network blocked. Fixtures stub provider controls and do
 not establish hosted/signed-in or production-theme acceptance. Evidence under
 /tmp/watchlist-runtime-details-20261118 (tests-final/types/platform-tests/
 platform-types/lint/render logs and isolated fixture scripts). Diff checks pass.
+
+## Nov18 — entire remaining Watchlist batch final QA
+
+Owner requested a final QA for tonight's deployment. Runtime source fd944b9 and
+Platform51f8e591d implementations were checked together using existing assigned
+worktrees, isolated storage/fake transports and blocked browser network. Pending
+inventory: editable/current-policy FreeChat incl ticker-only; per-destination move
+copy and moved language; row concealment and optional actual-publication Added;
+exact intro/curated-copy removal; optional notes alerts/bottom-row layout;
+optional/crossed-breakout lifecycle; Admin cleanup and real activity/queue metrics.
+No live data/generation/providers/notification/service/release operations occurred.
+
+Runtime131/131 focused cases pass across16 files, including owner API/panel/rows,
+FreeChat lost-ack recovery, notes, review storage/policy, moves/heading, boundary/
+price-discovery/breakout, listing-only/automatic context and new Runtime metrics.
+Platform114 Vitest +62 Node cases pass (307 tests combined). Six isolated UI
+fixtures pass106 cases total across all four widths and recorded light/dark
+contexts; actual Simple/detailed breakout grids also pass. Runtime full TypeScript
+and Platform9-root/886-file graph pass. Four-additive-migration synthetic legacy
+preservation plus SQLite integrity/FK/backup-restore pass. Exact canonical DB/build
+and signed-in hosted checks remain Coordinator release gates, not claimed here.
+
+Consolidated discovery found only stale Node/browser fixtures (new CSS/price-order
+imports, numbered pullbacks/current card inputs, Watchlist owner auth and fifth
+access flag) and one contradictory Help notes-position sentence. These were
+corrected in the Platform test/Help batch and all affected checks retested green;
+no Runtime functional code changed. Original discovery evidence preserved, final
+receipts at /tmp/watchlist-final-release-qa-20261118. No dependency or untracked
+source loss. Shared resource lease respected.20:15 Eastern reminder remains active.
+Preserve source/Help/providers/workers and backend/schema-before-Runtime order;
+Composer0213 canonical270, row0218/293, Added0219/294, notes0220/295, existing
+Home0214/269 and combined manifest. No early deployment/push requested.
