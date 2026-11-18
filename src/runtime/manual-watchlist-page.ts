@@ -2539,7 +2539,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             try {
               let request=moveRequests.get(entry.symbol);
               const freeChat=notifyMove.checked&&freeMove.checked&&moveSelect.value!=='private';
-              if (freeChat && !await window.watchlistConfirmFreeChat(entry.symbol,'move')) return;
+              if (freeChat && !await window.watchlistConfirmFreeChat(entry.symbol,'move',undefined,moveSelect.value)) return;
               if (notifyMove.checked && moveSelect.value!=='private') {
                 await window.watchlistDiscordText.saveMoveText(moveTextKey());
               }

@@ -3,13 +3,22 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { applyDiscordOwnerText, discordTextParts, formatWatchlistDiscordHeading } from "../lib/alerts/watchlist-discord-owner-text.js";
 import { attributeOwnerApprovedDiscord } from "../lib/ai/traderslink-ai-read-publication-preview.js";
+import { categoryMoveCopy, categoryMoveLabel } from "../lib/alerts/watchlist-category-move-receipts.js";
 
 const suffix='\n\nImages show part of the analysis. View full analysis in the app 👇\n\nView the live watchlist: https://example.test/watchlist\nView TEST ticker page: https://example.test/watchlist/TEST\n\n@everyone <@&123456789012345678>';
 test('listing, first analysis, updates and category moves gain only a heading prefix',()=>{
- for(const title of ['TEST added to the watchlist.','TEST Analysis published','TEST Analysis updated','TEST added to Overnight Watches by "This Guy"']) {
+ for(const title of ['TEST added to the watchlist.','TEST Analysis published','TEST Analysis updated','TEST moved to Overnight Watches by "This Guy"']) {
   const original=title+'\nExisting explanation.'+suffix;
   assert.equal(applyDiscordOwnerText(original,undefined),'### '+original);
   assert.equal(discordTextParts(applyDiscordOwnerText(original,undefined)).suffix,suffix);
+ }
+});
+test('every public destination describes category moves as moved, never added',()=>{
+ for(const group of ['main','top_regular','postmarket','general','swings','top_watches:2026-11-19']){
+  const copy=categoryMoveCopy('AKAN',group);
+  assert.equal(copy.title,`AKAN moved to ${categoryMoveLabel(group)} by "This Guy"`);
+  assert.doesNotMatch(copy.title,/added|Private|Analysis updated/);
+  assert.match(applyDiscordOwnerText(copy.title+'\n'+copy.body+suffix,undefined),/^### AKAN moved to /);
  }
 });
 test('automatic update attribution occurs before heading without restoring image text',()=>{

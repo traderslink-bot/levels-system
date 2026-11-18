@@ -585,3 +585,15 @@ bounded removal of obsolete intermediate logs after root identity and absence
 of owned test processes were checked. Final evidence, source patches, current
 owner-edit probe and unfinished feature source are preserved. The specific owner
 browser edit remains unverified; the 23-draft in-memory check is not a live save.
+
+
+## November 18 — category move heading
+
+Generated Discord category-move headings now use moved to rather than added to
+for all public destination lists, preserving attribution and the remaining
+content. The Free Chat confirmation preview receives the chosen destination
+so its paired Platform copy also describes a move. Approval rules, initial
+listing copy, saved owner edits, retry identity and source-post deletion choices
+remain unchanged. Focused heading and move suites pass all 23 cases without any
+real delivery or production writes. Pair with the Platform push/email and Free
+Chat copy change. No migration or runtime restart was performed. Not deployed.

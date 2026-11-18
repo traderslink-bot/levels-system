@@ -25,7 +25,7 @@ export function categoryMoveLabel(group:string):string{
 /** Moving existing research is not a new analysis, quote, or entry recommendation. */
 export function categoryMoveCopy(symbol:string,group:string){
   const label=categoryMoveLabel(group);
-  return {title:`${symbol} added to ${label} by "This Guy"`,
+  return {title:`${symbol} moved to ${label} by "This Guy"`,
     body:label==='Overnight Watches'
       ? `See the analysis for potential setups and levels to watch.`
       : `${symbol} has moved to ${label}. View the ticker page for available analysis, notes and levels.`};

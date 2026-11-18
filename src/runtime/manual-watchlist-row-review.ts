@@ -142,9 +142,10 @@ li.watchlist-control-row > .entry-main > .entry-title > strong:first-child { col
     });
     return readWatchlistJsonResponse(response);
   }
-  window.watchlistConfirmFreeChat = async (symbol, mode, approvalRevision) => {
+  window.watchlistConfirmFreeChat = async (symbol, mode, approvalRevision, moveTo) => {
     const query = new URLSearchParams({symbol, preview:mode});
     if (Number.isSafeInteger(approvalRevision)) query.set('approvalRevision', String(approvalRevision));
+    if (mode === 'move' && moveTo) query.set('to', moveTo);
     const result = await request('/free-chat?' + query);
     if (typeof result.preview?.content !== 'string' || typeof result.preview.includeImages !== 'boolean') {
       throw Error('Free Chat preview is unavailable.');
