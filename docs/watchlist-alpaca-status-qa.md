@@ -569,3 +569,19 @@ resistance, its nearest/must-clear projection, and the unchanged support flip.
 All 17 affected files pass 402/402 focused cases on exact08 source; 791 other
 tracked files remain byte-identical. A separate one-file patch is sealed in the
 manifest for Coordinator integration and final CI. No product behavior changed.
+
+
+## November 17 Eastern — Runtime CI repair completed
+
+Independent GitHub readback confirms run 44224328223 at
+`854cb22196cea071e550802d25f062e4fad56bd4` succeeded: 1730/1730 tests,
+zero failures, skips, cancellations or todo. The final candidate contains the
+17 test-only repairs; Coordinator verified the other 791 tracked files remain
+byte-identical to Runtime08, including app source, dependencies and build config.
+Actual Runtime production remains `08d5c5a` / deployment `c2db86e8`; these test
+repairs caused no production redeploy, data or approval-policy change.
+The manifest records sealed patches, focused/types receipts, full CI result and
+bounded removal of obsolete intermediate logs after root identity and absence
+of owned test processes were checked. Final evidence, source patches, current
+owner-edit probe and unfinished feature source are preserved. The specific owner
+browser edit remains unverified; the 23-draft in-memory check is not a live save.

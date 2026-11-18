@@ -993,7 +993,7 @@
       "removedObsoleteAssertions": 3
     }
   ],
-  "status": "FOCUSED_17_PASS_TYPES_PASS_FINAL_CI_PENDING",
+  "status": "FULL_GITHUB_CI_PASS",
   "qualificationLogs": {
     "qa-focused-passing-focused.log": {
       "sha256": "1d16ea8fe32c89a1d7af7930243a8fbc9607acf54e7a45edf0d39d94c6da1675",
@@ -1257,5 +1257,79 @@
       "log": "/tmp/watchlist-runtime-ci-08d-test-qa-11637deaef/qa-full-types-final17.log",
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     }
+  },
+  "finalCI": {
+    "run": 44224328223,
+    "url": "https://github.com/traderslink-bot/levels-system/actions/runs/44224328223",
+    "source": "854cb22196cea071e550802d25f062e4fad56bd4",
+    "status": "completed",
+    "conclusion": "success",
+    "tests": 1730,
+    "passed": 1730,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "todo": 0,
+    "durationMs": 41112.780355,
+    "independentVerification": "Feature chat independently read GitHub run status/head/job and full log summary",
+    "productionUnchanged": "08d5c5a3632cac671448c81e833a69fdd92cb7fb / c2db86e8-c806-4bd5-bf3d-d53555349e80; no production redeploy"
+  },
+  "artifactCleanup": {
+    "endedPurpose": "Intermediate failed logs superseded by final402focused/types and successful1730fullCI",
+    "rootIdentityVerified": true,
+    "noOwnedTestProcesses": true,
+    "guardCorrection": "First broad cmdline guard safely refused because it matched its own parent shell script; executable/cwd/argument-prefix check found zero actual Node/tsx/tsc projection processes before removal",
+    "removed": [
+      {
+        "path": "/tmp/watchlist-runtime-ci-08d-test-qa-11637deaef/qa-focused-final-contract-pass.log",
+        "bytes": 251917,
+        "sha256": "ce6f4bfc636a873832f1ee2804dacd890936f03ca255d2cabcdd826abe6c5641",
+        "reason": "Obsolete intermediate failed focused log; final evidence preserved"
+      },
+      {
+        "path": "/tmp/watchlist-runtime-ci-08d-test-qa-11637deaef/qa-focused-fixture-batch.log",
+        "bytes": 2320500,
+        "sha256": "26f451eb8ba2b3eac8d8efefa801cfe6efe8098580538dffca479d7ad5c4b9b5",
+        "reason": "Obsolete intermediate failed focused log; final evidence preserved"
+      },
+      {
+        "path": "/tmp/watchlist-runtime-ci-08d-test-qa-11637deaef/qa-focused-sealed-candidate.log",
+        "bytes": 255229,
+        "sha256": "73ec0d7c6af094820cc227255ddc8ee3055e1696470c4fc09ae33c79d72a0dd8",
+        "reason": "Obsolete intermediate failed focused log; final evidence preserved"
+      },
+      {
+        "path": "/tmp/watchlist-runtime-ci-08d-test-qa-11637deaef/qa-focused-remaining-cases.log",
+        "bytes": 254872,
+        "sha256": "7b4edf2892dd621f4f72db65fcb56c80b41a996ce06cce2d2a237ee0a5c46473",
+        "reason": "Obsolete intermediate failed focused log; final evidence preserved"
+      },
+      {
+        "path": "/tmp/watchlist-runtime-ci-08d-test-qa-11637deaef/qa-focused-native-lifecycle.log",
+        "bytes": 660431,
+        "sha256": "c190c9ead61d4380262f665771294784ea3a3831a0b64af178826d98c95a6cc2",
+        "reason": "Obsolete intermediate failed focused log; final evidence preserved"
+      },
+      {
+        "path": "/tmp/watchlist-runtime-ci-08d-test-qa-11637deaef/qa-focused-contracts-batch.log",
+        "bytes": 2218891,
+        "sha256": "817a089101805bf4685ba990a4a4efa209b3ecb4fe851982d521fb1a18c8983e",
+        "reason": "Obsolete intermediate failed focused log; final evidence preserved"
+      },
+      {
+        "path": "/tmp/watchlist-runtime-ci-08d-test-qa-11637deaef/qa-focused-final-fixtures.log",
+        "bytes": 604174,
+        "sha256": "f7efc38bb6fa5d74165d913b8df746bc5c8777cac19efd855183690ef0640110",
+        "reason": "Obsolete intermediate failed focused log; final evidence preserved"
+      },
+      {
+        "path": "/tmp/watchlist-runtime-ci-08d-test-qa-11637deaef/qa-focused-current-contracts.log",
+        "bytes": 1018583,
+        "sha256": "261945e5e1448fb22f76adb8b741d275be79df69ec12c2928b2e7d8617816d23",
+        "reason": "Obsolete intermediate failed focused log; final evidence preserved"
+      }
+    ],
+    "bytesRemoved": 7584597,
+    "preserved": "Both source patches; final17/passing focused logs; type receipts; source projection; network guard; dependency symlink; owner-edit probe; manifest; unfinished source"
   }
 }
