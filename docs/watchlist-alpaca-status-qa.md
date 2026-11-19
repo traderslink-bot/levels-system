@@ -941,3 +941,25 @@ scripts/evidence documents remain history, not active user-facing templates.
 Receipts /tmp/watchlist-overnight-label-qa-20261118. No real AI/provider/data/
 notification, dependencies, service/push/deployment changes. Add this later owner
 request to tonight's existing20:15Eastern handoff with all prior approved slices.
+
+## Nov18 — remove generic FreeChat sentence; confirm editable copy
+
+Owner requests removal of See what's available on the ticker page from the
+text-only FreeChat variant and ability to edit that post. Existing held Post to
+FreeChat composer already provides editable Post message for this variant before
+confirmation. Platform removes only that generated sentence; keeps heading,
+links, mention and Premium/image policy. Explicitly empty owner copy now stays
+empty in both server payload and actual embedded preview, without reviving a
+fallback paragraph or introducing an extra blank block. Other variants retain
+their defaults until deliberately edited/cleared. Saved owner copy and lost-ack
+receipt identity remain unchanged; no new composer/schema/approval rule needed.
+
+QA40/40 tests (17 Runtime/23 Platform),20 isolated real-script + synthetic-SQL
+FreeChat workflows, Runtime full TypeScript, Platform dependency graph and changed
+Platform ESLint pass. New browser cases prove this text-only variant has an enabled
+editor, starts empty, persists custom or blank text exactly and makes one queued
+send request; no real transport/worker runs. Existing18 composer/recovery/privacy/
+move cases pass. Receipt home /tmp/watchlist-free-chat-copy-qa-20261118. No real
+posts/generation/provider/settings/data/services, new migration/dependency,
+push/deploy. This small correction rides existing held composer0213 canonical270;
+add to tonight's20:15Eastern full handoff with all prior approved updates.

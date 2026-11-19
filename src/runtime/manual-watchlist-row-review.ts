@@ -347,7 +347,7 @@ function attachX(entry, actions, state, more = actions) {
         if (!value) return;
         const title = document.createElement('strong');
         title.textContent = value.heading.replace(/^\*\*|\*\*$/g,'');
-        copy.replaceChildren(title,document.createTextNode('\n\n'+(message.value.trim()||value.defaultMessage)+'\n\n'+value.footer));
+        copy.replaceChildren(title,document.createTextNode((message.value.trim() ? '\n\n'+message.value.trim() : '')+'\n\n'+value.footer));
         privacy.textContent = value.visibilityKey[0] === '1' ? 'Leave out the ticker, company name, and any details that identify it.' : '';
         privacy.hidden = !privacy.textContent;
         attachment.textContent = value.includeImages ? 'Analysis images will be attached when available.' : 'Text-only post.';
