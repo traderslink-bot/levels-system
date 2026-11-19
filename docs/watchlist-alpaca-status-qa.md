@@ -887,3 +887,32 @@ Receipts /tmp/watchlist-provider-cards-qa-20261118 (tests/types/render/lint logs
 No migration/dependency, live data/generation/notification, push/restart/deploy.
 Include this extension in tonight's existing20:15Eastern handoff, preserving newer
 canonical provider profile and Help/navigation changes by narrow integration.
+
+## Nov18 — Needs attention summary drill-down (owner requested)
+
+Owner could not explain Needs attention3 and requested a link to the records.
+Added recognizable View details button within that card. It opens the existing
+AI Controls analysis audit, selects Needs attention, clears an older selected
+history panel and scrolls/focuses its explanatory heading. Same cached audit
+payload and unchanged needsAttention predicate ensure the rows match that count.
+No fetch/generation/approval/publication/retry occurs on opening. Existing
+Refresh and ticker history remain available. Zero flags show Nothing needs
+attention in this audit; no invented records. Current failure reasons are kept,
+missing/pending records get plain-language explanations, and historical skipped/
+deferred/expected events identify their recorded reason and current/removed state.
+No audit data or classification rules are rewritten.
+
+Platform navigation listens for the local attention event, activates AI Controls
+and notifies its parent. Existing same-origin/exact-frame/source checks guard
+wrapper navigation. Help explains flags can include historical/ticker-only rows.
+QA20 Runtime tests +1 actual-wrapper-handler test pass; Runtime full TypeScript,
+changed Platform ESLint and8 actual-page/navigation isolated render cases pass
+at320/390/844/1280 with light/dark browser preference:3 affected rows/explanations,
+active AI Controls tab, focus, zero state, existing provider/activity/audit cards
+and navigation. All browser network blocked. No signed-in hosted acceptance claim.
+Initial fixture expectation used capitalized labels where existing audit labels
+are lowercase; browser restoration fixture omitted generatedAt. Both fixture-only
+issues corrected; original and final logs retained under
+/tmp/watchlist-attention-qa-20261118. No migration, provider/settings/data/sends,
+services, push or deployment. Add owner-requested extension to tonight's existing
+20:15Eastern handoff; preserve all prior source and current canonical navigation.

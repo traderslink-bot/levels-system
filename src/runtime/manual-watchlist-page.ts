@@ -39,6 +39,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
     .badge-confidence-low { background: #fee2e2; color: #991b1b; }
     .error-line { color: #991b1b; margin-top: 4px; overflow-wrap: anywhere; }
     .status { min-height: 20px; font-size: 14px; margin-bottom: 12px; color: #1d4ed8; }
+    .audit-attention-button { margin-top: 6px; min-width: auto; padding: 6px 8px; font-size: 12px; }
     .runtime-delivery-wrap { overflow-x: auto; scrollbar-width: thin; scrollbar-color: #94a3b8 transparent; }
     .runtime-delivery-table { width: 100%; min-width: 470px; border-collapse: collapse; font-size: 13px; }
     .runtime-delivery-table th, .runtime-delivery-table td { padding: 8px; text-align: left; border-bottom: 1px solid rgba(148,163,184,0.3); }
@@ -567,6 +568,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           </div>
         </div>
         <div class="health-grid" id="ai-read-audit-grid"></div>
+        <p class="field-hint" id="ai-read-attention-summary" tabindex="-1" hidden></p>
         <div class="ai-read-table-wrap">
           <table class="ai-read-table">
             <thead><tr><th>Ticker</th><th>State</th><th>Last read</th><th>Last outcome</th><th>Reason</th></tr></thead>
@@ -1741,6 +1743,30 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
     }
 
+    function auditAttentionReason(row) {
+      const current = row.current;
+      if (current?.status === "failed") return current.reason || row.events.find(event => event.outcome === "failed")?.reason || "A saved analysis operation failed. Select the ticker for its recorded history.";
+      if (current?.status === "missing") return current.reason || "No published analysis or pending generation is recorded. A ticker listed without analysis can appear here.";
+      if (current?.status === "publishing_pending") return current.reason || "Analysis publication is still pending. Select the ticker for its recorded delivery history.";
+      const event = row.events.find(item => ["failed","missing","skipped","deferred","expected"].includes(item.outcome));
+      return "Recorded " + auditStatusLabel(event?.outcome || "attention") + (event?.reason ? ": " + event.reason : "") +
+        ". Current state: " + (current ? auditStatusLabel(current.status) : "historical ticker; no current entry") + ".";
+    }
+
+    function openAiReadAttention() {
+      aiReadAuditSelectedSymbol = null;
+      aiReadAuditHistoryPayload = null;
+      aiReadAuditHistorySymbol = null;
+      aiReadAuditStatusFilterEl.value = "needs_attention";
+      renderAiReadAudit(aiReadAuditPayload || {});
+      document.dispatchEvent(new CustomEvent("watchlist-open-analysis-attention"));
+      window.requestAnimationFrame(() => {
+        const target = document.getElementById("ai-read-attention-summary");
+        target?.focus({preventScroll:true});
+        target?.scrollIntoView({behavior:"smooth",block:"start"});
+      });
+    }
+
     function groupAiReadAuditOperations(events) {
       const groups = new Map();
       const generationsByRun = new Map();
@@ -1807,7 +1833,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
       }
       aiReadDetailEl.hidden = false;
       aiReadDetailTitleEl.textContent = row.symbol + " — " + auditStatusLabel(row.state);
-      aiReadDetailSummaryEl.textContent = row.reason;
+      aiReadDetailSummaryEl.textContent = row.needsAttention ? auditAttentionReason(row) : row.reason;
       aiReadDetailGridEl.innerHTML = "";
       [
         ["Current state", auditStatusLabel(row.state)],
@@ -1879,6 +1905,21 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
         ["Published analyses", String(rows.filter((row) => row.current?.status === "published").length)],
         ["Needs attention", String(rows.filter((row) => row.needsAttention).length)],
       ].forEach(([label, value]) => aiReadAuditGridEl.appendChild(createRuntimeCard(label, value)));
+      const attentionCard = aiReadAuditGridEl.children[2];
+      if (attentionCard?.appendChild) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "secondary audit-attention-button";
+        button.textContent = "View details";
+        button.setAttribute("aria-label", "View tickers needing attention");
+        button.addEventListener("click", openAiReadAttention);
+        attentionCard.appendChild(button);
+      }
+      const attentionSummary = document.getElementById("ai-read-attention-summary");
+      if (attentionSummary) {
+        attentionSummary.hidden = filter !== "needs_attention";
+        attentionSummary.textContent = filteredRows.length ? "Needs attention — " + filteredRows.length + " ticker" + (filteredRows.length === 1 ? "" : "s") + ". The Reason column explains each audit flag. Select a ticker for its saved history; historical entries may also appear." : "Nothing needs attention in this audit.";
+      }
       aiReadRuntimeAuditGridEl.innerHTML = "";
       [
         ["Failed audit events", String(byOutcome.failed || 0)],
@@ -1920,7 +1961,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
           const outcomeCell = document.createElement("td");
           outcomeCell.textContent = row.latestEvent ? auditStatusLabel(row.latestEvent.outcome) + " / " + auditStatusLabel(row.latestEvent.stage) : "None";
           const reasonCell = document.createElement("td");
-          reasonCell.textContent = row.reason;
+          reasonCell.textContent = row.needsAttention ? auditAttentionReason(row) : row.reason;
           tableRow.appendChild(tickerCell);
           tableRow.appendChild(stateCell);
           tableRow.appendChild(lastReadCell);

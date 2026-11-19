@@ -62,3 +62,15 @@ test('missing provider configuration does not invent Off or infer use from an ol
  const rows:any[]=new Script(extract('watchlistProviderUsage')+'\nwatchlistProviderUsage(status)').runInNewContext({status:{runtimeConfig:{sameDayCandleProviderHealth:{moomooConnectionStatus:'connected'}}}});
  assert.ok(rows.every(row=>row.state==='Unknown'));
 });
+test('attention explanations identify current failures, missing analysis, pending publication and historical flags',()=>{
+ const run=(row:any)=>new Script(extract('auditStatusLabel')+'\n'+extract('auditAttentionReason')+'\nauditAttentionReason(row)').runInNewContext({row});
+ assert.equal(run({current:{status:'failed',reason:'Request timed out'},events:[]}),'Request timed out');
+ assert.match(run({current:{status:'missing'},events:[]}),/listed without analysis/);
+ assert.match(run({current:{status:'publishing_pending'},events:[]}),/publication is still pending/);
+ assert.match(run({current:{status:'hidden'},events:[{outcome:'skipped',reason:'Disabled for this request'}]}),/Recorded skipped: Disabled for this request.*Current state: hidden/i);
+});
+test('attention shortcut uses the same cached audit and changes view only, without fetching or posting',()=>{
+ const payload={currentEntries:[]};let rendered=0,dispatched=0,focused=0;const filter={value:'all'};
+ new Script(extract('openAiReadAttention')+'\nopenAiReadAttention()').runInNewContext({aiReadAuditStatusFilterEl:filter,aiReadAuditPayload:payload,renderAiReadAudit:(value:unknown)=>{assert.equal(value,payload);rendered++;},CustomEvent:class{constructor(public type:string){}},document:{dispatchEvent:(event:any)=>{assert.equal(event.type,'watchlist-open-analysis-attention');dispatched++;},getElementById:()=>({focus:()=>focused++,scrollIntoView:()=>{}})},window:{requestAnimationFrame:(fn:()=>void)=>fn()},fetch:()=>assert.fail('Opening details must not make requests')});
+ assert.equal(filter.value,'needs_attention');assert.equal(rendered,1);assert.equal(dispatched,1);assert.equal(focused,1);
+});
