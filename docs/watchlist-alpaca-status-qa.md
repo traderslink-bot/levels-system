@@ -1074,3 +1074,8 @@ before newer Runtime initial editor, alongside all previously approved changes.
 No new migration, settings/dependencies/data/analysis/notifications/services,
 push or deployment. Add this later explicit owner correction to tonight's20:15
 Eastern handoff; preserve all other held/canonical source and approval rules.
+
+
+## Nov19 — distinguish distant target references
+
+Owner's CHSN review is recorded in [Distant target context](watchlist-distant-target-context-review-20261119.md). Read-only saved request/response evidence confirms the updated read selected $0.16/$0.20/$0.462 while its packet and earlier read contained $0.2323/$0.3079 reactions. Generic simplified prompt now requires honest stretch/reference context for large gaps, without claiming absent intermediate structure where it exists, deleting valid broad coverage or adding approval/validation restrictions.17 focused tests and offline request/render checks pass. No paid replay, saved analysis change, notifications or deployment. Detailed prompt and provider settings unchanged.
