@@ -16,7 +16,7 @@ export function sourceCategoryReceipts(review:Review|null,group:string):Receipt[
 }
 
 export function categoryMoveLabel(group:string):string{
-  if(/^top_watches:\d{4}-\d{2}-\d{2}$/.test(group))return 'Overnight Watches';
+  if(/^top_watches:\d{4}-\d{2}-\d{2}$/.test(group))return 'Overnight';
   const names:Record<string,string>={top_regular:'Top Regular Hour Watches',main:'Main Session',postmarket:'Post-Market',general:'General Watchlist',swings:'Swings'};
   if(!names[group])throw Error('Unknown Watchlist category.');
   return names[group];
@@ -26,7 +26,7 @@ export function categoryMoveLabel(group:string):string{
 export function categoryMoveCopy(symbol:string,group:string){
   const label=categoryMoveLabel(group);
   return {title:`${symbol} moved to ${label} by "This Guy"`,
-    body:label==='Overnight Watches'
+    body:label==='Overnight'
       ? `See the analysis for potential setups and levels to watch.`
       : `${symbol} has moved to ${label}. View the ticker page for available analysis, notes and levels.`};
 }

@@ -916,3 +916,28 @@ issues corrected; original and final logs retained under
 /tmp/watchlist-attention-qa-20261118. No migration, provider/settings/data/sends,
 services, push or deployment. Add owner-requested extension to tonight's existing
 20:15Eastern handoff; preserve all prior source and current canonical navigation.
+
+## Nov18 — rename Overnight Watches to Overnight (owner requested)
+
+All active Runtime displayed labels now use Overnight, including Add placeholder,
+dated admin move/group names and category Discord/move/update copy. Existing
+stored top_watches:YYYY-MM-DD identifiers, calendar/date rules, assignment,
+channel routing, posted tracking, owner text and approval/delivery identities
+remain unchanged. Old recorded categoryMoveNote metadata is accepted read-only
+and normalized to Now on Overnight. when producing new notification context;
+newly saved notes use the shorter name. Historical evidence fixtures and saved
+published messages are not rewritten. No database migration or data conversion.
+
+Paired Platform changes public heading/tooltip accessibility labels, FreeChat
+move templates and email/push move/update copy plus Help. Its update copy also
+normalizes legacy metadata without mutating supplied input. QA77/77 cases pass
+(49 Runtime+28 Platform): dated group compatibility, actual category Discord
+heading/body, old/new metadata immutability, automatic projection, owner move
+copy/routing, FreeChat all8 Premium combinations and email/push labels. Runtime
+full TypeScript and Platform changed server/card graph pass; ESLint0errors with
+one pre-existing unused cleanLevelMapCardBody warning. Active source searches
+find old wording only in backward-compatible input normalizers. Legacy packaging
+scripts/evidence documents remain history, not active user-facing templates.
+Receipts /tmp/watchlist-overnight-label-qa-20261118. No real AI/provider/data/
+notification, dependencies, service/push/deployment changes. Add this later owner
+request to tonight's existing20:15Eastern handoff with all prior approved slices.

@@ -7,7 +7,7 @@ import { categoryMoveCopy, categoryMoveLabel } from "../lib/alerts/watchlist-cat
 
 const suffix='\n\nImages show part of the analysis. View full analysis in the app 👇\n\nView the live watchlist: https://example.test/watchlist\nView TEST ticker page: https://example.test/watchlist/TEST\n\n@everyone <@&123456789012345678>';
 test('listing, first analysis, updates and category moves gain only a heading prefix',()=>{
- for(const title of ['TEST added to the watchlist.','TEST Analysis published','TEST Analysis updated','TEST moved to Overnight Watches by "This Guy"']) {
+ for(const title of ['TEST added to the watchlist.','TEST Analysis published','TEST Analysis updated','TEST moved to Overnight by "This Guy"']) {
   const original=title+'\nExisting explanation.'+suffix;
   assert.equal(applyDiscordOwnerText(original,undefined),'### '+original);
   assert.equal(discordTextParts(applyDiscordOwnerText(original,undefined)).suffix,suffix);
@@ -60,4 +60,11 @@ test('live approval, listing and move paths use final formatting; delivery stays
  assert.ok(moves.includes('const content=applyDiscordOwnerText('));
  assert.ok(gateway.includes('content: chunk.content,'));
  assert.ok(!gateway.includes('formatWatchlistDiscordHeading'));
+});
+
+
+test('Overnight label and new category Discord posts retain stored group identity and normal wording',()=>{
+ const group='top_watches:2026-11-19';assert.equal(categoryMoveLabel(group),'Overnight');
+ const post=categoryMoveCopy('TEST',group);assert.equal(post.title,'TEST moved to Overnight by "This Guy"');assert.doesNotMatch(post.title+post.body,/Overnight Watches/);assert.match(post.body,/potential setups and levels/);
+ const source=readFileSync(new URL('../runtime/manual-watchlist-page.ts',import.meta.url),'utf8');assert.match(source,/Overnight · /);assert.doesNotMatch(source,/Overnight Watches/);
 });
