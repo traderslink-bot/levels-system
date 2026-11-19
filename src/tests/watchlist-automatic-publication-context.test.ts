@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { ManualWatchlistRuntimeManager } from "../lib/monitoring/manual-watchlist-runtime-manager.js";
-import { analysisUpdateContextForDraft, analysisUpdateContextFromReview } from "../lib/ai/watchlist-analysis-update-context.js";
+import { analysisUpdateContextForDraft, analysisUpdateContextFromReview, parseAnalysisUpdateContext } from "../lib/ai/watchlist-analysis-update-context.js";
 import { renderApprovedAnalysisDiscord, attributeOwnerApprovedDiscord } from "../lib/ai/traderslink-ai-read-publication-preview.js";
 import type { TradersLinkAiReadPayload } from "../lib/live-watchlist/live-watchlist-types.js";
 
@@ -55,9 +55,9 @@ test("recorded BRAI metadata reproduces the lossy projection, while the actual p
   assert.equal(result.events.length, 1);
   const projected = result.events[0];
   assert.equal(projected.review.events.length, 2);
-  assert.deepEqual(projected.review.events[0].body.publication.analysisUpdateContext, context);
+  assert.deepEqual(projected.review.events[0].body.publication.analysisUpdateContext, {...context,categoryMoveNote:"Now on Overnight."});
   assert.equal(analysisUpdateContextFromReview(projected.review, approval.revision).hasPreviousAnalysis, true);
-  assert.equal(projected.review.events[0].body.publication.analysisUpdateContext.categoryMoveNote, "Now on Overnight Watches.");
+  assert.equal(projected.review.events[0].body.publication.analysisUpdateContext.categoryMoveNote, "Now on Overnight.");
   assert.doesNotMatch(JSON.stringify(projected), /NEVER EXPORT FULL CARDS|fixturePresenceOnly/);
   assert.equal(projected.cycleId, cycleId);
   assert.equal(projected.draftRevision, evidence.updated.draftRevision);
@@ -102,4 +102,12 @@ test("repeated moves and repeated polling preserve notification identity without
   assert.equal(JSON.stringify(review), original);
   assert.equal(first.events[0].review.events[0].body.publication.notificationKind, "analysis");
   assert.equal(first.events[0].review.events[0].body.publication.notifyUsers, true);
+});
+
+
+test("legacy Overnight wording is normalized for new notifications without rewriting saved metadata",()=>{
+ for(const categoryMoveNote of ["Now on Overnight Watches.","Now on Overnight."]){
+  const value={automatic:true,categoryMoveNote,firstAnalysisAt:100,firstAnalysisPrice:1,updatedAnalysisPrice:2};const before=JSON.stringify(value);
+  assert.equal(parseAnalysisUpdateContext(value)?.categoryMoveNote,"Now on Overnight.");assert.equal(JSON.stringify(value),before);
+ }
 });

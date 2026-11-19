@@ -33,7 +33,7 @@ test('separate preview preserves both pullbacks and upside while excluding inter
   const html=renderSimpleAnalysisPreviewDocument([source]);
   assert.ok(html.indexOf('Nearer area')<html.indexOf('Deeper area'));
   assert.ok(html.includes('$1.4–$1.5'));
-  assert.ok(html.includes('Thesis invalidation'));
+  assert.ok(!html.includes('Thesis invalidation'), 'the retired invalidation section is not rendered');
   assert.ok(!html.includes('INTERNAL_AUDIT')&&!html.includes('SECRET_EVIDENCE'));
   assert.equal(JSON.stringify(source),original);
 });
@@ -55,7 +55,7 @@ test('historical discontinuity is flagged, not explained or silently adjusted', 
 });
 
 test('isolated prototype requests only the useful analysis sections, once', () => {
-  assert.deepEqual(Object.keys(SIMPLE_ANALYSIS_SCHEMA.properties), ['selectionAudit','setup','pullbacks','upside','invalidation']);
+  assert.deepEqual(Object.keys(SIMPLE_ANALYSIS_SCHEMA.properties), ['selectionAudit','setup','breakout','catalystRealityCheck','riskSummary','pullbacks','upside','pullbackSelectionAudit']);
   const packet = { marketPacket: { symbol: 'SOAR', currentPrice: 0.2482 } };
   const request = buildSimpleAnalysisTestRequest(packet);
   assert.equal(request.input.length, 2);
@@ -66,8 +66,8 @@ test('isolated prototype requests only the useful analysis sections, once', () =
   assert.match(request.input[0]!.content[0]!.text, /No candle clock times/);
   assert.match(request.input[0]!.content[0]!.text, /Use regularSessionExtremes/);
   assert.match(request.input[0]!.content[0]!.text, /Do not add a separate recovery scenario/);
-  assert.match(request.input[0]!.content[0]!.text, /not mechanically the oldest low/);
-  assert.match(request.input[0]!.content[0]!.text, /Keep the meaningful lower area as the sole Pullback/);
+  assert.match(request.input[0]!.content[0]!.text, /lower area is preferable/);
+  assert.match(request.input[0]!.content[0]!.text, /selectedPullbackReason/);
   assert.equal((SIMPLE_ANALYSIS_SCHEMA.properties.upside as {maxItems:number}).maxItems, 4);
 });
 

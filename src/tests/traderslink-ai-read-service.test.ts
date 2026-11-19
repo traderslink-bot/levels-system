@@ -22,6 +22,17 @@ import {
   type TradersLinkAiReadPriceActionContext,
 } from "../lib/ai/traderslink-ai-read-price-action.js";
 
+// The generation-time breakout checkpoint is separate from model continuation objectives.
+// Assert the anchor independently so filtering it cannot hide a missing/mispriced breakout.
+function continuationTargets(read: { currentPrice: number; breakoutContinuation: { price: number | null };
+  targets: Array<{ price: number | null; label: string; condition: string }> }) {
+  const anchors = read.targets.filter(target => target.label === "Breakout level");
+  if (read.breakoutContinuation.price !== null && read.breakoutContinuation.price > read.currentPrice) {
+    assert.deepEqual(anchors.map(target => target.price), [read.breakoutContinuation.price]);
+  } else assert.deepEqual(anchors, []);
+  return read.targets.filter(target => target.label !== "Breakout level");
+}
+
 const DATA_AS_OF = Date.parse("2026-07-15T20:30:00.000Z");
 const PREMARKET_DATA_AS_OF = Date.parse("2026-07-20T11:45:00.000Z");
 
@@ -46,7 +57,7 @@ it("owner review retains both pullbacks, original narrative and every upside che
     research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] }, onValidationDecision: d => decisions.push(d),
     onAttempt: attempt => { assert.equal(attempt.timeoutMs, 180_000); assert.equal(attempt.status, "success"); } });
   assert.deepEqual(read.pullbackPlans, { shallow, deep });
-  assert.deepEqual(read.targets.map(p => p.price), levels.map(p => p.price));
+  assert.deepEqual(continuationTargets(read).map(p => p.price), levels.map(p => p.price));
   assert.equal(read.breakoutContinuation.price, 1.65);
   assert.equal(read.currentRead, draft.currentRead);
   assert.equal(calls, 1);
@@ -57,13 +68,13 @@ it("owner review retains both pullbacks, original narrative and every upside che
 it("owner-reviewed generation can use supplied chart evidence beyond the catalog and retain six upside checkpoints", () => {
   const ordinary = buildTradersLinkAiReadDeveloperPrompt();
   const reviewed = buildTradersLinkAiReadDeveloperPrompt(true);
-  assert.match(ordinary, /Select zones only from supplied pullbackCandidates/);
+  assert.match(ordinary, /supplied pullbackCandidates and cite exact supporting record IDs/);
   assert.match(reviewed, /not an exhaustive list of support/);
   assert.match(reviewed, /daily:<timestamp>/);
   assert.doesNotMatch(reviewed, /Select zones only|evidenceIds must contain only IDs from pullbackCandidates|Low confidence must return both|Then audit every candidate ID and pullback\/recovery price against supplied candidate zones/);
-  assert.match(reviewed, /actual supplied candles or candidate zones/);
+  assert.match(reviewed, /actual supplied daily, four-hour and intraday candles/);
   assert.match(reviewed, /Only AFTER that choose the broader thesis failure/);
-  assert.match(reviewed, /setupRestorePrice < firstObjectivePrice/);
+  assert.match(reviewed, /firstReclaimPrice < setupRestorePrice/);
   assert.match(reviewed, /Flat repeated OHLC bars with unavailable volume do not establish repeated buyer defense/);
   assert.doesNotMatch(ordinary, /Scope correction for this complete analysis/);
   const outgoing=buildTradersLinkAiReadResponseSchema();
@@ -124,23 +135,23 @@ it("owner review adds one outer resistance without enumerating intermediate map 
       content: [{ type: "output_text", text: JSON.stringify(draft) }] }] }), { status: 200 }); } });
   const read = await service.generate({ snapshot: levels, priceAction: priceAction(), ownerReviewRequired: true,
     research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] }, onValidationDecision: d => decisions.push(d) });
-  assert.deepEqual(read.targets.map(target => target.price), [1.7, 1.9]);
-  assert.deepEqual(read.targets[0], (draft.targets as unknown[])[0]);
+  assert.deepEqual(continuationTargets(read).map(target => target.price), [1.7, 1.9]);
+  assert.deepEqual(continuationTargets(read)[0], (draft.targets as unknown[])[0]);
   assert.equal(requests, 1);
   assert.ok(decisions.some(d => d.stage === "potential_path_extension" && d.source === "frozen_potential_path"));
-  assert.doesNotMatch(read.targets[1]!.condition, /next mapped resistance|1\.75/);
+  assert.doesNotMatch(continuationTargets(read)[1]!.condition, /next mapped resistance|1\.75/);
   draft.targets = [{ label: "AI farther area", price: 1.9, condition: "Original farther condition." }];
   const covered = await service.generate({ snapshot: levels, priceAction: priceAction(), ownerReviewRequired: true,
     research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
-  assert.deepEqual(covered.targets, draft.targets);
+  assert.deepEqual(continuationTargets(covered), draft.targets);
 });
 
 it("owner prompt requests natural commentary and a sole meaningful pullback", () => {
   const prompt = buildTradersLinkAiReadDeveloperPrompt(true);
   assert.match(prompt, /do not quote candle clock times/);
   assert.match(prompt, /return shallow:null and preserve the meaningful deep plan/);
-  assert.match(prompt, /Never fill six slots/);
-  assert.match(prompt, /one or at most two mapped levels/);
+  assert.match(prompt, /capacities, not quotas/);
+  assert.match(prompt, /at most two observed outer levels/);
 });
 
 it("requests pullback structures before the final core failure without changing required fields", () => {
@@ -840,7 +851,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.equal(schema.properties.targets, undefined);
     assert.equal(requestBody.max_output_tokens, 16_000);
     assert.ok(schema.properties.catalystRealityCheck);
-    assert.ok(schema.properties.downsideCheckpoints);
+    assert.equal(schema.properties.downsideCheckpoints, undefined);
     assert.ok(schema.properties.pullbackPlans);
     assert.ok(schema.properties.failureRecovery);
     assert.equal(schema.properties.dilutionRisk,undefined);
@@ -852,7 +863,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     );
     assert.match(
       input[0]!.content[0]!.text,
-      /invalidationPrice < zoneLow <= zoneHigh < currentPrice/,
+      /zoneLow <= zoneHigh < currentPrice/,
     );
     assert.match(
       input[0]!.content[0]!.text,
@@ -861,7 +872,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.match(input[0]!.content[0]!.text, /verifiedFiftyTwoWeekLow/);
     assert.match(input[0]!.content[0]!.text, /must never dominate the read/);
     assert.match(input[0]!.content[0]!.text, /distinct from an immediate momentum retest inside ordinary candle noise/);
-    assert.match(input[0]!.content[0]!.text, /Evaluate candidate bases and momentumFailure jointly/);
+    assert.match(input[0]!.content[0]!.text, /Do not invent/);
     assert.match(input[0]!.content[0]!.text, /Do not move failure merely to fit a desired percentage/);
     assert.doesNotMatch(input[0]!.content[0]!.text, /shallow is the controlled momentum retest/);
     const pullbackPlansSchema = schema.properties.pullbackPlans as {
@@ -871,10 +882,8 @@ describe("OpenAITradersLinkAiReadService", () => {
         };
       };
     };
-    assert.match(
-      pullbackPlansSchema.properties.shallow.properties.invalidationPrice?.description ?? "",
-      /strictly below zoneLow/i,
-    );
+    assert.equal(pullbackPlansSchema.properties.shallow.properties.invalidationPrice, undefined,
+      "the owner removed the pullback invalidation field from the requested analysis");
     const failureRecoverySchema = schema.properties.failureRecovery as {
       properties: Record<string, { description?: string }>;
     };
@@ -1123,7 +1132,7 @@ describe("OpenAITradersLinkAiReadService", () => {
       const partial = await generate(badLegacyText);
       assert.equal(partial[name].price, null);
       assert.equal(partial.breakoutContinuation.price, null);
-      assert.deepEqual(partial.targets, []);
+      assert.deepEqual(continuationTargets(partial), []);
       assert.equal(partial.pullbackPlans.shallow, null, "dependent confirmation is omitted with its breakout");
       assert.ok(partial.pullbackPlans.deep, "independent deep setup remains");
       assert.ok(generationAudit.some(event => event.payload?.issues?.some((issue: any) => issue.path === name && issue.code === "unsupported_text")));
@@ -1135,7 +1144,7 @@ describe("OpenAITradersLinkAiReadService", () => {
       { id: "independent", dependsOn: ["alternate"], label: "Independent daily high", price: 2.2, condition: "Observed daily rejection high" },
     ];
     const unsupportedDependenciesRead = await generate(withDependencies);
-    assert.deepEqual(unsupportedDependenciesRead.targets, [], "daily-high words alone cannot ground the 2.20 price");
+    assert.deepEqual(continuationTargets(unsupportedDependenciesRead), [], "daily-high words alone cannot ground the 2.20 price");
     tape.dailyCandles.push({ timestamp: DATA_AS_OF - 22 * 86400000,
       open: 2.1, high: 2.2, low: 2.05, close: 2.15, volume: 100000 });
     const dependenciesRead = await generate(withDependencies);
@@ -1144,27 +1153,27 @@ describe("OpenAITradersLinkAiReadService", () => {
     const aliasDependencies = structuredClone(withDependencies);
     aliasDependencies.breakoutCandidates.alternate.targets[2].dependsOn = ["alternate-breakout"];
     const aliasRead = await generate(aliasDependencies);
-    assert.deepEqual(aliasRead.targets, dependenciesRead.targets);
+    assert.deepEqual(continuationTargets(aliasRead), continuationTargets(dependenciesRead));
     aliasDependencies.breakoutCandidates.alternate.targets[2].dependsOn = ["tghl-breakout-alternate"];
-    assert.deepEqual((await generate(aliasDependencies)).targets, dependenciesRead.targets);
+    assert.deepEqual(continuationTargets(await generate(aliasDependencies)), continuationTargets(dependenciesRead));
     aliasDependencies.breakoutCandidates.alternate.targets[2].dependsOn = ["bmgl-breakout-alternate"];
-    assert.deepEqual((await generate(aliasDependencies)).targets, [], "foreign symbol cannot bind");
+    assert.deepEqual(continuationTargets(await generate(aliasDependencies)), [], "foreign symbol cannot bind");
     aliasDependencies.breakoutCandidates.alternate.targets[2].dependsOn = ["alternate-breakout"];
     const unsupportedAlias = structuredClone(aliasDependencies);
     unsupportedAlias.breakoutCandidates.alternate.targets[2].price = 99;
-    assert.deepEqual((await generate(unsupportedAlias)).targets, []);
+    assert.deepEqual(continuationTargets(await generate(unsupportedAlias)), []);
     const badTargetText = structuredClone(withDependencies);
     badTargetText.breakoutCandidates.alternate.targets[2].condition = "Premarket volume was zero.";
     const textPartial = await generate(badTargetText);
-    assert.deepEqual(textPartial.targets, []);
+    assert.deepEqual(continuationTargets(textPartial), []);
     assert.equal(textPartial.breakoutContinuation.price, dependenciesRead.breakoutContinuation.price);
     assert.ok(textPartial.pullbackPlans.deep);
     assert.ok(generationAudit.some(event => event.payload?.parsingIssues?.some((issue: any) => /zero shares traded/.test(issue.reason))));
     // Restore the successful selection audit used by the assertions below.
     await generate(withDependencies);
     tape.dailyCandles.pop();
-    assert.deepEqual(dependenciesRead.targets.map(target => target.price), [2.2]);
-    assert.equal(Object.hasOwn(dependenciesRead.targets[0]!, "dependsOn"), false);
+    assert.deepEqual(continuationTargets(dependenciesRead).map(target => target.price), [2.2]);
+    assert.equal(Object.hasOwn(continuationTargets(dependenciesRead)[0]!, "dependsOn"), false);
     const selectionAudit = generationAudit.find(event => event.phase === "validation" && event.payload?.stage === "breakout_selection");
     assert.ok(selectionAudit, "selection decision is durably capturable");
     assert.equal(selectionAudit.payload.selectedCandidateId, "alternate");
@@ -1197,7 +1206,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     const partialBreakout = await generate(invalidBreakout);
     assert.equal(partialBreakout.mustClear.price, null);
     assert.equal(partialBreakout.breakoutContinuation.price, null);
-    assert.deepEqual(partialBreakout.targets, []);
+    assert.deepEqual(continuationTargets(partialBreakout), []);
     assert.ok(partialBreakout.pullbackPlans.shallow);
     assert.ok(partialBreakout.pullbackPlans.deep);
     assert.equal(partialBreakout.pullbackPlans.shallow.confirmation, invalidBreakout.pullbackPlans.shallow.confirmation);
@@ -1213,7 +1222,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     assert.ok(dependentRead.pullbackPlans.deep);
     assert.equal(dependentRead.pullbackPlans.deep.firstObjectivePrice, null);
     assert.equal(dependentRead.breakoutContinuation.price, null);
-    assert.deepEqual(dependentRead.targets, []);
+    assert.deepEqual(continuationTargets(dependentRead), []);
 
     const finalDependencies = structuredClone(draft) as Record<string, any>;
     finalDependencies.breakoutContinuation.price = finalDependencies.mustClear.price;
@@ -2051,13 +2060,13 @@ describe("OpenAITradersLinkAiReadService", () => {
     const read = await service.generate({ snapshot: levels, priceAction: priceAction(),
       research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
     assert.equal(requests, 1);
-    assert.deepEqual(read.targets.map(target => target.price), [2.3]);
+    assert.deepEqual(continuationTargets(read).map(target => target.price), [2.3]);
     assert.equal(read.breakoutContinuation.price, 1.68);
     const addition = events.find(event => event.phase === "validation" && (event.payload as any).stage === "outer_daily_resistance")?.payload as any;
     assert.equal(addition.action, "append_objective");
     assert.equal(addition.source, "frozen_potential_path");
     assert.equal(addition.target.price, 2.3);
-    assert.match(read.targets[0]!.condition, /Potential Path/);
+    assert.match(continuationTargets(read)[0]!.condition, /Potential Path/);
     assert.ok(events.some(event => event.phase === "validation" && (event.payload as any).valid === true));
   });
 
@@ -2071,7 +2080,7 @@ describe("OpenAITradersLinkAiReadService", () => {
         content: [{ type: "output_text", text: JSON.stringify(draft) }] }] }), { status: 200 }); } });
     const read = await service.generate({ snapshot: snapshot(), priceAction: priceAction(),
       research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
-    assert.deepEqual(read.targets, []);
+    assert.deepEqual(continuationTargets(read), []);
     assert.equal(requests, 1);
   });
 
@@ -2088,7 +2097,7 @@ describe("OpenAITradersLinkAiReadService", () => {
     const read = await service.generate({ snapshot: levels, priceAction: tape,
       research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
     assert.equal(requests, 1);
-    assert.deepEqual(read.targets.map(target => target.price), [2.3]);
+    assert.deepEqual(continuationTargets(read).map(target => target.price), [2.3]);
     assert.match(read.targets.at(-1)?.condition ?? "", /observed daily candle high/);
     assert.doesNotMatch(read.targets.at(-1)?.condition ?? "", /confluence/);
   });
@@ -2175,7 +2184,7 @@ describe("OpenAITradersLinkAiReadService", () => {
             content: [{ type: "output_text", text: JSON.stringify(draft) }] }] }), { status: 200 }); } });
         const read = await service.generate({ snapshot: snapshot(), priceAction: { ...priceAction(), oneMinuteCandles: scenario.bars },
           research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
-        const points = side === "upside" ? read.targets : read.downsideCheckpoints;
+        const points = side === "upside" ? continuationTargets(read) : read.downsideCheckpoints;
         assert.equal(points.length, scenario.retained ? 1 : 0, side);
         if (scenario.retained) assert.match(points[0]!.condition, /observed one-minute candle/);
       }
@@ -2298,13 +2307,17 @@ describe("OpenAITradersLinkAiReadService", () => {
     const outgoingBody = JSON.parse(sentBody);
     const digest = (text: string) => createHash("sha256").update(text).digest("hex");
     assert.equal(capturedRequest.bodySha256, digest(sentBody));
-    assert.equal(capturedRequest.promptSha256, digest(outgoingBody.input[0].content[0].text));
+    assert.equal(capturedRequest.promptSha256, digest(JSON.stringify(outgoingBody.input.find((item: any) => item.role === "developer").content)));
     assert.equal(capturedRequest.schemaSha256, digest(JSON.stringify(outgoingBody.text.format.schema)));
     const identity = (events[0]!.payload as any).codeIdentity;
     assert.equal(identity.scope, "analysis-module-files-at-service-load");
     assert.equal(identity.complete, true);
-    assert.equal(identity.modules.length, 9);
-    assert.ok(identity.modules.some((module: any) => module.name === "traderslink-ai-read-market-context"));
+    assert.deepEqual(identity.modules.map((module: any) => module.name).sort(), [
+      "traderslink-ai-read-code-identity", "traderslink-ai-read-service", "traderslink-ai-read-price-action",
+      "traderslink-ai-read-observations", "traderslink-ai-read-core-evidence", "traderslink-ai-read-section-validation",
+      "traderslink-ai-read-breakout-selection", "traderslink-ai-read-checkpoint-dependencies",
+    ].sort());
+    assert.ok(identity.modules.every((module: any) => /^[a-f0-9]{64}$/.test(module.sha256)));
     assert.match(identity.sha256, /^[a-f0-9]{64}$/);
     assert.equal(Object.hasOwn(JSON.parse(sentBody), "codeIdentity"), false);
     assert.equal((events[1]!.payload as { body: string }).body, responseBody);
@@ -2327,7 +2340,7 @@ describe("OpenAITradersLinkAiReadService", () => {
       });
       const read = await service.generate({ snapshot: snapshot(), priceAction: tape,
         research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
-      assert.deepEqual(read[field], []);
+      assert.deepEqual(field === "targets" ? continuationTargets(read) : read[field], []);
       assert.equal(read.breakoutContinuation.price, 1.68);
       assert.equal(requests, 1);
       const root = field === "targets" ? "breakoutContinuation" : "momentumFailure";
@@ -2341,8 +2354,8 @@ describe("OpenAITradersLinkAiReadService", () => {
       ];
       const independent = await service.generate({ snapshot: snapshot(), priceAction: tape,
         research: { ticker: "TGHL", businessDays: 5, count: 0, articles: [] } });
-      assert.deepEqual(independent[field].map(point => point.price), [prices[2]]);
-      assert.equal(Object.hasOwn(independent[field][0]!, "id"), false);
+      assert.deepEqual((field === "targets" ? continuationTargets(independent) : independent[field]).map(point => point.price), [prices[2]]);
+      assert.equal(Object.hasOwn((field === "targets" ? continuationTargets(independent) : independent[field])[0]!, "id"), false);
       assert.equal(requests, 2, "two explicit generations, one request each");
     }
   });
@@ -2512,4 +2525,33 @@ describe("optional fallback", () => {
     assert.equal(read.model,"gpt-6-sol");assert.deepEqual(models,["gpt-6-luna","gpt-6-sol"]);
     assert.equal(service.getConfiguredModel(),"gpt-5.6-terra");assert.equal(calls,2);
   });
+});
+
+it("crossed original breakout is included in both request formats and new generated breakout sections are omitted", async()=>{
+ for(const format of ['current','simple'] as const){
+  const raw=format==='simple'?{setup:'Current trade remains active.',breakout:{price:1.65,explanation:'Another ceiling',confirmation:'Wait for volume'},pullbacks:[{low:1.2,high:1.25,explanation:'Tested area',confirmation:'Buyer response'}],upside:[{low:1.9,high:2,explanation:'Observed resistance'}],catalystRealityCheck:{status:'none',summary:'No fresh supplied catalyst.',sourceUrls:[]},riskSummary:['Volatile stock.']}:modelRead();
+  let calls=0,requestBody:any;
+  const service=new OpenAITradersLinkAiReadService({apiKey:'synthetic-test',model:'test-model',fetchImpl:async(_url,init)=>{calls++;requestBody=JSON.parse(String(init?.body));return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(raw)}]}]});}});
+  const crossedOriginalBreakout={originalPrice:1.5,crossedAt:DATA_AS_OF-1000};
+  const result=await service.generate({snapshot:snapshot(),priceAction:priceAction(),analysisFormat:format,ownerReviewRequired:true,crossedOriginalBreakout,research:{ticker:'TGHL',businessDays:5,count:0,articles:[]}});
+  const packet=JSON.parse(requestBody.input[1].content[0].text);
+  assert.deepEqual(format==='simple'?packet.marketPacket.crossedOriginalBreakout:packet.crossedOriginalBreakout,crossedOriginalBreakout);
+  assert.equal(calls,1);assert.equal(result.breakoutContinuation.price,null);assert.equal(result.breakoutContinuation.rationale,'');assert.ok(result.targets.every(target=>target.label!=='Breakout level'));assert.ok(result.targets.length>0);assert.ok(result.riskSummary.length>0);
+  if(format==='simple'){assert.equal(result.simpleAnalysis?.breakout,null);assert.equal(result.simpleAnalysis?.pullbacks[0]?.low,1.2);assert.equal(result.simpleAnalysis?.setup,'Current trade remains active.');}
+ }
+});
+
+it("a quote crossing during the request removes the follow-up breakout without losing other objectives", async()=>{
+ const {WatchlistBreakoutLifecycle,omitFollowupBreakout}=await import('../lib/ai/watchlist-breakout-lifecycle.js');
+ const {mkdtempSync,rmSync}=await import('node:fs');const {join}=await import('node:path');const {tmpdir}=await import('node:os');
+ const directory=mkdtempSync(join(tmpdir(),'inflight-breakout-test-'));
+ try{
+  const ledger=new WatchlistBreakoutLifecycle(directory);ledger.register('activation','TGHL',1.5,DATA_AS_OF-10000);
+  let complete!:()=>void;const gate=new Promise<void>(resolve=>{complete=resolve;});let calls=0;
+  const service=new OpenAITradersLinkAiReadService({apiKey:'synthetic-test',model:'test-model',fetchImpl:async()=>{calls++;await gate;return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(modelRead())}]}]});}});
+  const pending=service.generate({snapshot:snapshot(),priceAction:priceAction(),ownerReviewRequired:true,research:{ticker:'TGHL',businessDays:5,count:0,articles:[]}});
+  ledger.observe('activation',1.6,DATA_AS_OF);complete();
+  const raw=await pending,read=omitFollowupBreakout(raw,ledger.crossed('activation'));
+  assert.equal(read.breakoutContinuation.price,null);assert.ok(read.targets.every(target=>target.label!=='Breakout level'));assert.deepEqual(read.targets.map(t=>t.price),raw.targets.map(t=>t.price));assert.deepEqual(read.pullbackPlans,raw.pullbackPlans);assert.equal(calls,1);
+ }finally{rmSync(directory,{recursive:true,force:true});}
 });

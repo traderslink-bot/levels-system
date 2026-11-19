@@ -70,7 +70,8 @@ export function analysisUpdateContextFromReview(value: unknown, approvalRevision
 export function parseAnalysisUpdateContext(value: unknown): AnalysisUpdateContext | undefined {
   const item = record(value);
   if (typeof item.automatic !== "boolean") return undefined;
-  return { ...(typeof item.hasPreviousAnalysis === "boolean" ? { hasPreviousAnalysis: item.hasPreviousAnalysis } : {}), ...(typeof item.categoryMoveNote === "string" && /^Now on (Overnight Watches|Main Session|Top Regular Hour Watches|Post-Market|General Watchlist|Swings)\.$/.test(item.categoryMoveNote) ? {categoryMoveNote:item.categoryMoveNote} : {}), automatic: item.automatic, firstAnalysisAt:timestamp(item.firstAnalysisAt), firstAnalysisPrice: price(item.firstAnalysisPrice), updatedAnalysisPrice: price(item.updatedAnalysisPrice) };
+  const categoryMoveNote = typeof item.categoryMoveNote === "string" ? item.categoryMoveNote.replace(/^Now on Overnight Watches\.$/, "Now on Overnight.") : undefined;
+  return { ...(typeof item.hasPreviousAnalysis === "boolean" ? { hasPreviousAnalysis: item.hasPreviousAnalysis } : {}), ...(typeof categoryMoveNote === "string" && /^Now on (Overnight|Main Session|Top Regular Hour Watches|Post-Market|General Watchlist|Swings)\.$/.test(categoryMoveNote) ? {categoryMoveNote} : {}), automatic: item.automatic, firstAnalysisAt:timestamp(item.firstAnalysisAt), firstAnalysisPrice: price(item.firstAnalysisPrice), updatedAnalysisPrice: price(item.updatedAnalysisPrice) };
 }
 
 export const ANALYSIS_UPDATE_EXPLANATION = "A follow-up to the original analysis, with updated levels and setups for those holding a position or watching the trade develop.";

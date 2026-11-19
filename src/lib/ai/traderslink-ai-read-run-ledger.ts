@@ -153,6 +153,15 @@ export class TradersLinkAiReadRunLedger {
     return recorded;
   }
 
+  /** Read-only health snapshot: distinguish unavailable or damaged evidence from zero. */
+  readSnapshot(): { events: TradersLinkAiReadRunEvent[]; complete: boolean } | null {
+    try {
+      const raw = readFileSync(this.filePath, "utf8");
+      const events = parseLines(raw);
+      return { events, complete: events.length === raw.split(/\r?\n/).filter(line => line.trim()).length };
+    } catch { return null; }
+  }
+
   load(): TradersLinkAiReadRunEvent[] {
     try {
       return parseLines(readFileSync(this.filePath, "utf8"))

@@ -102,6 +102,7 @@ describe("TradersLink AI Read mandatory post-change five-symbol fixture audit", 
 
         const read = await service.generate({
           snapshot: snapshotFor(fixture),
+          ownerReviewRequired: true,
           priceAction: priceActionFor(fixture),
           research: {
             ticker: fixture.symbol,
@@ -120,7 +121,9 @@ describe("TradersLink AI Read mandatory post-change five-symbol fixture audit", 
         assert.equal(read.momentumFailure.price, fixture.expected.momentumFailure);
         assert.equal(read.mustClear.price, fixture.expected.mustClear);
         assert.equal(read.breakoutContinuation.price, fixture.expected.breakoutContinuation);
-        assert.deepEqual(read.targets.map((target) => target.price), fixture.expected.targets);
+        const anchor = read.targets.find(target => target.label === "Breakout level");
+        assert.equal(anchor?.price, read.breakoutContinuation.price);
+        assert.deepEqual(read.targets.filter(target => target.label !== "Breakout level").map((target) => target.price), fixture.expected.targets);
         assert.deepEqual(read.downsideCheckpoints.map((checkpoint) => checkpoint.price), fixture.expected.downsideCheckpoints);
         assert.equal(read.usedWebSearch, false);
         assert.equal(read.usage.webSearchCallCount, 0);

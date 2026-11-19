@@ -110,7 +110,7 @@ test('edited move copy is saved before notifying or deleting from the old channe
  const run=(saveFails:boolean,notify:boolean)=>{
   const calls:string[]=[];
   let click:()=>Promise<void>;
-  const moveSelect={value:'top_watches:2026-11-17',disabled:false,options:[{text:'Overnight Watches'}],selectedIndex:0};
+  const moveSelect={value:'top_watches:2026-11-17',disabled:false,options:[{text:'Overnight'}],selectedIndex:0};
   const document=new Map();
   const window={watchlistDiscordText:{saveMoveText:async(key:string)=>{
    assert.equal(key,'TEST:cycle:move:top_watches:2026-11-17');

@@ -10,7 +10,7 @@ import { queueCategoryMoveRemovals } from "./watchlist-discord-removal.js";
 import type { ReviewState } from "../ai/traderslink-ai-read-review-store.js";
 
 type Entry={active:boolean;activatedAt?:number;watchlistGroup?:string;publicationReview?:{cycleId?:string}};
-type Ports={entry:(symbol:string)=>Entry|undefined;review:(symbol:string)=>ReviewState|null;place:(symbol:string,group:string)=>Promise<unknown>;
+type Ports={additionalReceipts?:(symbol:string,cycleId:string,group:string)=>MoveReceipt[];entry:(symbol:string)=>Entry|undefined;review:(symbol:string)=>ReviewState|null;place:(symbol:string,group:string)=>Promise<unknown>;
  send:(input:{symbol:string;watchlistGroup:string;content:string;deliveryKey:string;audience:{everyone:boolean;roles:string[]}})=>Promise<MoveReceipt>;
  verify:(input:{symbol:string;watchlistGroup:string;content:string;deliveryKey:string},messageId:string,at:number)=>Promise<MoveReceipt>};
 const locks=new Map<string,Promise<unknown>>();
@@ -69,7 +69,7 @@ export class CategoryMoveService{
    const linked=buildWatchlistDiscordLinkMessage(input.symbol);
    const content=applyDiscordOwnerText(appendDiscordMentions(copy.title+'\n'+copy.body+linked.slice(linked.indexOf('\n\n')),audience),input.discordText);
    const oldMoves=this.store.read(input.symbol).filter(item=>item.cycleId===entry.publicationReview?.cycleId&&item.to===from&&item.destinationReceipt).map(item=>item.destinationReceipt!);
-   move={...newCategoryMove({id:input.id,symbol:input.symbol,cycleId:entry.publicationReview?.cycleId??input.id,from,to:input.to,content,createdAt:Date.now(),activationAt:entry.activatedAt,notify:input.notify,deleteSource:input.deleteSource===true,freeChat:input.notify&&input.freeChat===true,published:Boolean(approval)},[...sourceCategoryReceipts(review,from),...oldMoves]),actor:input.actor,audience,approvalRevision:approval?.revision??null};
+   move={...newCategoryMove({id:input.id,symbol:input.symbol,cycleId:entry.publicationReview?.cycleId??input.id,from,to:input.to,content,createdAt:Date.now(),activationAt:entry.activatedAt,notify:input.notify,deleteSource:input.deleteSource===true,freeChat:input.notify&&input.freeChat===true,published:Boolean(approval)},[...sourceCategoryReceipts(review,from),...oldMoves,...(this.ports.additionalReceipts?.(input.symbol,entry.publicationReview?.cycleId??input.id,from)??[])]),actor:input.actor,audience,approvalRevision:approval?.revision??null};
    this.store.save(move);
   }
   const fixed=move;

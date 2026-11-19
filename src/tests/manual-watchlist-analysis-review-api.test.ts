@@ -4,13 +4,14 @@ import { dispatchAnalysisReviewRequest } from "../runtime/manual-watchlist-analy
 
 function setup() {
   const calls: Array<{ method: string; input: unknown }> = [];
-  const call = (method: string) => (input: unknown) => { calls.push({ method, input }); return { saved: true }; };
+  const call = (method: string) => (input: unknown) => { calls.push({ method, input }); return method === "read" ? { symbol: "PDSB", cycleId: "cycle", events: [{ revision: 2, body: { kind: "original" } }] } : { saved: true }; };
   const manager = {
     getTradersLinkAiReadReview: call("read"), getTradersLinkAiReadPublicationPreview: call("preview"),
     listTradersLinkAiReadReviews: call("queue"),
     saveTradersLinkAiReadOwnerEdit: call("save"), approveTradersLinkAiRead: call("approve"),
     publishApprovedTradersLinkAiReadToDiscord: call("retry"),
     publishTickerWithoutAnalysis: call("listing"),
+    saveTraderNotes: call("notes"), getNotesPublication: call("notesStatus"), sendNotesNotification: call("notesSend"),
     verifyTradersLinkAiReadDiscordReceipt: call("verify"),
   };
   const send = (pathname: string, body?: unknown, actor: string | undefined = "platform-owner:test-owner", method = "POST") =>
@@ -22,7 +23,7 @@ test("listing without analysis needs only current cycle/head; approval validates
   const { calls, send } = setup();
   const body = { symbol: "PDSB", cycleId: "cycle", expectedHead: 2 };
   assert.equal((await send("/publish-without-analysis", body)).status, 200);
-  assert.equal(calls[0]!.method, "listing");
+  assert.equal(calls.find(call => call.method === "listing")?.method, "listing");
   assert.equal((await send("/publish-without-analysis", { ...body, actor: "spoof" })).status, 400);
   const approval = { ...body, draftRevision: 2, previewHash: "a".repeat(64), notifyUsers: false };
   assert.equal((await send("/approve", { ...approval, notifyUsers: "false" })).status, 400);
@@ -71,7 +72,7 @@ test("approval selects the exact draft without requiring a preview hash; Discord
   assert.equal((await send("/approve", withoutHash)).status, 200);
   assert.equal((await send("/approve", body)).status, 200);
   assert.equal((await send("/retry-discord", { symbol: "PDSB", cycleId: "cycle", approvalRevision: 3 })).status, 200);
-  assert.deepEqual(calls.map((call) => call.method), ["approve", "approve", "approve", "retry"]);
+  assert.deepEqual(calls.filter(call => call.method !== "read").map((call) => call.method), ["approve", "approve", "approve", "retry"]);
 });
 
 test("conflicts are actionable but provider response details stay private", async () => {
@@ -166,4 +167,21 @@ test("export requires an explicit generation and the protected owner context", a
   assert.equal(selections.length, 0);
   assert.equal((await dispatchAnalysisReviewRequest(input, manager as any, controls)).status, 200);
   assert.deepEqual(selections, ["PDSB:g1"]);
+});
+
+
+test("notes publish accepts explicit notify and durable ID, and old silent clients remain compatible",async()=>{
+ const {calls,send}=setup();const body={symbol:"PDSB",cycleId:"cycle",text:"My notes",publish:true,id:"10000000-0000-4000-8000-000000000001",notifyUsers:true};
+ assert.equal((await send("/save-notes",body)).status,200);
+ assert.deepEqual(calls.at(-1),{method:"notes",input:{...body,actor:"platform-owner:test-owner"}});
+ const {id,notifyUsers,...legacy}=body;assert.equal((await send("/save-notes",legacy)).status,200);
+ for(const changes of [{id:"bad"},{publish:false},{notifyUsers:"true"},{actor:"spoof"}])assert.equal((await send("/save-notes",{...body,...changes})).status,400);
+ assert.equal((await send("/save-notes",{...body,id:undefined})).status,400);
+});
+test("notes notification status and send require owner context and never approve analysis",async()=>{
+ const {manager,calls}=setup();const body={symbol:"PDSB",id:"10000000-0000-4000-8000-000000000001"};
+ const run=(method:string,actor:string|undefined)=>dispatchAnalysisReviewRequest({method,pathname:"/api/watchlist/analysis-review/notes-notification",searchParams:new URLSearchParams(body),body,actor},manager as any);
+ assert.equal((await run("GET",undefined)).status,403);assert.equal((await run("DELETE","platform-owner:test-owner")).status,405);
+ assert.equal((await run("GET","platform-owner:test-owner")).status,200);assert.equal((await run("POST","platform-owner:test-owner")).status,200);
+ assert.deepEqual(calls.map(c=>c.method),["notesStatus","notesSend"]);
 });

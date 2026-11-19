@@ -1,0 +1,21 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { Script } from "node:vm";
+import ts from "typescript";
+import { WATCHLIST_ROW_REVIEW } from "../runtime/manual-watchlist-row-review.js";
+const source=ts.createSourceFile('row.js',WATCHLIST_ROW_REVIEW.match(/<script>([\s\S]*?)<\/script>/)![1]!,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
+let helper='';const visit=(node:ts.Node)=>{if(ts.isFunctionDeclaration(node)&&node.name?.text==='trackWatchlistDialogPosition')helper=node.getText(source);ts.forEachChild(node,visit);};visit(source);
+test('embedded editor remains below fixed navigation while the parent scrolls, keyboard reduces viewport and listeners close',()=>{
+ let frameTop=-300,closed:()=>void=()=>{};const listeners=new Map<string,()=>void>(),viewportListeners=new Map<string,()=>void>();
+ const viewport={offsetTop:0,height:800,addEventListener:(name:string,fn:()=>void)=>viewportListeners.set(name,fn),removeEventListener:(name:string)=>viewportListeners.delete(name)};
+ const header={getBoundingClientRect:()=>({top:0,bottom:80,left:0,right:1000})};
+ const parent={innerHeight:800,visualViewport:viewport,document:{querySelectorAll:()=>[header]},getComputedStyle:()=>({position:'fixed',visibility:'visible',display:'block'}),addEventListener:(name:string,fn:()=>void)=>listeners.set(name,fn),removeEventListener:(name:string)=>listeners.delete(name)};
+ const dialog={style:{} as Record<string,string>,addEventListener:(_name:string,fn:()=>void)=>closed=fn};
+ const window={parent,innerHeight:2400,frameElement:{getBoundingClientRect:()=>({top:frameTop,left:0,width:1000})}};
+ new Script(helper+'\ntrackWatchlistDialogPosition(dialog)').runInNewContext({window,dialog});
+ const globalTop=()=>parseFloat(dialog.style.inset!)+frameTop;
+ assert.equal(globalTop(),92);assert.equal(dialog.style.maxHeight,'696px');
+ frameTop=-500;listeners.get('scroll')!();assert.equal(globalTop(),92);assert.equal(dialog.style.maxHeight,'696px');
+ viewport.height=400;viewportListeners.get('resize')!();assert.equal(globalTop(),92);assert.equal(dialog.style.maxHeight,'296px');
+ closed();assert.equal(listeners.size,0);assert.equal(viewportListeners.size,0);
+});

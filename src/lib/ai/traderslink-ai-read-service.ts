@@ -1,3 +1,4 @@
+import { omitFollowupBreakout, type CrossedBreakout } from "./watchlist-breakout-lifecycle.js";
 import { revisePrompt, buildActiveMomentumContext, withPullbackSelectionAudit, preparePullbackSelectionRequest, repairResponseCandleReferences } from "./watchlist-active-momentum.js";
 import { buildResistanceComparison } from "./watchlist-resistance-comparison.js";
 import { includeBreakoutCheckpoint } from "./watchlist-breakout-checkpoint.js";
@@ -142,6 +143,7 @@ export type TradersLinkAiReadGenerationInput = {
   canStartFallback?: () => boolean;
   signal?: AbortSignal;
   analysisFormat?: "current" | "simple";
+  crossedOriginalBreakout?: CrossedBreakout;
   snapshot: LevelSnapshotPayload;
   research: RecentWebsiteArticleLookupResult;
   priceAction: TradersLinkAiReadPriceActionContext;
@@ -2287,6 +2289,7 @@ function compactSnapshot(
 function simpleMarketPacket(input: TradersLinkAiReadGenerationInput, dataAsOf: number) {
   const packet = compactSnapshot(input.snapshot, input.priceAction, dataAsOf);
   return { ...packet,
+    ...(input.crossedOriginalBreakout ? {crossedOriginalBreakout:input.crossedOriginalBreakout} : {}),
     priceAction: buildTradersLinkAiPriceActionPacket(input.priceAction, packet.currentPrice as number, packet.dataAsOf as number),
     frozenResistanceSupplement: { levels: buildLiveWatchlistPotentialPathPresentation(input.snapshot).levelMap?.resistanceLevels ?? [] },
   };
@@ -2396,7 +2399,7 @@ function buildRequestBody(args: {
     input: [
       {
         role: "developer",
-        content: [{ type: "input_text", text: buildTradersLinkAiReadDeveloperPrompt(args.input.ownerReviewRequired) }],
+        content: [{ type: "input_text", text: buildTradersLinkAiReadDeveloperPrompt(args.input.ownerReviewRequired) + (args.input.crossedOriginalBreakout ? "\nThe original published breakout has already been crossed (crossedOriginalBreakout). Do not invent a replacement breakout or must-clear trigger. Return null breakout candidates/level; keep independently useful targets, pullbacks, catalyst and risks without depending on a new breakout." : "") }],
       },
       {
         role: "user",
@@ -2408,6 +2411,7 @@ function buildRequestBody(args: {
               args.input.priceAction,
               args.dataAsOf,
             ),
+            crossedOriginalBreakout: args.input.crossedOriginalBreakout ?? null,
             confirmedPriorPlanBoundary: args.input.priorPlanBoundary ?? null,
             primaryCatalystResearch: compactResearch(args.input.research),
           }),
@@ -2738,9 +2742,10 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
         const rawText = extractResponseText(response);
         if (response.status === "incomplete" || !rawText) throw new Error("OpenAI returned an incomplete Simple analysis.");
         const raw = JSON.parse(rawText);
-        const simpleAnalysis = parseSimpleAnalysis(orderSimpleAnalysisPullbacks(supplementSimpleUpside(
+        const parsedSimple = parseSimpleAnalysis(orderSimpleAnalysisPullbacks(supplementSimpleUpside(
           raw, simpleMarketPacket(input, dataAsOf))));
-        if (!simpleAnalysis) throw new Error("OpenAI returned malformed Simple analysis fields.");
+        if (!parsedSimple) throw new Error("OpenAI returned malformed Simple analysis fields.");
+        const simpleAnalysis = input.crossedOriginalBreakout ? {...parsedSimple,breakout:null} : parsedSimple;
         // Compatibility fields contain only the corresponding supplied content.
         // The separate card/editor reads simpleAnalysis; unused legacy sections stay empty.
         const legacy = normalizeModelRead({ currentRead: simpleAnalysis.setup,
@@ -3191,6 +3196,7 @@ export class OpenAITradersLinkAiReadService implements TradersLinkAiReadService 
     }
 
     read = applyPriorPlanBoundaryContext(read, input.priorPlanBoundary);
+    read = omitFollowupBreakout(read, input.crossedOriginalBreakout);
     read = includeBreakoutCheckpoint(read, referenceQuote.price);
 
     const sources = selectPayloadSources(availableSources, read);
