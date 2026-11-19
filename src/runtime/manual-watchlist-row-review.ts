@@ -84,23 +84,51 @@ li.watchlist-control-row > .entry-main > .entry-title > strong:first-child { col
     return result;
   }
 
+  function trackWatchlistDialogPosition(dialog) {
+    const parent = window.parent;
+    const position = () => {
+      if (parent === window || !window.frameElement) return;
+      const frame = window.frameElement.getBoundingClientRect();
+      const viewport = parent.visualViewport;
+      let topEdge = viewport?.offsetTop || 0;
+      const viewportBottom = topEdge + (viewport?.height || parent.innerHeight);
+      const center = frame.left + frame.width / 2;
+      const headers = [...parent.document.querySelectorAll('header,[role="banner"],.MuiAppBar-root')]
+        .map(node => ({rect:node.getBoundingClientRect(),style:parent.getComputedStyle(node)}))
+        .filter(({rect,style}) => ['fixed','sticky'].includes(style.position) && style.visibility !== 'hidden' && style.display !== 'none' && rect.left <= center && rect.right >= center)
+        .sort((a,b) => a.rect.top - b.rect.top);
+      for (const {rect} of headers) if (rect.top <= topEdge + 1 && rect.bottom > topEdge) topEdge = rect.bottom;
+      const top = Math.max(0, topEdge-frame.top);
+      const bottom = Math.min(window.innerHeight,viewportBottom-frame.top);
+      Object.assign(dialog.style,{position:'fixed',inset:(top+12)+'px 0 auto',margin:'0 auto',boxSizing:'border-box',maxHeight:Math.max(0,bottom-top-24)+'px'});
+    };
+    parent.addEventListener('scroll',position,true); parent.addEventListener('resize',position);
+    parent.visualViewport?.addEventListener('resize',position); parent.visualViewport?.addEventListener('scroll',position);
+    dialog.addEventListener('close',()=>{
+      parent.removeEventListener('scroll',position,true); parent.removeEventListener('resize',position);
+      parent.visualViewport?.removeEventListener('resize',position); parent.visualViewport?.removeEventListener('scroll',position);
+    },{once:true});
+    position(); return position;
+  }
+
   window.watchlistDiscordText={
     get:()=>undefined,
     saveMoveText,
     open:async(key,symbol,kind,to='')=>{
       const dialog=document.createElement('dialog');dialog.style.cssText='width:min(600px,92vw);max-height:85vh;overflow:auto';
-      const title=document.createElement('h2');title.textContent=symbol+' — Edit Discord post';
+      dialog.setAttribute('aria-label',symbol+' — Edit Watchlist channel post');
+      const title=document.createElement('h2');title.textContent=symbol+' — Edit Watchlist channel post';
+      const description=document.createElement('p');description.textContent='This edits the Watchlist channel post. Free Chat has a separate preview and message.';
       const text=document.createElement('textarea');text.rows=8;text.style.width='100%';text.setAttribute('aria-label','Discord post text');text.disabled=true;
       const fixed=document.createElement('p');fixed.style.whiteSpace='pre-wrap';
       const status=document.createElement('p');status.setAttribute('role','status');
       const use=document.createElement('button');use.type='button';use.textContent='Save text';use.disabled=true;
       const reset=document.createElement('button');reset.type='button';reset.textContent='Reset to generated text';reset.disabled=true;
       const close=document.createElement('button');close.type='button';close.textContent='Close';close.onclick=()=>dialog.close();
-      dialog.append(title,text,fixed,status,use,reset,close);document.body.append(dialog);dialog.showModal();
+      dialog.append(title,description,text,fixed,status,use,reset,close);document.body.append(dialog);dialog.showModal();
       dialog.addEventListener('cancel', event=>{if(close.disabled)event.preventDefault();});
-      const position=()=>{if(window.parent===window||!window.frameElement)return;const f=window.frameElement.getBoundingClientRect(),top=Math.max(0,-f.top),bottom=Math.min(window.innerHeight,window.parent.innerHeight-f.top);dialog.style.position='fixed';dialog.style.margin='0 auto';dialog.style.left='0';dialog.style.right='0';dialog.style.top=(top+12)+'px';dialog.style.maxHeight=Math.max(120,bottom-top-24)+'px';};
-      position();window.parent.addEventListener('scroll',position,true);window.parent.addEventListener('resize',position);
-      dialog.addEventListener('close',()=>{window.parent.removeEventListener('scroll',position,true);window.parent.removeEventListener('resize',position);dialog.remove();});
+      const position=trackWatchlistDialogPosition(dialog);
+      dialog.addEventListener('close',()=>dialog.remove());
       try{
         const generated=await request('/discord-text?symbol='+encodeURIComponent(symbol)+'&kind='+kind+'&to='+encodeURIComponent(to));
         if(!dialog.isConnected)return;
@@ -143,11 +171,15 @@ li.watchlist-control-row > .entry-main > .entry-title > strong:first-child { col
     });
     return readWatchlistJsonResponse(response);
   }
+  const freeChatApprovalDrafts = new Map();
+  const confirmedFreeChatCopies = new Map();
+  window.watchlistConfirmedFreeChatCopy = (symbol) => confirmedFreeChatCopies.get(symbol);
   window.watchlistConfirmFreeChat = async (symbol, mode, approvalRevision, moveTo) => {
     const query = new URLSearchParams({symbol, preview:mode});
     if (Number.isSafeInteger(approvalRevision)) query.set('approvalRevision', String(approvalRevision));
     if (mode === 'move' && moveTo) query.set('to', moveTo);
     const result = await request('/free-chat?' + query);
+    confirmedFreeChatCopies.delete(symbol);
     if (typeof result.preview?.content !== 'string' || typeof result.preview.includeImages !== 'boolean') {
       throw Error('Free Chat preview is unavailable.');
     }
@@ -156,6 +188,12 @@ li.watchlist-control-row > .entry-main > .entry-title > strong:first-child { col
       dialog.className = 'watchlist-free-chat-preview';
       dialog.setAttribute('aria-label','Free Chat preview');
       const title = document.createElement('h2'); title.textContent = 'Free Chat preview';
+      const editable = mode === 'approval';
+      const key = JSON.stringify([symbol,result.cycleId,result.draftRevision,result.preview.visibilityKey]);
+      const inputLabel = document.createElement('label');inputLabel.textContent='Post message';
+      const input = document.createElement('textarea');input.className='watchlist-free-chat-message';input.maxLength=1200;input.setAttribute('aria-label','Free Chat post message');
+      input.value = result.savedMessage ?? freeChatApprovalDrafts.get(key) ?? result.preview.defaultMessage ?? '';
+      inputLabel.appendChild(input);inputLabel.hidden=!editable;
       const content = document.createElement('p');
       content.className = 'watchlist-free-chat-preview-copy';
       const heading = result.preview.content.match(/^\*\*(.+)\*\*/);
@@ -163,6 +201,13 @@ li.watchlist-control-row > .entry-main > .entry-title > strong:first-child { col
         const strong = document.createElement('strong'); strong.textContent = heading[1];
         content.append(strong,document.createTextNode(result.preview.content.slice(heading[0].length)));
       } else content.textContent = result.preview.content;
+      const renderEditedPreview = () => {
+        if (!editable) return;
+        freeChatApprovalDrafts.set(key,input.value);
+        const title = document.createElement('strong');title.textContent=result.preview.heading.replace(/^\*\*|\*\*$/g,'');
+        content.replaceChildren(title,document.createTextNode((input.value.trim() ? '\n\n'+input.value.trim() : '')+'\n\n'+result.preview.footer));
+      };
+      input.oninput=renderEditedPreview;renderEditedPreview();
       const attachments = document.createElement('p');
       attachments.textContent = result.preview.includeImages ? 'Analysis images will be attached when available.' : 'Text-only post.';
       const message = document.createElement('p'); message.textContent = 'Premium settings are checked again at delivery.';
@@ -170,21 +215,14 @@ li.watchlist-control-row > .entry-main > .entry-title > strong:first-child { col
       cancel.textContent = 'Cancel'; cancel.autofocus = true; cancel.onclick = () => dialog.close();
       const send = document.createElement('button'); send.type = 'button'; send.textContent = 'Confirm Free Chat post';
       send.onclick = () => dialog.close('send');
-      const position = () => {
-        if (window.parent === window || !window.frameElement) return;
-        const frame = window.frameElement.getBoundingClientRect();
-        const top = Math.max(0, -frame.top), bottom = Math.min(window.innerHeight, window.parent.innerHeight - frame.top);
-        Object.assign(dialog.style,{position:'fixed',inset:(top+12)+'px 0 auto',margin:'0 auto',maxHeight:Math.max(120,bottom-top-24)+'px'});
-      };
       const actions = document.createElement('div'); actions.className = 'watchlist-free-chat-preview-actions';
       actions.append(cancel, send);
-      dialog.append(title, content, attachments, message, actions);
+      dialog.append(title, ...(editable ? [inputLabel] : []), content, attachments, message, actions);
       dialog.addEventListener('close', () => {
-        window.parent.removeEventListener('scroll',position,true); window.parent.removeEventListener('resize',position);
+        if (dialog.returnValue === 'send' && editable) confirmedFreeChatCopies.set(symbol,{message:input.value.trim(),visibilityKey:result.preview.visibilityKey,draftRevision:result.draftRevision,cycleId:result.cycleId});
         dialog.remove(); resolve(dialog.returnValue === 'send');
       });
-      document.body.append(dialog); dialog.showModal(); position();
-      window.parent.addEventListener('scroll',position,true); window.parent.addEventListener('resize',position);
+      document.body.append(dialog); dialog.showModal(); trackWatchlistDialogPosition(dialog);
     });
   };
   async function refresh() {
@@ -325,13 +363,7 @@ function attachX(entry, actions, state, more = actions) {
       const actions = document.createElement('div'); actions.className = 'watchlist-free-chat-preview-actions';
       actions.append(close,send,check);
       dialog.append(heading,status,preview,label,actions); document.body.append(dialog); dialog.showModal();
-      const position = () => {
-        if (window.parent === window || !window.frameElement) return;
-        const frame = window.frameElement.getBoundingClientRect();
-        const top = Math.max(0,-frame.top), bottom = Math.min(window.innerHeight,window.parent.innerHeight-frame.top);
-        Object.assign(dialog.style,{position:'fixed',inset:(top+12)+'px 0 auto',margin:'0 auto',maxHeight:Math.max(120,bottom-top-24)+'px'});
-      };
-      position(); window.parent.addEventListener('scroll',position,true); window.parent.addEventListener('resize',position);
+      const position = trackWatchlistDialogPosition(dialog);
       let current, timer, stopping = false, working = false, checksLeft = 0, requestBusy = false, automaticUnknown = false;
       dialog.addEventListener('close',()=>{
         stopping = true; clearTimeout(timer);
@@ -538,16 +570,16 @@ function attachX(entry, actions, state, more = actions) {
         } catch (error) { errors.set(entry.symbol, String(error.message || error) + ' Check delivery status before retrying.'); }
         finally { pending.delete(entry.symbol); await refresh(); window.dispatchEvent(new Event('watchlist-review-updated')); }
       };
-      const editPost=document.createElement('button');editPost.type='button';editPost.textContent='Edit Discord post';editPost.onclick=()=>window.watchlistDiscordText.open(state.cycleId+':listing',entry.symbol,'listing');listing.append(editPost);
+      const editPost=document.createElement('button');editPost.type='button';editPost.textContent='Edit Discord post';editPost.title='Edit the Watchlist channel post; Free Chat has its own message preview.';editPost.onclick=()=>window.watchlistDiscordText.open(state.cycleId+':listing',entry.symbol,'listing');listing.append(editPost);
       if(entry.watchlistGroup !== "private") listing.prepend(list);
     }
     const choiceKey = state?.cycleId + ':' + state?.draftRevision;
-    if(entry.watchlistGroup !== "private" && state?.canReview&&hasPublishableDraft(state)){const editPost=document.createElement('button');editPost.type='button';editPost.textContent='Edit Discord post';editPost.onclick=()=>window.watchlistDiscordText.open(choiceKey,entry.symbol,'analysis');options.append(editPost);}
+    if(entry.watchlistGroup !== "private" && state?.canReview&&hasPublishableDraft(state)){const editPost=document.createElement('button');editPost.type='button';editPost.textContent='Edit Discord post';editPost.title='Edit the Watchlist channel post; Free Chat has its own message preview.';editPost.onclick=()=>window.watchlistDiscordText.open(choiceKey,entry.symbol,'analysis');options.append(editPost);}
     if (entry.watchlistGroup !== "private" && state?.canReview && hasPublishableDraft(state)) {
       const label = document.createElement('label'), choice = document.createElement('input'); choice.type = 'checkbox'; choice.style.width = 'auto';
       choice.checked = freeChatChoices.get(choiceKey) === true; choice.disabled = pending.has(entry.symbol);
       choice.onchange = () => freeChatChoices.set(choiceKey,choice.checked);
-      label.append(choice,document.createTextNode(' Also post to Free Chat')); options.prepend(label);
+      label.append(choice,document.createTextNode(' Also post to Free Chat'));label.title='Review and edit the separate Free Chat message before publishing.'; options.prepend(label);
     }
     let analysisNotifyLabel = null;
     if (entry.watchlistGroup !== "private" && hasPublishableDraft(state)) {
@@ -572,12 +604,13 @@ function attachX(entry, actions, state, more = actions) {
         const approvalResult = await request('/approve', { symbol: entry.symbol, cycleId: preview.cycleId, expectedHead: preview.expectedHead,
           xPost: xChoices.get(choiceKey)?.enabled === true && preview.draftRevision === state.draftRevision,
           xCaption: xChoices.get(choiceKey)?.caption,
-          discordText: preview.draftRevision===state.draftRevision?window.watchlistDiscordText.get(choiceKey):undefined, draftRevision: preview.draftRevision, previewHash: preview.previewHash, notifyUsers: notificationChoices.get(choiceKey) === true, freeChat });
+          discordText: preview.draftRevision===state.draftRevision?window.watchlistDiscordText.get(choiceKey):undefined, draftRevision: preview.draftRevision, previewHash: preview.previewHash, notifyUsers: notificationChoices.get(choiceKey) === true, freeChat, ...(freeChat ? {freeChatCopy:window.watchlistConfirmedFreeChatCopy(entry.symbol)} : {}) });
         notificationChoices.delete(choiceKey);
         freeChatChoices.delete(choiceKey);
         xChoices.delete(choiceKey);
-        if (approvalResult.xPostingWarning) errors.set(entry.symbol,approvalResult.xPostingWarning);
-        status.textContent = approvalResult.xPostingWarning || 'Approval recorded. Checking publication status…';
+        const warning = [approvalResult.xPostingWarning,approvalResult.freeChatWarning].filter(Boolean).join(' ');
+        if (warning) errors.set(entry.symbol,warning);
+        status.textContent = warning || 'Approval recorded. Checking publication status…';
       } catch (error) { errors.set(entry.symbol, String(error.message || error) + ' Check delivery status before retrying.'); status.textContent = errors.get(entry.symbol); }
       finally { pending.delete(entry.symbol); await refresh(); window.dispatchEvent(new Event('watchlist-review-updated')); }
     };

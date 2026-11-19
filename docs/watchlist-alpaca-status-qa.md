@@ -963,3 +963,51 @@ move cases pass. Receipt home /tmp/watchlist-free-chat-copy-qa-20261118. No real
 posts/generation/provider/settings/data/services, new migration/dependency,
 push/deploy. This small correction rides existing held composer0213 canonical270;
 add to tonight's20:15Eastern full handoff with all prior approved updates.
+
+## Nov18 — initial FreeChat editing and parent-navigation modal bounds
+
+Owner asks about the paid-looking editor beside Also post to FreeChat, independent
+editing of both first-publication messages and an editor heading obscured by the
+fixed dashboard nav. Current live image protection confirmed by Coordinator's
+00:21:09UTC metadata/source read: Platform1806d747/accdec37 deployment and Runtime
+08d5c5a/c2db86e8 deployment. Live first-approval caller queues FreeChat separately,
+worker invokes its current-visibility guard, restricted ticker/analysis/levels
+branches suppress images/embeds. Paid editor footer is not FreeChat output.
+No actual live post used to establish this source-backed finding.
+
+Fixed initial Also FreeChat confirmation to edit its own message separately from
+saved Watchlist-channel copy, before the approval POST. Draft/policy-scoped local
+text survives Cancel/reopen. Existing queued immutable copy can be recovered from
+GET preview. Confirmation carries freeChatCopy, stored by Platform in the existing
+owner_copy_json column; Platform strips it before forwarding paid approval.
+Backend preparation failure gives an independent FreeChat warning without vetoing
+paid approval. Existing modes without new editable persistence do not get a fake
+editing field; standalone Post to FreeChat remains separately editable.
+No extra approval step, generation, provider call or new database migration.
+
+Shared position helper now measures actual fixed/sticky parent headers and visual
+viewport, and keeps paid editor/initial confirmation/standalone FreeChat below
+navigation while parent scrolls/resizes or keyboard viewport changes. Close cleans
+listeners. Paid editor has explicit Watchlist-channel title/description. No shared
+header, scanner or other workspace change.
+
+Final QA57/57 tests pass:32 Runtime row/recovery/API/geometry and25 Platform
+privacy/receipt/move/initial-copy/relay cases. Full Runtime TypeScript, Platform
+changed graph and targeted lint pass.8 real-clock same-origin iframe cases at
+320/390/844/1280, light/dark browser preference verify independent saved texts,
+actual first-publish copy queue, Cancel/reopen, masked/image-free variants, title
+below72px fixed header, parent scrolling and contained modal height.20 existing
+standalone/privacy/recovery workflows pass too (28 browser workflows total).
+Synthetic SQL/fake RPC only, no real delivery or hosted owner acceptance claimed.
+Fixture corrections (raw URL prefix, initial button name, parent clock/row repaint
+and waiting for actual approval response) retain original logs. Receipts:
+/tmp/watchlist-initial-free-chat-qa-20261118/*qualified.log. Final code did not
+change to accommodate those fixture lifecycle/timing gaps. Shared heavy slots
+were respected; focused geometry/type checks ran within permitted small-check
+scope while other browser batches held the slot.
+
+Release dependency remains existing Composer0213 canonical270/schema+Platform
+before newer Runtime initial editor, alongside all previously approved changes.
+No new migration, settings/dependencies/data/analysis/notifications/services,
+push or deployment. Add this later explicit owner correction to tonight's20:15
+Eastern handoff; preserve all other held/canonical source and approval rules.
