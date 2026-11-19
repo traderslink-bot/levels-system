@@ -122,7 +122,10 @@ test("manual watchlist page shows runtime status without obsolete review surface
   assert.match(MANUAL_WATCHLIST_PAGE, /liveProviderSelectionDirty = true/);
   assert.match(MANUAL_WATCHLIST_PAGE, /payload\.persisted === false/);
   assert.match(MANUAL_WATCHLIST_PAGE, /active tickers resubscribed/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /Provider Config/);
+  assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /Provider Config/);
+  for (const label of ["Analysis service", "Analysis model", "Reasoning effort", "Fallback model", "Last successful analysis"]) {
+    assert.ok(MANUAL_WATCHLIST_PAGE.includes(label), label);
+  }
   assert.match(MANUAL_WATCHLIST_PAGE, /saved for restart/);
   assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /Review Artifacts/);
   assert.match(MANUAL_WATCHLIST_PAGE, /Open AI Clean Read/);
@@ -131,11 +134,11 @@ test("manual watchlist page shows runtime status without obsolete review surface
   assert.match(MANUAL_WATCHLIST_PAGE, /Open Trade Plan Review/);
   assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /Monday Live Review/);
   assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, />Activity</);
-  assert.match(MANUAL_WATCHLIST_PAGE, /AI commentary can add separate AI read posts after deterministic alerts/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /manual-watchlist-operational\.log/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /manual-watchlist-diagnostics\.log/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /discord-delivery-audit\.jsonl/);
-  assert.match(MANUAL_WATCHLIST_PAGE, /thread-summaries\.json/);
+  assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /AI commentary can add separate AI read posts after deterministic alerts/);
+  assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /manual-watchlist-operational\.log/);
+  assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /manual-watchlist-diagnostics\.log/);
+  assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /discord-delivery-audit\.jsonl/);
+  assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /thread-summaries\.json/);
   assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /Discord thread ID/);
   assert.match(MANUAL_WATCHLIST_PAGE, /fetchJson\("\/api\/runtime\/status" \+ \(includeDetails/);
   assert.doesNotMatch(MANUAL_WATCHLIST_PAGE, /\/api\/runtime\/review-artifacts/);
