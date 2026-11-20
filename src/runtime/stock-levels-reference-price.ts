@@ -2,6 +2,7 @@ import { readAlpacaRuntimeReferencePrice } from "../lib/market-data/alpaca-runti
 import { requestEodhdCurrentTrade } from "./stock-levels-live-price.js";
 
 export type StockLevelsReferencePrice = { price: number; asOf: number; source: "eodhd" | "yahoo" | "alpaca" };
+export type StockLevelsPricePolicy = "recent" | "same_session_trade";
 const MAX_OPEN_AGE_MS = 60_000;
 const MAX_CLOSED_AGE_MS = 96 * 60 * 60_000;
 const eastern = new Intl.DateTimeFormat("en-US", {
@@ -16,7 +17,11 @@ function session(at: number) {
     : minute < 570 ? "pre" : minute < 960 ? "regular" : "post";
   return { date: parts.year + "-" + parts.month + "-" + parts.day, phase };
 }
-export function isUsableStockLevelsPrice(quote: StockLevelsReferencePrice, now = Date.now()): boolean {
+export function isUsableStockLevelsPrice(
+  quote: StockLevelsReferencePrice,
+  now = Date.now(),
+  policy: StockLevelsPricePolicy = "recent",
+): boolean {
   if (!Number.isFinite(quote.price) || quote.price <= 0 || !Number.isFinite(quote.asOf) || quote.asOf <= 0) return false;
   const age = now - quote.asOf;
   // Reject future event times; retrieval/snapshot times are never price evidence.
@@ -24,7 +29,12 @@ export function isUsableStockLevelsPrice(quote: StockLevelsReferencePrice, now =
   const current = session(now);
   const event = session(quote.asOf);
   if (current.phase === "closed") return age <= MAX_CLOSED_AGE_MS;
-  return age <= MAX_OPEN_AGE_MS && current.date === event.date && current.phase === event.phase;
+  // Static Generator maps can use the last real trade in this session even
+  // when a quiet stock has not traded in the last minute. Yahoo can include
+  // candle-close observations, so it retains the original freshness limit.
+  const ageAllowed = age <= MAX_OPEN_AGE_MS ||
+    (policy === "same_session_trade" && (quote.source === "alpaca" || quote.source === "eodhd"));
+  return ageAllowed && current.date === event.date && current.phase === event.phase;
 }
 function candidate(price: unknown, asOf: unknown, source: StockLevelsReferencePrice["source"]): StockLevelsReferencePrice | null {
   return typeof price === "number" && typeof asOf === "number" ? { price, asOf, source } : null;
@@ -37,15 +47,16 @@ function newest(quotes: Array<StockLevelsReferencePrice | null>, now: number) {
 export async function resolveStockLevelsReferencePrice(
   symbol: string,
   fetchFn: typeof fetch = fetch,
+  policy: StockLevelsPricePolicy = "recent",
 ): Promise<StockLevelsReferencePrice | null> {
   if (process.env.TRADERLINK_MARKET_DATA_PROVIDER === "alpaca" || process.env.LEVEL_HISTORICAL_CANDLE_PROVIDER === "alpaca") {
     const quote = await readAlpacaRuntimeReferencePrice(symbol, {fetcher:fetchFn});
-    return quote && isUsableStockLevelsPrice(quote) ? quote : null;
+    return quote && isUsableStockLevelsPrice(quote, Date.now(), policy) ? quote : null;
   }
   const yahoo = await requestYahooReferencePrice(symbol, fetchFn);
   if (yahoo) return yahoo;
   // Delayed HTTP quotes are deliberately excluded from current-price lookup.
-  return requestEodhdCurrentTrade(symbol, isUsableStockLevelsPrice);
+  return requestEodhdCurrentTrade(symbol, (quote) => isUsableStockLevelsPrice(quote, Date.now(), policy));
 }
 
 async function requestYahooReferencePrice(

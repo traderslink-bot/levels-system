@@ -12,6 +12,7 @@ export type StockLevelsRuntimeResponse = {
     symbol: string;
     referencePrice: number;
     referencePriceAsOf: number;
+    referencePriceBasis: "last_trade" | "reference";
     calculatedAt: number;
     cacheStatus: "hit" | "fresh";
     levelMap: ReturnType<typeof buildLiveWatchlistPotentialPathPresentation>["levelMap"];
@@ -36,9 +37,9 @@ export function createStockLevelsGenerator(input: {
       return { code: "invalid_symbol", message: "Enter a stock ticker." };
     }
 
-    const quote = await resolveStockLevelsReferencePrice(symbol);
+    const quote = await resolveStockLevelsReferencePrice(symbol, fetch, "same_session_trade");
     if (!quote) {
-      return { code: "reference_price_unavailable", message: "A recent current-session price is unavailable from EODHD and Yahoo. Try again shortly." };
+      return { code: "reference_price_unavailable", message: "A reliable price for this trading session is unavailable. Try again shortly." };
     }
     const referencePrice = quote.price;
 
@@ -48,8 +49,8 @@ export function createStockLevelsGenerator(input: {
         referencePriceOverride: referencePrice,
         calculationProfile: "dashboard_eodhd_daily_4h",
       });
-      if (!isUsableStockLevelsPrice(quote)) {
-        return { code: "reference_price_unavailable", message: "The reference price expired during calculation. Please regenerate." };
+      if (!isUsableStockLevelsPrice(quote, Date.now(), "same_session_trade")) {
+        return { code: "reference_price_unavailable", message: "The reference price is no longer valid for this trading session. Please regenerate." };
       }
       const payload = buildLevelSnapshotPayloadFromEngineOutput({
         output, symbol: output.symbol, currentPrice: referencePrice, timestamp: output.generatedAt,
@@ -71,6 +72,7 @@ export function createStockLevelsGenerator(input: {
           symbol: output.symbol,
           referencePrice,
           referencePriceAsOf: quote.asOf,
+          referencePriceBasis: quote.source === "yahoo" ? "reference" : "last_trade",
           calculatedAt: output.generatedAt,
           cacheStatus: "fresh",
           levelMap: presentation.levelMap,
