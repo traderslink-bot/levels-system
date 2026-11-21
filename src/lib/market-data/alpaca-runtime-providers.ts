@@ -1,3 +1,4 @@
+import { gatewayWireEnabled, gatewayWireUrl, gatewayWireSubscription, decodeGatewayWire, type GatewayOperation } from "./traderslink-gateway-wire.js";
 import { consumeWatchlistPriceStream } from "./watchlist-alpaca-price-stream.js";
 
 /** Portable adapters for the separately hosted levels/Watchlist runtime.
@@ -12,6 +13,7 @@ type RuntimeBar = { time: number; open: number; high: number; low: number; close
 
 class RuntimeGateway {
   readonly now: () => number;
+  readonly wire = gatewayWireEnabled();
   private readonly base: URL;
   private readonly token: string;
   private readonly fetcher: typeof fetch;
@@ -23,17 +25,19 @@ class RuntimeGateway {
     if (this.base.username || this.base.password || this.base.search || this.base.hash || (this.base.protocol !== "https:" && !(process.env.NODE_ENV !== "production" && this.base.protocol === "http:" && this.base.hostname === "127.0.0.1"))) throw Error("Alpaca VPS gateway requires encrypted transport.");
     this.token = token; this.fetcher = options.fetcher ?? fetch; this.now = options.now ?? Date.now;
   }
-  async get(path: string, query: URLSearchParams, signal?: AbortSignal) {
-    const url = new URL(path, this.base); url.search = query.toString();
+  async get(path: GatewayOperation, query: URLSearchParams, signal?: AbortSignal) {
+    const url = this.wire ? gatewayWireUrl(this.base, path, query) : new URL(path, this.base);
+    if (!this.wire) url.search = query.toString();
     const timeout = AbortSignal.timeout(120_000);
     const response = await this.fetcher(url, { headers: { Authorization: `Bearer ${this.token}` }, signal: signal ? AbortSignal.any([signal, timeout]) : timeout, redirect: "error" });
     if (!response.ok) throw Error("Alpaca VPS market data is unavailable.");
-    return response.json();
+    const payload = await response.json();
+    return this.wire ? decodeGatewayWire(path, payload) as typeof payload : payload;
   }
   openPrices(symbols: readonly string[], signal: AbortSignal) {
-    return this.fetcher(new URL("prices", this.base), { method: "POST", headers: {
+    return this.fetcher(this.wire ? gatewayWireUrl(this.base, "prices") : new URL("prices", this.base), { method: "POST", headers: {
       Authorization: `Bearer ${this.token}`, "Content-Type": "application/json", Accept: "text/event-stream",
-    }, body: JSON.stringify({ symbols }), signal, redirect: "error", cache: "no-store" });
+    }, body: JSON.stringify(this.wire ? gatewayWireSubscription({ symbols }) : { symbols }), signal, redirect: "error", cache: "no-store" });
   }
 }
 
@@ -133,7 +137,7 @@ export class AlpacaRuntimeLivePriceProvider {
           }));
           if (!available && generation === this.generation) this.feedHealth = { connected: false, checkedAt: this.gateway.now() };
         } else if (symbols.length) {
-          await consumeWatchlistPriceStream({ symbols, signal, now: this.gateway.now,
+          await consumeWatchlistPriceStream({ symbols, signal, now: this.gateway.now, wire: this.gateway.wire,
             open: streamSignal => this.gateway.openPrices(symbols, streamSignal),
             onFrame: frame => {
               if (generation !== this.generation || signal.aborted) return;

@@ -1,10 +1,13 @@
+import { decodeGatewayWire } from "./traderslink-gateway-wire.js";
+
 export type WatchlistStreamTrade = { symbol: string; price: number; timestamp: number; order: bigint };
 type Frame = { connected: boolean; trades: WatchlistStreamTrade[] };
 const MAX_FRAME_BYTES = 2_000_000;
 
 /** Validate a complete frame before any prices can escape to consumers. */
-export function parseWatchlistPriceFrame(raw: string, symbols: ReadonlySet<string>, now: number): Frame {
-  const value = JSON.parse(raw);
+export function parseWatchlistPriceFrame(raw: string, symbols: ReadonlySet<string>, now: number, wire = false): Frame {
+  const payload = JSON.parse(raw);
+  const value = wire ? decodeGatewayWire("prices", payload) as typeof payload : payload;
   if (!value || value.protocolVersion !== 1 || value.feed !== "sip" || typeof value.connected !== "boolean"
     || !["snapshot", "delta", "status"].includes(value.kind) || !Number.isSafeInteger(value.emittedAt)
     || value.emittedAt > now + 2000 || now - value.emittedAt > 12000
@@ -32,7 +35,7 @@ export function parseWatchlistPriceFrame(raw: string, symbols: ReadonlySet<strin
 export async function consumeWatchlistPriceStream(input: {
   symbols: readonly string[]; signal: AbortSignal; now: () => number;
   open: (signal: AbortSignal) => Promise<Response>;
-  onFrame: (frame: Frame) => void; idleMs?: number;
+  onFrame: (frame: Frame) => void; idleMs?: number; wire?: boolean;
 }): Promise<void> {
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -65,7 +68,7 @@ export async function consumeWatchlistPriceStream(input: {
           const lines = event.split("\n");
           if (lines.find(line => line.startsWith("event:"))?.slice(6).trim() !== "prices") continue;
           const raw = lines.filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
-          const frame = parseWatchlistPriceFrame(raw, symbols, input.now());
+          const frame = parseWatchlistPriceFrame(raw, symbols, input.now(), input.wire);
           if (controller.signal.aborted) return;
           arm(); input.onFrame(frame);
         }

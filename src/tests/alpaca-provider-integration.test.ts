@@ -59,3 +59,62 @@ test("Stock Levels reference stays Alpaca-only and retains its freshness gate",a
     const unavailable=await resolveStockLevelsReferencePrice("AAPL",async()=>{calls++;return Response.json({error:"unavailable"},{status:503});});assert.equal(unavailable,null);assert.equal(calls,2);
   }finally{process.env=previous;}
 });
+
+
+test("gated REST uses the actual factory and Levels reference without changing price precision or provenance",async()=>{
+  const previous={...process.env},original=globalThis.fetch;
+  const request={symbol:"TEST",timeframe:"1m" as const,lookbackBars:1};
+  const plan={plannedBarCount:1,requestStartTimestamp:now-60000,requestEndTimestamp:now};
+  const candle={time:(now-60000)/1000,open:.0277,high:.029,low:.0275,close:.0284,volume:123456};
+  try{
+    process.env.TRADERLINK_ALPACA_GATEWAY_URL="https://gateway.invalid/private/";
+    process.env.TRADERLINK_ALPACA_GATEWAY_TOKEN="synthetic-only";
+    process.env.TRADERLINK_MARKET_DATA_PROVIDER="alpaca";
+    for(const neutral of [false,true]){
+      if(neutral)process.env.TRADERLINK_GATEWAY_CONTRACT="traderslink.market.1";
+      else delete process.env.TRADERLINK_GATEWAY_CONTRACT;
+      const calls:{url:URL;options:RequestInit|undefined}[]=[];
+      const observed=new Date(Date.now()-1000).toISOString().replace("Z","000001Z");
+      const fetcher:typeof fetch=async(url,options)=>{
+        const target=new URL(String(url));calls.push({url:target,options});
+        if(target.pathname.endsWith(neutral?"candle-window":"history"))return Response.json(neutral
+          ?{schema:"traderslink.market.1",resource:"candle-window",data:{ticker:"TEST",coverage:"consolidated",basis:"split",basisDay:"2026-11-06",finished:true,candles:[{at:candle.time,first:candle.open,peak:candle.high,trough:candle.low,last:candle.close,shares:candle.volume}]}}
+          :{symbol:"TEST",feed:"sip",adjustment:"split",basisDate:"2026-11-06",complete:true,bars:[candle]});
+        assert.equal(target.pathname,neutral?"/private/traderslink/v1/market/market-state":"/private/quotes");
+        return Response.json(neutral
+          ?{schema:"traderslink.market.1",resource:"market-state",data:{coverage:"consolidated",instruments:{TEST:{lastPrint:{value:.4195,observed}}}}}
+          :{feed:"sip",snapshots:{TEST:{latestTrade:{p:.4195,t:observed}}}});
+      };
+      globalThis.fetch=fetcher;
+      const provider=createHistoricalCandleProvider({provider:"alpaca"});
+      assert.ok(provider instanceof AlpacaRuntimeHistoricalProvider);
+      const result=await provider.fetchCandles(request,plan);
+      assert.deepEqual(result.candles,[{timestamp:now-60000,open:.0277,high:.029,low:.0275,close:.0284,volume:123456}]);
+      assert.equal(result.provider,"alpaca");assert.deepEqual(result.providerMetadata,{source:"alpaca_sip_vps",adjustment:"split"});
+      const quote=await resolveStockLevelsReferencePrice("TEST",fetcher);
+      assert.deepEqual(quote,{price:.4195,asOf:Date.parse(observed),source:"alpaca"});
+      assert.equal(calls.length,2);
+      assert.equal(calls[0].url.pathname,neutral?"/private/traderslink/v1/market/candle-window":"/private/history");
+      assert.deepEqual(Object.fromEntries(calls[0].url.searchParams),neutral
+        ?{ticker:"TEST",resolution:"1Min",from:String(now-60000),until:String(now)}
+        :{symbol:"TEST",timeframe:"1Min",start:String(now-60000),end:String(now)});
+      assert.equal(calls[1].url.searchParams.get(neutral?"tickers":"symbols"),"TEST");
+      for(const call of calls){assert.equal(call.options?.redirect,"error");assert.equal(new Headers(call.options?.headers).get("authorization"),"Bearer synthetic-only");assert.ok(call.options?.signal instanceof AbortSignal);}
+    }
+  }finally{globalThis.fetch=original;process.env=previous;}
+});
+
+test("neutral REST rejects bad contracts and original invalid candle data without a legacy retry",async()=>{
+  const previous={...process.env};
+  try{
+    process.env.TRADERLINK_GATEWAY_CONTRACT="traderslink.market.1";
+    const data={ticker:"TEST",coverage:"consolidated",basis:"split",finished:true,candles:[{at:(now-60000)/1000,first:1,peak:2,trough:.5,last:1.5,shares:100}]};
+    const envelope={schema:"traderslink.market.1",resource:"candle-window",data};
+    for(const [status,payload]of [[503,{error:"private-value"}],[200,{...envelope,resource:"market-state"}],[200,{...envelope,data:{...data,finished:false}}],[200,{...envelope,data:{...data,coverage:"iex"}}],[200,{...envelope,data:{...data,candles:[{...data.candles[0],peak:.8}]}}]] as const){
+      let calls=0;
+      const provider=new AlpacaRuntimeHistoricalProvider({url:"https://gateway.invalid/",token:"offline",fetcher:async()=>{calls++;return Response.json(payload,{status});},now:()=>now});
+      await assert.rejects(()=>provider.fetchCandles({symbol:"TEST",timeframe:"1m",lookbackBars:1},{plannedBarCount:1,requestStartTimestamp:now-60000,requestEndTimestamp:now}));
+      assert.equal(calls,1);
+    }
+  }finally{process.env=previous;}
+});

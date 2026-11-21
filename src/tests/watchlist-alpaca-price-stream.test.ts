@@ -82,3 +82,63 @@ test("reconnect snapshot cannot reverse price order; updated population cancels 
   }finally{await provider.stop();}
   assert.equal(canceled,2);
 });
+
+
+const neutralFrame=(values:Record<string,unknown>={},extra:Record<string,unknown>={})=>({schema:"traderslink.market.1",resource:"price-updates",data:{revision:1,coverage:"consolidated",online:true,change:"delta",emitted:now,values,...extra}});
+const neutralTrade=(price=5,observed="2026-11-09T15:00:00.000000003Z")=>({value:price,observed,received:now});
+
+test("neutral complete frames retain nanosecond ordering and original atomic validation",()=>{
+  const parsed=parseWatchlistPriceFrame(JSON.stringify(neutralFrame({TEST:neutralTrade()})),new Set(["TEST"]),now,true);
+  assert.deepEqual(parsed,{connected:true,trades:[{symbol:"TEST",price:5,timestamp:now,order:BigInt(now)*1000000n+3n}]});
+  for(const bad of [neutralFrame({TEST:neutralTrade(),OTHER:neutralTrade()}),neutralFrame({TEST:neutralTrade()},{coverage:"iex"}),
+    neutralFrame({TEST:neutralTrade()},{online:false}),neutralFrame({TEST:neutralTrade()},{change:"status"}),
+    neutralFrame({TEST:neutralTrade()},{emitted:now-13000}),neutralFrame({TEST:neutralTrade(-1)}),
+    neutralFrame({TEST:{value:5,received:now}}),{...neutralFrame(),schema:"other"},frame({TEST:trade()})]){
+    assert.throws(()=>parseWatchlistPriceFrame(JSON.stringify(bad),new Set(["TEST"]),now,true));
+  }
+  assert.throws(()=>parseWatchlistPriceFrame(JSON.stringify(neutralFrame({TEST:neutralTrade()})),new Set(["TEST"]),now));
+});
+
+test("neutral SSE keeps the existing UTF8/CRLF parser, status frames and cancellation",async()=>{
+  const parent=new AbortController();const received:{connected:boolean;prices:number[]}[]=[];let canceled=0;
+  const text=": résumé 📈\r\n\r\n"+(wire(neutralFrame({}, {change:"status"}))+wire(neutralFrame({TEST:neutralTrade()},{change:"snapshot"}))+wire(neutralFrame({TEST:neutralTrade(6)}))).replaceAll("\n","\r\n");
+  const bytes=new TextEncoder().encode(text);
+  const response=new Response(new ReadableStream({start(c){for(let n=0;n<bytes.length;n++)c.enqueue(bytes.subarray(n,n+1));},cancel(){canceled++;}}),{headers:{"content-type":"text/event-stream"}});
+  await assert.rejects(consumeWatchlistPriceStream({symbols:["TEST"],signal:parent.signal,now:()=>now,wire:true,open:async()=>response,
+    onFrame:f=>{received.push({connected:f.connected,prices:f.trades.map(t=>t.price)});if(received.length===3)parent.abort();}}));
+  assert.deepEqual(received,[{connected:true,prices:[]},{connected:true,prices:[5]},{connected:true,prices:[6]}]);
+  assert.equal(canceled,1);
+});
+
+test("actual neutral provider freezes its transport per instance and replaces rather than duplicates subscriptions",async()=>{
+  const previous={...process.env};let canceled=0;const updates:number[]=[];const calls:{url:string;body:unknown}[]=[];
+  try{
+    process.env.TRADERLINK_GATEWAY_CONTRACT="traderslink.market.1";
+    const provider=new AlpacaRuntimeLivePriceProvider({url:"https://gateway.example/private/",token:"offline",now:()=>now,
+      fetcher:async(url,options)=>{
+        calls.push({url:String(url),body:JSON.parse(String(options?.body))});
+        assert.equal(options?.method,"POST");assert.equal(options?.redirect,"error");assert.equal(options?.cache,"no-store");
+        assert.equal(new Headers(options?.headers).get("accept"),"text/event-stream");assert.equal(new Headers(options?.headers).get("authorization"),"Bearer offline");
+        const ticker=calls.length===1?"TEST":"OTHER";
+        const events=neutralFrame({[ticker]:neutralTrade(calls.length===1?5:7)});
+        return new Response(new ReadableStream({start(c){c.enqueue(new TextEncoder().encode(wire(events)));},cancel(){canceled++;}}),{headers:{"content-type":"text/event-stream"}});
+      }});
+    delete process.env.TRADERLINK_GATEWAY_CONTRACT;
+    try{
+      await provider.start([{symbol:"TEST",active:true},{symbol:"INACTIVE",active:false}],u=>updates.push(u.lastPrice));await turn();
+      assert.deepEqual(updates,[5]);assert.equal(calls.length,1);
+      await provider.start([{symbol:"OTHER",active:true}],u=>updates.push(u.lastPrice));await turn();
+      assert.deepEqual(updates,[5,7]);assert.equal(canceled,1);
+      assert.deepEqual(calls,[{url:"https://gateway.example/private/traderslink/v1/market/price-updates",body:{tickers:["TEST"]}},{url:"https://gateway.example/private/traderslink/v1/market/price-updates",body:{tickers:["OTHER"]}}]);
+      assert.deepEqual(provider.getFeedHealth(),{connected:true,checkedAt:now});
+    }finally{await provider.stop();}
+    assert.equal(canceled,2);
+  }finally{process.env=previous;}
+});
+
+test("neutral stream failure cancels once without a second or legacy request",async()=>{
+  let calls=0,canceled=0;const received:unknown[]=[];
+  const response=new Response(new ReadableStream({start(c){c.enqueue(new TextEncoder().encode(wire(neutralFrame({TEST:neutralTrade(),OTHER:neutralTrade()}))));},cancel(){canceled++;}}),{headers:{"content-type":"text/event-stream"}});
+  await assert.rejects(consumeWatchlistPriceStream({symbols:["TEST"],signal:new AbortController().signal,now:()=>now,wire:true,open:async()=>{calls++;return response;},onFrame:f=>received.push(f)}));
+  assert.deepEqual(received,[]);assert.equal(calls,1);assert.equal(canceled,1);
+});
