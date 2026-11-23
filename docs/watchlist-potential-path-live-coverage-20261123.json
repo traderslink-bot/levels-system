@@ -1,0 +1,1120 @@
+{
+  "kind": "WATCHLIST_POTENTIAL_PATH_LIVE_FULL_POOL_CORRECTION_QUALIFICATION_V1",
+  "atUtc": "2026-11-23T20:06:20.317904+00:00",
+  "sourceRoot": "/home/traderlink/projects/watchlist-potential-path-qa-20261123",
+  "base": "ca04dcf7b6d9b254d54720887a500e63bc828d2d",
+  "ownerAuthorization": "Fix live-update coverage; test BNAI and all13 audited symbols; retain meaningful uncluttered levels; Coordinator deploy when ready.",
+  "implementation": "Add retained fullLadderLevels support and resistance candidates to the website-only live-reference getters. Preserve existing merge, clustering, side/role-flip, cap8 and30/50 percent checkpoint logic. Separate fast-monitor getters unchanged.",
+  "sourceAndTestPins": [
+    {
+      "path": "src/lib/monitoring/manual-watchlist-runtime-manager.ts",
+      "sha256": "38a101b099714ac3fea832c92ad8840f92200e9d6276d9db4615aaba5243a310",
+      "bytes": 594596
+    },
+    {
+      "path": "src/tests/watchlist-potential-path-live-coverage.test.ts",
+      "sha256": "34c4167d7b64082804dae215cf548e483281688697e2adb702aa5e354ecb5756",
+      "bytes": 7709
+    }
+  ],
+  "sourceAndTestPatch": {
+    "path": "/tmp/levels-potential-path-live-yysk08a7/source.patch",
+    "sha256": "d3828dc2c26f765bf653725f88edf93262269bcc0c2d8c4d2fc02940fcf55985",
+    "bytes": 9520
+  },
+  "allowlist": [
+    "src/lib/monitoring/manual-watchlist-runtime-manager.ts",
+    "src/tests/watchlist-potential-path-live-coverage.test.ts",
+    "docs/watchlist-potential-path-live-coverage-20261123.md",
+    "docs/watchlist-potential-path-live-coverage-20261123.json"
+  ],
+  "tests": {
+    "newWorkflowRegressionPasses": 6,
+    "existingPublisherManagerStoreResistancePasses": 254,
+    "totalPasses": 260,
+    "typeScriptNoEmitExitCode": 0,
+    "redRegression": {
+      "beforeFix": "5 of6 tests fail, including missing8.47 resistance; one legacy fallback passes.",
+      "firstCorrectedAttempt": "5 pass, one support fixture expectation failed because6.20 correctly clusters with6.32; isolated the support-only fixture without changing product clustering.",
+      "historicalHarnessCorrection": "Initial helper omitted Generator static price-relative side assignment. Corrected harness; all13 original main maps and Full Ladder bodies then reproduce exactly. Original failed logs retained."
+    },
+    "realInputSymbols": 13,
+    "quoteCases": 79,
+    "quoteScenarioScope": "Original captured reference plus controlled +10/+30/+60/-15/-35 percent price movements and BNAI7.13. No fresh market observations.",
+    "maxPerSide": 8,
+    "duplicatePrintedPrices": 0,
+    "overlappingDisplayedBands": 0,
+    "weakSelectedRows": 0,
+    "selectedRowsWithoutHistoricalCandleContact": 0,
+    "originalGeneratorMapsExact": 13,
+    "originalFullLadderBodiesExact": 13,
+    "engineInputsModified": 0,
+    "unexpectedProviderFetches": 0
+  },
+  "bnai": {
+    "scope": "Real retained November20 historical engine output at controlled owner-reported7.13 price; distinct from exact current private BNAI snapshot, which was unavailable.",
+    "before": {
+      "support": [
+        6.9745,
+        6.5955,
+        5.955,
+        5.725,
+        5.5525,
+        5.34,
+        5.23,
+        4.84
+      ],
+      "resistance": [
+        7.14
+      ]
+    },
+    "after": {
+      "support": [
+        6.9745,
+        6.5955,
+        6.32,
+        5.955,
+        5.725,
+        5.5525,
+        5.34,
+        4.84
+      ],
+      "resistance": [
+        7.14,
+        7.46,
+        7.81,
+        8.23,
+        8.474,
+        9.448
+      ]
+    },
+    "separateUserListRegression": "At7.13, the reported8.47 and9.45 historical areas both survive;86.28 is excluded; prices reselect after additional quote movement."
+  },
+  "perTicker": [
+    {
+      "symbol": "AKAN",
+      "originalReference": 3.9305,
+      "before": {
+        "support": [
+          3.915,
+          3.786,
+          3.6,
+          3.47,
+          3.31,
+          3.2,
+          3.0424,
+          2.75
+        ],
+        "resistance": [
+          3.971,
+          4.179,
+          4.441,
+          4.68,
+          5.545
+        ]
+      },
+      "after": {
+        "support": [
+          3.915,
+          3.786,
+          3.6,
+          3.47,
+          3.31,
+          3.2,
+          3.0424,
+          2.75
+        ],
+        "resistance": [
+          3.971,
+          4.179,
+          4.441,
+          4.68,
+          4.815,
+          4.99,
+          5.265
+        ]
+      },
+      "quoteCases": 6,
+      "generatorMapAndFullLadderExact": true,
+      "engineOutputUnchanged": true,
+      "dailyBars": 449,
+      "fourHourBars": 132
+    },
+    {
+      "symbol": "MEDS",
+      "originalReference": 1.55,
+      "before": {
+        "support": [
+          1.4538,
+          1.3678,
+          1.28,
+          1.2399,
+          1.17,
+          1.13,
+          1.09,
+          1.03
+        ],
+        "resistance": [
+          1.5502,
+          1.66,
+          1.7799,
+          1.865,
+          1.93,
+          1.9775,
+          2.09
+        ]
+      },
+      "after": {
+        "support": [
+          1.5,
+          1.4538,
+          1.3678,
+          1.3,
+          1.2399,
+          1.17,
+          1.13,
+          1.03
+        ],
+        "resistance": [
+          1.5502,
+          1.62,
+          1.66,
+          1.7,
+          1.74,
+          1.7799,
+          1.86,
+          2.02
+        ]
+      },
+      "quoteCases": 6,
+      "generatorMapAndFullLadderExact": true,
+      "engineOutputUnchanged": true,
+      "dailyBars": 441,
+      "fourHourBars": 134
+    },
+    {
+      "symbol": "LABT",
+      "originalReference": 0.235,
+      "before": {
+        "support": [
+          0.2302,
+          0.223,
+          0.212,
+          0.2023,
+          0.1951,
+          0.188,
+          0.1805,
+          0.1748
+        ],
+        "resistance": [
+          0.2405,
+          0.2518,
+          0.2585,
+          0.2688,
+          0.285,
+          0.2995,
+          0.3078
+        ]
+      },
+      "after": {
+        "support": [
+          0.2302,
+          0.223,
+          0.212,
+          0.2023,
+          0.1951,
+          0.188,
+          0.1805,
+          0.1748
+        ],
+        "resistance": [
+          0.2405,
+          0.251,
+          0.2585,
+          0.2683,
+          0.2824,
+          0.2884,
+          0.2995,
+          0.3078
+        ]
+      },
+      "quoteCases": 6,
+      "generatorMapAndFullLadderExact": true,
+      "engineOutputUnchanged": true,
+      "dailyBars": 148,
+      "fourHourBars": 135
+    },
+    {
+      "symbol": "BNAI",
+      "originalReference": 3.2,
+      "before": {
+        "support": [
+          3.164,
+          3.1,
+          3,
+          2.866,
+          2.8,
+          2.726,
+          2.605,
+          1.78
+        ],
+        "resistance": [
+          3.25,
+          3.359,
+          3.5,
+          3.61,
+          3.79,
+          3.8965,
+          4,
+          4.2
+        ]
+      },
+      "after": {
+        "support": [
+          3.164,
+          3.1,
+          3,
+          2.866,
+          2.8,
+          2.726,
+          2.605,
+          1.8841
+        ],
+        "resistance": [
+          3.249,
+          3.359,
+          3.5,
+          3.61,
+          3.749,
+          3.8965,
+          3.977,
+          4.165
+        ]
+      },
+      "quoteCases": 7,
+      "generatorMapAndFullLadderExact": true,
+      "engineOutputUnchanged": true,
+      "dailyBars": 449,
+      "fourHourBars": 131
+    },
+    {
+      "symbol": "ELOG",
+      "originalReference": 2.11,
+      "before": {
+        "support": [
+          2.06,
+          2,
+          1.9,
+          1.835,
+          1.7176,
+          1.67,
+          1.6,
+          1.4575
+        ],
+        "resistance": [
+          2.095,
+          2.175,
+          2.22,
+          2.35,
+          2.64,
+          2.7,
+          2.83
+        ]
+      },
+      "after": {
+        "support": [
+          2.12,
+          2.06,
+          2,
+          1.9,
+          1.835,
+          1.7176,
+          1.67,
+          1.4575
+        ],
+        "resistance": [
+          2.095,
+          2.175,
+          2.22,
+          2.3,
+          2.35,
+          2.4,
+          2.49,
+          2.83
+        ]
+      },
+      "quoteCases": 6,
+      "generatorMapAndFullLadderExact": true,
+      "engineOutputUnchanged": true,
+      "dailyBars": 311,
+      "fourHourBars": 112
+    },
+    {
+      "symbol": "VWAV",
+      "originalReference": 0.1299,
+      "before": {
+        "support": [],
+        "resistance": [
+          0.1669
+        ]
+      },
+      "after": {
+        "support": [],
+        "resistance": [
+          0.1669
+        ]
+      },
+      "quoteCases": 6,
+      "generatorMapAndFullLadderExact": true,
+      "engineOutputUnchanged": true,
+      "dailyBars": 343,
+      "fourHourBars": 125
+    },
+    {
+      "symbol": "NXAT",
+      "originalReference": 0.4901,
+      "before": {
+        "support": [
+          0.4868,
+          0.4591,
+          0.4493,
+          0.4304,
+          0.42,
+          0.3919,
+          0.38,
+          0.3302
+        ],
+        "resistance": [
+          0.498,
+          0.517,
+          0.5281,
+          0.5399,
+          0.573,
+          0.6248,
+          0.64
+        ]
+      },
+      "after": {
+        "support": [
+          0.4868,
+          0.4591,
+          0.4493,
+          0.4304,
+          0.42,
+          0.3919,
+          0.38,
+          0.3387
+        ],
+        "resistance": [
+          0.498,
+          0.517,
+          0.5281,
+          0.5399,
+          0.56,
+          0.573,
+          0.6032,
+          0.64
+        ]
+      },
+      "quoteCases": 6,
+      "generatorMapAndFullLadderExact": true,
+      "engineOutputUnchanged": true,
+      "dailyBars": 384,
+      "fourHourBars": 124
+    },
+    {
+      "symbol": "NIVF",
+      "originalReference": 0.0247,
+      "before": {
+        "support": [
+          0.0229
+        ],
+        "resistance": [
+          0.0383
+        ]
+      },
+      "after": {
+        "support": [
+          0.0229
+        ],
+        "resistance": [
+          0.0269,
+          0.0293,
+          0.0331
+        ]
+      },
+      "quoteCases": 6,
+      "generatorMapAndFullLadderExact": true,
+      "engineOutputUnchanged": true,
+      "dailyBars": 449,
+      "fourHourBars": 132
+    },
+    {
+      "symbol": "RAYA",
+      "originalReference": 0.6699,
+      "before": {
+        "support": [
+          0.6299,
+          0.6093,
+          0.5878,
+          0.55,
+          0.52,
+          0.4899,
+          0.4795,
+          0.4596
+        ],
+        "resistance": [
+          0.68,
+          0.7317,
+          0.8015,
+          0.8199,
+          0.8426,
+          0.9649
+        ]
+      },
+      "after": {
+        "support": [
+          0.6299,
+          0.6093,
+          0.5878,
+          0.5694,
+          0.55,
+          0.52,
+          0.4899,
+          0.4596
+        ],
+        "resistance": [
+          0.68,
+          0.7066,
+          0.7303,
+          0.77,
+          0.8015,
+          0.8199,
+          0.8426,
+          0.92
+        ]
+      },
+      "quoteCases": 6,
+      "generatorMapAndFullLadderExact": true,
+      "engineOutputUnchanged": true,
+      "dailyBars": 449,
+      "fourHourBars": 113
+    },
+    {
+      "symbol": "GNLN",
+      "originalReference": 0.4489,
+      "before": {
+        "support": [
+          0.35
+        ],
+        "resistance": [
+          0.55,
+          0.661
+        ]
+      },
+      "after": {
+        "support": [
+          0.45,
+          0.35
+        ],
+        "resistance": [
+          0.513,
+          0.55,
+          0.601
+        ]
+      },
+      "quoteCases": 6,
+      "generatorMapAndFullLadderExact": true,
+      "engineOutputUnchanged": true,
+      "dailyBars": 449,
+      "fourHourBars": 103
+    },
+    {
+      "symbol": "GDHG",
+      "originalReference": 0.1119,
+      "before": {
+        "support": [
+          0.109,
+          0.1024,
+          0.0933
+        ],
+        "resistance": [
+          0.1201,
+          0.1245,
+          0.1369,
+          0.14,
+          0.1499
+        ]
+      },
+      "after": {
+        "support": [
+          0.109,
+          0.1024,
+          0.0933
+        ],
+        "resistance": [
+          0.117,
+          0.1201,
+          0.1245,
+          0.1273,
+          0.1308,
+          0.1369,
+          0.14,
+          0.1499
+        ]
+      },
+      "quoteCases": 6,
+      "generatorMapAndFullLadderExact": true,
+      "engineOutputUnchanged": true,
+      "dailyBars": 449,
+      "fourHourBars": 112
+    },
+    {
+      "symbol": "CYAB",
+      "originalReference": 0.0559,
+      "before": {
+        "support": [
+          0.0526
+        ],
+        "resistance": [
+          0.065,
+          0.0682,
+          0.0736
+        ]
+      },
+      "after": {
+        "support": [
+          0.056,
+          0.0526
+        ],
+        "resistance": [
+          0.06,
+          0.0617,
+          0.0649,
+          0.0682,
+          0.0736
+        ]
+      },
+      "quoteCases": 6,
+      "generatorMapAndFullLadderExact": true,
+      "engineOutputUnchanged": true,
+      "dailyBars": 449,
+      "fourHourBars": 134
+    },
+    {
+      "symbol": "SPRC",
+      "originalReference": 0.183,
+      "before": {
+        "support": [
+          0.1668
+        ],
+        "resistance": [
+          0.2206,
+          0.2681
+        ]
+      },
+      "after": {
+        "support": [
+          0.1668
+        ],
+        "resistance": [
+          0.1955,
+          0.2206,
+          0.2277,
+          0.258
+        ]
+      },
+      "quoteCases": 6,
+      "generatorMapAndFullLadderExact": true,
+      "engineOutputUnchanged": true,
+      "dailyBars": 449,
+      "fourHourBars": 125
+    }
+  ],
+  "remainingDirectPresentationDifferences": {
+    "count": 9,
+    "reason": "Website path retains its existing canonical/displayed/extension merge and side confirmation context. Direct unmerged all-pool projection is a diagnostic comparator, not exact website output contract. These9 cases preserve legitimate nearer rows or choose different existing areas through the unchanged merge/spacing rules. All79 pass actual card invariants; all7 BNAI scenarios match the direct full-pool price selection.",
+    "cases": [
+      {
+        "symbol": "AKAN",
+        "price": 3.340925,
+        "live": {
+          "support": [
+            3.31,
+            3.2,
+            3.0424,
+            2.96,
+            2.9,
+            2.82,
+            2.75,
+            2.295
+          ],
+          "resistance": [
+            3.37,
+            3.47,
+            3.6,
+            3.786,
+            3.9047,
+            4.179,
+            4.441
+          ]
+        },
+        "directAllPoolPresentation": {
+          "support": [
+            3.31,
+            3.2,
+            3.0424,
+            2.96,
+            2.9,
+            2.82,
+            2.75,
+            2.295
+          ],
+          "resistance": [
+            3.47,
+            3.6,
+            3.786,
+            3.9047,
+            4.179,
+            4.441
+          ]
+        }
+      },
+      {
+        "symbol": "MEDS",
+        "price": 1.55,
+        "live": {
+          "support": [
+            1.5,
+            1.4538,
+            1.3678,
+            1.3,
+            1.2399,
+            1.17,
+            1.13,
+            1.03
+          ],
+          "resistance": [
+            1.5502,
+            1.62,
+            1.66,
+            1.7,
+            1.74,
+            1.7799,
+            1.86,
+            2.02
+          ]
+        },
+        "directAllPoolPresentation": {
+          "support": [
+            1.5,
+            1.4538,
+            1.3678,
+            1.3,
+            1.2399,
+            1.2,
+            1.17,
+            1.03
+          ],
+          "resistance": [
+            1.5502,
+            1.62,
+            1.66,
+            1.7,
+            1.74,
+            1.7799,
+            1.86,
+            2.02
+          ]
+        }
+      },
+      {
+        "symbol": "MEDS",
+        "price": 1.3175,
+        "live": {
+          "support": [
+            1.3,
+            1.2399,
+            1.17,
+            1.13,
+            1.09,
+            1.03,
+            0.99,
+            0.8998
+          ],
+          "resistance": [
+            1.3678,
+            1.4538,
+            1.5,
+            1.5502,
+            1.62,
+            1.66,
+            1.7,
+            1.7799
+          ]
+        },
+        "directAllPoolPresentation": {
+          "support": [
+            1.3,
+            1.2399,
+            1.2,
+            1.17,
+            1.13,
+            1.09,
+            1.03,
+            0.8998
+          ],
+          "resistance": [
+            1.3678,
+            1.4538,
+            1.5,
+            1.5502,
+            1.62,
+            1.66,
+            1.7,
+            1.74
+          ]
+        }
+      },
+      {
+        "symbol": "RAYA",
+        "price": 0.6699,
+        "live": {
+          "support": [
+            0.6299,
+            0.6093,
+            0.5878,
+            0.5694,
+            0.55,
+            0.52,
+            0.4899,
+            0.4596
+          ],
+          "resistance": [
+            0.68,
+            0.7066,
+            0.7303,
+            0.77,
+            0.8015,
+            0.8199,
+            0.8426,
+            0.92
+          ]
+        },
+        "directAllPoolPresentation": {
+          "support": [
+            0.6489,
+            0.6299,
+            0.6093,
+            0.5878,
+            0.5694,
+            0.55,
+            0.52,
+            0.4596
+          ],
+          "resistance": [
+            0.68,
+            0.7066,
+            0.7303,
+            0.77,
+            0.8015,
+            0.8199,
+            0.8426,
+            0.92
+          ]
+        }
+      },
+      {
+        "symbol": "RAYA",
+        "price": 0.7368900000000002,
+        "live": {
+          "support": [
+            0.7317,
+            0.7066,
+            0.68,
+            0.6299,
+            0.6093,
+            0.5878,
+            0.5694,
+            0.4899
+          ],
+          "resistance": [
+            0.77,
+            0.8015,
+            0.8199,
+            0.8426,
+            0.92,
+            0.97
+          ]
+        },
+        "directAllPoolPresentation": {
+          "support": [
+            0.7317,
+            0.7066,
+            0.68,
+            0.6489,
+            0.6299,
+            0.6093,
+            0.5878,
+            0.4899
+          ],
+          "resistance": [
+            0.77,
+            0.8015,
+            0.8199,
+            0.8426,
+            0.92,
+            0.97
+          ]
+        }
+      },
+      {
+        "symbol": "RAYA",
+        "price": 0.8708700000000001,
+        "live": {
+          "support": [
+            0.8426,
+            0.8015,
+            0.77,
+            0.7317,
+            0.7066,
+            0.68,
+            0.6299,
+            0.6093
+          ],
+          "resistance": [
+            0.92,
+            0.97,
+            1,
+            1.04,
+            1.09,
+            1.12,
+            1.15
+          ]
+        },
+        "directAllPoolPresentation": {
+          "support": [
+            0.8426,
+            0.8199,
+            0.8015,
+            0.77,
+            0.7317,
+            0.7066,
+            0.68,
+            0.6093
+          ],
+          "resistance": [
+            0.92,
+            0.97,
+            1,
+            1.04,
+            1.09,
+            1.12,
+            1.15
+          ]
+        }
+      },
+      {
+        "symbol": "CYAB",
+        "price": 0.06149,
+        "live": {
+          "support": [
+            0.06,
+            0.056,
+            0.0526
+          ],
+          "resistance": [
+            0.0617,
+            0.0649,
+            0.0682,
+            0.0736,
+            0.0752,
+            0.082
+          ]
+        },
+        "directAllPoolPresentation": {
+          "support": [
+            0.06,
+            0.056,
+            0.0526
+          ],
+          "resistance": [
+            0.0617,
+            0.0649,
+            0.0682,
+            0.0736,
+            0.0752,
+            0.08
+          ]
+        }
+      },
+      {
+        "symbol": "CYAB",
+        "price": 0.07267,
+        "live": {
+          "support": [
+            0.0682,
+            0.0649,
+            0.0617,
+            0.06,
+            0.056,
+            0.0526
+          ],
+          "resistance": [
+            0.0736,
+            0.0752,
+            0.082,
+            0.0863,
+            0.09,
+            0.0922,
+            0.095
+          ]
+        },
+        "directAllPoolPresentation": {
+          "support": [
+            0.0682,
+            0.0649,
+            0.0617,
+            0.06,
+            0.056,
+            0.0526
+          ],
+          "resistance": [
+            0.0736,
+            0.0752,
+            0.08,
+            0.082,
+            0.0863,
+            0.09,
+            0.0922,
+            0.095
+          ]
+        }
+      },
+      {
+        "symbol": "CYAB",
+        "price": 0.08944,
+        "live": {
+          "support": [
+            0.0863,
+            0.082,
+            0.0752,
+            0.0736,
+            0.0682,
+            0.0649,
+            0.0617
+          ],
+          "resistance": [
+            0.0895,
+            0.0922,
+            0.095,
+            0.0998,
+            0.102,
+            0.1049,
+            0.1095,
+            0.119
+          ]
+        },
+        "directAllPoolPresentation": {
+          "support": [
+            0.0863,
+            0.082,
+            0.08,
+            0.0752,
+            0.0736,
+            0.0682,
+            0.0649,
+            0.0617
+          ],
+          "resistance": [
+            0.0895,
+            0.0922,
+            0.095,
+            0.0998,
+            0.102,
+            0.1049,
+            0.1095,
+            0.119
+          ]
+        }
+      }
+    ]
+  },
+  "splitBasis": "Original daily/4h split-adjusted inputs and source prices/digests remain untouched. Repeated historical splits are not re-applied. CYAB fixture intentionally retains its recorded pre-November23 basis and is not current post-split data.",
+  "helpReview": "Existing Watchlist guide already describes current-price practical coverage and meaningful farther checkpoints; no copy or UI change required.",
+  "resourceCloseout": {
+    "atUtc": "2026-11-23T20:05:30.576204+00:00",
+    "resultSha256": "14be5228af7261e4ae187ac13c5e2dc40b038276d2b7c11d5e3b3d3aa8c78d88",
+    "processes": [
+      {
+        "pid": 2343858,
+        "absent": true,
+        "reportedGroupEmpty": true
+      },
+      {
+        "pid": 2343886,
+        "absent": true,
+        "reportedGroupEmpty": true
+      },
+      {
+        "pid": 2343908,
+        "absent": true,
+        "reportedGroupEmpty": true
+      },
+      {
+        "pid": 2344706,
+        "absent": true,
+        "reportedGroupEmpty": true
+      }
+    ],
+    "qaMarkerAbsent": true,
+    "commonGuardAvailableAtObservation": true,
+    "noForeignProcessOrGuardTouched": true,
+    "minMemAvailableBytes": 2119045120,
+    "snapshotCount": 26
+  },
+  "evidence": [
+    {
+      "path": "/tmp/levels-potential-path-live-yysk08a7/before-replay.json",
+      "sha256": "665b7ff33f98f2313a319a07b1f9d214fb5184ac1dd3a062025e66cba3e53b45",
+      "bytes": 323099
+    },
+    {
+      "path": "/tmp/levels-potential-path-live-yysk08a7/after-replay.json",
+      "sha256": "fc47937ecd85384a93b73821a51b283680fc4cb32275f4add43cb1c735414c42",
+      "bytes": 376625
+    },
+    {
+      "path": "/tmp/levels-potential-path-live-yysk08a7/run-20261123T200339517361Z/result.json",
+      "sha256": "14be5228af7261e4ae187ac13c5e2dc40b038276d2b7c11d5e3b3d3aa8c78d88",
+      "bytes": 129983
+    },
+    {
+      "path": "/tmp/levels-potential-path-live-yysk08a7/run-20261123T200339517361Z/independent-closeout.json",
+      "sha256": "48390ed020dbb44b16d89bb0f1e04dfedafcca638f9fa40afdc969d82c1fb083",
+      "bytes": 691
+    },
+    {
+      "path": "/tmp/levels-potential-path-live-yysk08a7/replay.mts",
+      "sha256": "850f4a0f8a2894162cba102f84d90467453a0e34dda000f78107f15cad42d0d7",
+      "bytes": 8485
+    },
+    {
+      "path": "/tmp/levels-potential-path-live-yysk08a7/source.patch",
+      "sha256": "d3828dc2c26f765bf653725f88edf93262269bcc0c2d8c4d2fc02940fcf55985",
+      "bytes": 9520
+    }
+  ],
+  "retention": "No candle download or raw dataset copy. Keep original compressed13-case baseline for the separate still-pending Full Ladder consolidation proposal. Retain only needed compact code/check evidence through integration and release; remove disposable replay scratch when no longer required.",
+  "effects": {
+    "newProviderRequests": 0,
+    "newRuntimeGeneration": 0,
+    "accountSaves": 0,
+    "receiptReissue": 0,
+    "workersStartedByReplay": 0,
+    "serviceChanges": 0,
+    "gitMutationsByLevels": 0,
+    "deploymentsByLevels": 0
+  },
+  "release": "Ready for Coordinator independent source review/integration/deployment and safe current BNAI inspection. This local qualification is not hosted acceptance."
+}

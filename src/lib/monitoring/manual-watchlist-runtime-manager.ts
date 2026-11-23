@@ -6699,6 +6699,9 @@ export class ManualWatchlistRuntimeManager {
     return this.mergeFastLevelReferences([
       ...(snapshotState?.displayedResistanceZones ?? []),
       ...this.options.levelStore.getResistanceZones(symbol).map(withFastLevelSourceLabel),
+      // Re-select the website path from historical structure as price moves,
+      // even when it was outside the earlier tactical/displayed selection.
+      ...(this.options.levelStore.getLevels(symbol)?.fullLadderLevels?.resistance ?? []).map(withFastLevelSourceLabel),
       ...this.options.levelStore.getExtensionResistanceZones(symbol).map(withFastLevelSourceLabel),
     ]);
   }
@@ -6721,6 +6724,7 @@ export class ManualWatchlistRuntimeManager {
     return this.mergeFastLevelReferences([
       ...(snapshotState?.displayedSupportZones ?? []),
       ...this.options.levelStore.getSupportZones(symbol).map(withFastLevelSourceLabel),
+      ...(this.options.levelStore.getLevels(symbol)?.fullLadderLevels?.support ?? []).map(withFastLevelSourceLabel),
       ...this.options.levelStore.getExtensionSupportZones(symbol).map(withFastLevelSourceLabel),
     ]);
   }
