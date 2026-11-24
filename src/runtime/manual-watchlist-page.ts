@@ -2629,7 +2629,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
               const response = await fetch("/api/watchlist/analysis-review/category-move", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "x-traderlink-journal-admin-request":"1" },
-                body: JSON.stringify(request),
+                body: JSON.stringify({...request,...(freeChat?{freeChatCopy:window.watchlistConfirmedFreeChatCopy(entry.symbol)}:{})}),
               });
               const payload = await response.json();
               if (!response.ok) {
@@ -2707,7 +2707,7 @@ export const MANUAL_WATCHLIST_PAGE = `<!DOCTYPE html>
             let failure='';
             try{
               if (kind === 'free-chat' && !await window.watchlistConfirmFreeChat(entry.symbol,'published',latestMove.approvalRevision)) return;
-              const response=await fetch('/api/watchlist/analysis-review/category-move?retry='+kind,{method:'POST',headers:{'Content-Type':'application/json','x-traderlink-journal-admin-request':'1'},body:JSON.stringify({symbol:entry.symbol,cycleId:latestMove.cycleId,id:latestMove.id,to:latestMove.to,notify:latestMove.notify,deleteSource:latestMove.deleteSource===true,freeChat:latestMove.freeChat===true})});await readWatchlistJsonResponse(response);cache.delete(deliveryKey);}
+              const response=await fetch('/api/watchlist/analysis-review/category-move?retry='+kind,{method:'POST',headers:{'Content-Type':'application/json','x-traderlink-journal-admin-request':'1'},body:JSON.stringify({symbol:entry.symbol,cycleId:latestMove.cycleId,id:latestMove.id,to:latestMove.to,notify:latestMove.notify,deleteSource:latestMove.deleteSource===true,freeChat:latestMove.freeChat===true,...(kind==='free-chat'?{freeChatCopy:window.watchlistConfirmedFreeChatCopy(entry.symbol)}:{})})});await readWatchlistJsonResponse(response);cache.delete(deliveryKey);}
             catch(error){failure=error.message||'Delivery retry could not complete.';}
             finally{deliveryBusy=false;await loadDelivery(true);if(failure){deliveryPanel.hidden=deliveryStatus.hidden=false;deliveryStatus.textContent=failure;}}
           };

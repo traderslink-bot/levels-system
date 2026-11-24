@@ -172,7 +172,17 @@ li.watchlist-control-row > .entry-main > .entry-title > strong:first-child { col
     return readWatchlistJsonResponse(response);
   }
   const freeChatApprovalDrafts = new Map();
+  const freeChatApprovalImages = new Map();
   const confirmedFreeChatCopies = new Map();
+  function freeChatImageChoice(preview, selected, changed) {
+    const label=document.createElement('label'), input=document.createElement('input'), note=document.createElement('p');
+    input.type='checkbox'; input.style.width='auto'; input.setAttribute('aria-label','Include analysis images');
+    input.checked=preview.canIncludeImages===true&&selected===true; input.disabled=preview.canIncludeImages!==true;
+    label.append(input,document.createTextNode(' Include analysis images'));
+    const render=()=>{note.textContent=input.checked?'Images selected, if available.':'Text-only post.';};
+    input.onchange=()=>{render();changed?.(input.checked);};render();
+    return {label,input,note,render};
+  }
   window.watchlistConfirmedFreeChatCopy = (symbol) => confirmedFreeChatCopies.get(symbol);
   window.watchlistConfirmFreeChat = async (symbol, mode, approvalRevision, moveTo) => {
     const query = new URLSearchParams({symbol, preview:mode});
@@ -208,8 +218,8 @@ li.watchlist-control-row > .entry-main > .entry-title > strong:first-child { col
         content.replaceChildren(title,document.createTextNode((input.value.trim() ? '\n\n'+input.value.trim() : '')+'\n\n'+result.preview.footer));
       };
       input.oninput=renderEditedPreview;renderEditedPreview();
-      const attachments = document.createElement('p');
-      attachments.textContent = result.preview.includeImages ? 'Analysis images will be attached when available.' : 'Text-only post.';
+      const images=freeChatImageChoice(result.preview,result.savedMessage!==undefined?result.savedIncludeImages:freeChatApprovalImages.get(key)??false,
+        value=>{if(editable)freeChatApprovalImages.set(key,value);});
       const message = document.createElement('p'); message.textContent = 'Premium settings are checked again at delivery.';
       const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'secondary';
       cancel.textContent = 'Cancel'; cancel.autofocus = true; cancel.onclick = () => dialog.close();
@@ -217,9 +227,9 @@ li.watchlist-control-row > .entry-main > .entry-title > strong:first-child { col
       send.onclick = () => dialog.close('send');
       const actions = document.createElement('div'); actions.className = 'watchlist-free-chat-preview-actions';
       actions.append(cancel, send);
-      dialog.append(title, ...(editable ? [inputLabel] : []), content, attachments, message, actions);
+      dialog.append(title, ...(editable ? [inputLabel] : []), content, images.label, images.note, message, actions);
       dialog.addEventListener('close', () => {
-        if (dialog.returnValue === 'send' && editable) confirmedFreeChatCopies.set(symbol,{message:input.value.trim(),visibilityKey:result.preview.visibilityKey,draftRevision:result.draftRevision,cycleId:result.cycleId});
+        if (dialog.returnValue === 'send') confirmedFreeChatCopies.set(symbol,{message:input.value.trim(),visibilityKey:result.preview.visibilityKey,draftRevision:result.draftRevision,cycleId:result.cycleId,includeImages:images.input.checked});
         dialog.remove(); resolve(dialog.returnValue === 'send');
       });
       document.body.append(dialog); dialog.showModal(); trackWatchlistDialogPosition(dialog);
@@ -347,14 +357,14 @@ function attachX(entry, actions, state, more = actions) {
       const status = document.createElement('p'); status.setAttribute('role','status'); status.textContent = 'Loading…';
       const preview = document.createElement('section'); preview.hidden = true;
       const copy = document.createElement('p'); copy.className = 'watchlist-free-chat-preview-copy';
-      const attachment = document.createElement('p');
+      let images;
       const messageLabel = document.createElement('label');
       const message = document.createElement('textarea'); message.className = 'watchlist-free-chat-message'; message.maxLength = 1200;
       messageLabel.append(document.createTextNode('Post message'),message);
       const privacy = document.createElement('p');
-      preview.append(messageLabel,privacy,copy,attachment);
+      preview.append(messageLabel,privacy,copy);
       const label = document.createElement('label');
-      const automatic = document.createElement('input'); automatic.type = 'checkbox'; automatic.disabled = true; automatic.style.width = 'auto';
+      const automatic = document.createElement('input'); automatic.type = 'checkbox'; automatic.disabled = true; automatic.style.width = 'auto'; automatic.setAttribute('aria-label','Automatically post analysis updates to Free Chat');
       label.append(automatic,document.createTextNode(' Automatically post analysis updates to Free Chat'));
       const close = document.createElement('button'); close.type = 'button'; close.className = 'secondary'; close.textContent = 'Close';
       close.onclick = () => dialog.close();
@@ -382,7 +392,10 @@ function attachX(entry, actions, state, more = actions) {
         copy.replaceChildren(title,document.createTextNode((message.value.trim() ? '\n\n'+message.value.trim() : '')+'\n\n'+value.footer));
         privacy.textContent = value.visibilityKey[0] === '1' ? 'Leave out the ticker, company name, and any details that identify it.' : '';
         privacy.hidden = !privacy.textContent;
-        attachment.textContent = value.includeImages ? 'Analysis images will be attached when available.' : 'Text-only post.';
+        if(!images) {images=freeChatImageChoice(value,current.savedIncludeImages===true);preview.append(images.label,images.note);}
+        images.input.disabled=working||!canSend()||value.canIncludeImages!==true;
+        if(value.canIncludeImages!==true)images.input.checked=false;
+        images.render();
       };
       const syncControls = () => {
         automatic.disabled = working || !current;
@@ -390,6 +403,7 @@ function attachX(entry, actions, state, more = actions) {
         send.disabled = working || !canSend();
         send.textContent = current?.delivery?.state === 'failed' ? 'Retry Free Chat post' : 'Confirm Free Chat post';
         message.disabled = send.disabled;
+        if(images)images.input.disabled=send.disabled||current?.preview?.canIncludeImages!==true;
       };
       const renderReceipt = () => {
         const receipt = current?.delivery;
@@ -455,7 +469,10 @@ function attachX(entry, actions, state, more = actions) {
         current = result;
         // A duplicate request can return the already queued immutable copy.
         // Display that copy, never the later text that was not queued.
-        if (current.delivery) message.value = current.savedMessage ?? current.preview?.defaultMessage ?? '';
+        if (current.delivery) {
+          message.value = current.savedMessage ?? current.preview?.defaultMessage ?? '';
+          if(images)images.input.checked=current.savedIncludeImages===true&&current.preview?.canIncludeImages===true;
+        }
         renderPreview(); renderReceipt(); checksLeft = 30; scheduleCheck();
       };
       send.onclick = async () => {
@@ -465,7 +482,7 @@ function attachX(entry, actions, state, more = actions) {
         try {
           const result = await request('/free-chat',{
             action:'send', symbol:entry.symbol,cycleId:current.cycleId,approvalRevision:current.approvalRevision,
-            visibilityKey:current.preview.visibilityKey,message:message.value,
+            visibilityKey:current.preview.visibilityKey,message:message.value,includeImages:images?.input.checked===true,
           });
           if (!stopping) adoptSendResult(result,selected);
         } catch (error) {
