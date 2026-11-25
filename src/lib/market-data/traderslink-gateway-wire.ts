@@ -2,7 +2,7 @@
 export const GATEWAY_WIRE_VERSION = "traderslink.market.1";
 export const GATEWAY_WIRE_ROUTES = {
   health: "availability", "scanner-listings": "instrument-rules", calendar: "trading-days",
-  "vwap-seed": "weighted-reference", "analyzer-splits": "capital-adjustments",
+  "vwap-seed": "weighted-reference", "accepted-input": "accepted-input", "analyzer-splits": "capital-adjustments",
   "chart-overnight-history": "extended-candles", history: "candle-window", quotes: "market-state",
   overnight: "extended-price", bars: "recent-candles", stream: "chart-updates",
   "scanner-stream": "scanner-updates", prices: "price-updates", halts: "trading-pauses",
@@ -39,13 +39,19 @@ const events = record({symbol:["ticker",scalar],anchor:["reference",scalar],basi
 const sums = simple({open:"first",high:"peak",low:"trough",close:"last",hl2:"midpoint",hlc3:"typical",ohlc4:"average",hlcc4:"weightedClose"});
 const moment = simple({mean:"average",m2:"dispersion"});
 const moments = record(Object.fromEntries(Object.entries({open:"first",high:"peak",low:"trough",close:"last",hl2:"midpoint",hlc3:"typical",ohlc4:"average",hlcc4:"weightedClose"}).map(([key,name])=>[key,[name,moment]])));
-const history = record({symbol:["ticker",scalar],feed:["coverage",scalar],adjustment:["basis",scalar],basisDate:["basisDay",scalar],bars:["candles",array(candle)],baseTimeframe:["interval",scalar],complete:["finished",scalar],nextPageToken:["continuation",scalar],calendar:["tradingDays",calendar],calendars:["tradingYears",array(calendar)]});
+const acceptedInput = simple({
+  id: "id", digest: "digest", upstreamRevision: "sourceRevision", instrumentId: "listingId",
+  symbol: "ticker", venue: "venue", frame: "resolution", datasetId: "dataset", priceBasisId: "priceVersion",
+  calendarRevision: "calendarVersion", sessionMode: "sessionMode", completedThroughMs: "completedThrough",
+  acceptedCutoffMs: "cutoff", availableAtMs: "observed", acceptedAtMs: "accepted",
+});
+const history = record({symbol:["ticker",scalar],feed:["coverage",scalar],adjustment:["basis",scalar],basisDate:["basisDay",scalar],bars:["candles",array(candle)],baseTimeframe:["interval",scalar],complete:["finished",scalar],nextPageToken:["continuation",scalar],calendar:["tradingDays",calendar],calendars:["tradingYears",array(calendar)],acceptedInput:["acceptedInput",acceptedInput]});
 const market = record({feed:["coverage",scalar],connected:["online",scalar],at:["emitted",scalar],snapshots:["instruments",dictionary(nullable(snapshot))],sessionTotals:["periodTotals",dictionary(nullable(sessionState))]});
 const seed = record({events:["capitalEvents",events],complete:["finished",scalar],request:["selection",request],basisDate:["basisDay",scalar],anchorKey:["referenceDay",scalar],start:["from",scalar],volume:["shares",scalar],sums:["totals",sums],moments:["distribution",moments]});
 const priceFrame = record({protocolVersion:["revision",scalar],feed:["coverage",scalar],connected:["online",scalar],kind:["change",scalar],emittedAt:["emitted",scalar],prices:["values",dictionary(simple({price:"value",providerObservedAt:"observed",receiptAt:"received"}))]});
 const schemas: Record<GatewayOperation, Spec> = {
   health:simple({ready:"ready",feed:"coverage"}),"scanner-listings":record({excluded:["excluded",array(scalar)]}),calendar,
-  "vwap-seed":seed,"analyzer-splits":events,"chart-overnight-history":history,history,quotes:market,
+  "accepted-input":acceptedInput, "vwap-seed":seed,"analyzer-splits":events,"chart-overnight-history":history,history,quotes:market,
   overnight:record({feed:["coverage",scalar],symbol:["ticker",scalar],trade:["lastPrint",trade]}),bars:history,
   stream:record({state:["connection",scalar],adjustment:["basis",scalar],basisDate:["basisDay",scalar],price:["value",scalar],time:["observed",scalar],bar:["candle",candle],daily:["daily",scalar],provisional:["forming",scalar],symbol:["ticker",scalar],available:["usable",scalar],status:["tradingState",pause]}),
   "scanner-stream":market,prices:priceFrame,
@@ -93,7 +99,7 @@ export function decodeGatewayWire(operation: GatewayOperation, value: unknown): 
   return transform(schemas[operation],body.data,true,{nodes:0});
 }
 
-const queryNames: Record<string,string> = {symbol:"ticker",symbols:"tickers",timeframe:"resolution",start:"from",end:"until",daily:"dayBars",overnight:"extended",sessions:"periodTotals",regularClose:"closeMinute",before:"cutoff",anchor:"reference",premarket:"beforeOpen",regular:"openMarket",postmarket:"afterClose",year:"yearNumber",adjustment:"basis"};
+const queryNames: Record<string,string> = {symbol:"ticker",symbols:"tickers",timeframe:"resolution",start:"from",end:"until",daily:"dayBars",overnight:"extended",sessions:"periodTotals",regularClose:"closeMinute",before:"cutoff",anchor:"reference",premarket:"beforeOpen",regular:"openMarket",postmarket:"afterClose",year:"yearNumber",adjustment:"basis",acceptedEvidence:"includeAcceptance",sessionMode:"sessionMode",id:"acceptedId"};
 export function gatewayWireQuery(query: URLSearchParams, decode=false): URLSearchParams {
   const result=new URLSearchParams();
   for(const [from,to] of Object.entries(queryNames)){

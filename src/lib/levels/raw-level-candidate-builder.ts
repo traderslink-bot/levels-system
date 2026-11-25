@@ -2,6 +2,7 @@
 // Convert filtered swing points into richer raw level candidates.
 
 import type { Candle, CandleTimeframe } from "../market-data/candle-types.js";
+import { inheritAcceptedInputOrigins, type AcceptedInputOriginCarrier } from "../market-data/accepted-input-origins.js";
 import { buildSwingCandidateEvidence } from "./level-candidate-quality.js";
 import { buildRawCandidateMarketDataProvenance } from "./level-market-data-provenance.js";
 import type { RawLevelCandidate, SwingPoint } from "./level-types.js";
@@ -428,6 +429,7 @@ export function buildRawLevelCandidates(params: {
   timeframe: CandleTimeframe;
   candles: Candle[];
   swings: SwingPoint[];
+  inputOrigins?: AcceptedInputOriginCarrier;
 }): RawLevelCandidate[] {
   const { symbol, timeframe, candles, swings } = params;
 
@@ -464,5 +466,7 @@ export function buildRawLevelCandidates(params: {
     ...buildLowPriceDemandShelfCandidates({ symbol, timeframe, candles, swings }),
     ...buildRepeatedOhlcPivotCandidates({ symbol, timeframe, candles, swings, kind: "support" }),
     ...buildRepeatedOhlcPivotCandidates({ symbol, timeframe, candles, swings, kind: "resistance" }),
-  ];
+  ].map((candidate) => params.inputOrigins
+    ? inheritAcceptedInputOrigins(candidate, params.inputOrigins)
+    : candidate);
 }

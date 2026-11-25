@@ -31,11 +31,11 @@ class Element {
 function harness() {
   const body = new Element("body"); body.isConnected = true;
   const calls: { method: string; input?: Record<string, any> }[] = [];
-  const state = { cycleId: "cycle", approvalRevision: 3, automaticEnabled: false, copy: null as string | null, queued: false,
+  const state = { cycleId: "cycle", approvalRevision: 3, automaticEnabled: false, includeImages:false, copy: null as string | null, queued: false,
     loseSendAck: false, loseAutomaticAck: false, failNextRead: false, failBeforeSend: false, queueWrites: 0 };
   const model = () => ({ cycleId: state.cycleId, approvalRevision: state.approvalRevision, automaticEnabled: state.automaticEnabled,
-    savedMessage: state.copy, delivery: state.queued ? { state: "pending" } : null,
-    preview: { heading: "Free $TEST TradersLink Analysis", defaultMessage: "Default message", footer: "Protected links", visibilityKey: "000", includeImages: true } });
+    savedMessage: state.copy, savedIncludeImages:state.includeImages, delivery: state.queued ? { state: "pending" } : null,
+    preview: { heading: "Free $TEST TradersLink Analysis", defaultMessage: "Default message", footer: "Protected links", visibilityKey: "000", includeImages:state.includeImages===true,canIncludeImages:true } });
   let delayed: (() => Promise<Response>) | undefined;
   const window: any = { location: { origin: "https://app.test" }, addEventListener() {}, removeEventListener() {}, dispatchEvent() {} };
   window.parent = window;
@@ -51,7 +51,7 @@ function harness() {
       }
       if (input.action === "send") {
         if (state.failBeforeSend) { state.failBeforeSend = false; return Response.json({ error: "Write unavailable" }, { status: 503 }); }
-        if (!state.queued) { state.queued = true; state.copy = input.message; state.queueWrites++; }
+        if (!state.queued) { state.queued = true; state.copy = input.message; state.includeImages=input.includeImages; state.queueWrites++; }
         if (state.loseSendAck) { state.loseSendAck = false; return Response.json({ error: "Acknowledgement lost" }, { status: 503 }); }
       }
       if (input.action === "automatic") {
@@ -69,7 +69,7 @@ function harness() {
       await all().find(node => node.textContent === "Post to Free Chat")!.onclick();
       const dialog = body.children.find(node => node.tag === "dialog")!;
       const nodes = all(dialog);
-      return { dialog, message: nodes.find(node => node.tag === "textarea")!, automatic: nodes.find(node => node.type === "checkbox")!,
+      return { dialog, message: nodes.find(node => node.tag === "textarea")!, images:nodes.find(node=>node.attributes['aria-label']==='Include analysis images')!, automatic: nodes.find(node => node.attributes['aria-label']==='Automatically post analysis updates to Free Chat')!,
         send: nodes.find(node => node.textContent === "Confirm Free Chat post")!, check: nodes.find(node => node.textContent === "Check delivery status")!, status: nodes.find(node => node.attributes.role === "status")! };
     },
   };
@@ -82,6 +82,31 @@ test("a committed Free Chat send with lost acknowledgement reads its receipt and
   assert.equal(h.calls.filter(call => call.input?.action === "send").length, 1);
   assert.equal(ui.message.value, "First saved copy");
   assert.match(ui.status.textContent, /Queued/); assert.equal(ui.send.disabled, true);
+});
+
+test("image selection is independent, defaults off, and does not overwrite custom post text", async () => {
+  const h=harness(),ui=await h.open();
+  assert.equal(ui.images.checked,false);
+  ui.message.value='My own Free Chat comment.';
+  ui.images.checked=true;ui.images.onchange();
+  assert.equal(ui.message.value,'My own Free Chat comment.');
+  await ui.send.onclick();
+  assert.equal(h.calls.find(call=>call.input?.action==='send')!.input!.includeImages,true);
+  assert.equal(h.state.includeImages,true);
+  assert.equal(ui.images.checked,true);
+  assert.equal(ui.images.disabled,true);
+});
+
+test("lost send acknowledgement restores the queued image choice rather than an unsaved later selection", async () => {
+  const h=harness(),ui=await h.open();h.state.loseSendAck=h.state.failNextRead=true;
+  ui.message.value='First saved copy';ui.images.checked=true;ui.images.onchange();
+  await ui.send.onclick();
+  ui.images.checked=false;ui.images.onchange();
+  await ui.send.onclick();
+  assert.equal(h.state.queueWrites,1);
+  assert.equal(h.state.includeImages,true);
+  assert.equal(ui.images.checked,true);
+  assert.equal(ui.message.value,'First saved copy');
 });
 
 test("an explicit edited retry displays the first immutable queued copy after readback also failed", async () => {

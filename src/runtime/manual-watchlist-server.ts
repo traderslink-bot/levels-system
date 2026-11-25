@@ -1300,8 +1300,8 @@ async function main(): Promise<void> {
         return;
       }
       try {
-        const body = await readJsonBody(request) as { symbol?: unknown };
-        const result = await stockLevelsGenerator.generate(body.symbol);
+        const body = await readJsonBody(request) as { symbol?: unknown; profile?: unknown };
+        const result = await stockLevelsGenerator.generate(body.symbol, body.profile);
         sendJson(response, result.map ? 200 : 422, result);
       } catch (error) {
         const message = error instanceof RequestBodyParseError ? "Invalid request body." : "Stock Levels is unavailable.";

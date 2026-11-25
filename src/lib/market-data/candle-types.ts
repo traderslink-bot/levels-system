@@ -1,6 +1,8 @@
 // 2026-04-14 08:05 PM America/Toronto
 // Shared candle type definitions for the levels system market-data layer.
 
+import type { AcceptedInputOriginCarrier } from "./accepted-input-origins.js";
+
 export type CandleTimeframe = "daily" | "4h" | "5m";
 export type CandleFetchTimeframe = "1m" | CandleTimeframe;
 
@@ -54,7 +56,7 @@ export type CandleSessionSummary = {
   latestRegularSessionDate: string | null;
 };
 
-export type BaseCandleProviderResponse = {
+export type BaseCandleProviderResponse = AcceptedInputOriginCarrier & {
   provider: CandleProviderName;
   symbol: string;
   timeframe: CandleFetchTimeframe;

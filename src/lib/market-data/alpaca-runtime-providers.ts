@@ -1,11 +1,13 @@
 import { gatewayWireEnabled, gatewayWireUrl, gatewayWireSubscription, decodeGatewayWire, type GatewayOperation } from "./traderslink-gateway-wire.js";
 import { consumeWatchlistPriceStream } from "./watchlist-alpaca-price-stream.js";
+import { admitAcceptedChartInput, bindAcceptedChartInput } from "./accepted-chart-input.js";
+import { SCANNER_LEVELS_REGULAR_DATASET } from "./stock-levels-evidence-profile.js";
 
 /** Portable adapters for the separately hosted levels/Watchlist runtime.
  * Only a private VPS gateway token is used here; no Alpaca broker key.
  */
 type RuntimeFrame = "1m" | "daily" | "4h" | "5m";
-type HistoricalRequest = { symbol: string; timeframe: RuntimeFrame; lookbackBars: number; endTimeMs?: number };
+type HistoricalRequest = { symbol: string; timeframe: RuntimeFrame; lookbackBars: number; endTimeMs?: number; acceptedEvidence?: boolean; sessionMode?: "regular" };
 type HistoricalPlan = { plannedBarCount: number; requestStartTimestamp: number; requestEndTimestamp: number };
 type RuntimeUpdate = { symbol: string; timestamp: number; lastPrice: number; bid?: number; ask?: number };
 type AdapterOptions = { url?: string; token?: string; fetcher?: typeof fetch; now?: () => number };
@@ -32,6 +34,13 @@ class RuntimeGateway {
     const response = await this.fetcher(url, { headers: { Authorization: `Bearer ${this.token}` }, signal: signal ? AbortSignal.any([signal, timeout]) : timeout, redirect: "error" });
     if (!response.ok) throw Error("Alpaca VPS market data is unavailable.");
     const payload = await response.json();
+    if (this.wire && path === "history" && payload?.data && typeof payload.data === "object" &&
+        !Array.isArray(payload.data) && Object.hasOwn(payload.data, "acceptedInput")) {
+      // Optional invalid metadata must not invalidate otherwise valid historical candles.
+      const { acceptedInput: _optional, ...data } = payload.data;
+      const plain = decodeGatewayWire(path, { ...payload, data });
+      try { return decodeGatewayWire(path, payload); } catch { return plain; }
+    }
     return this.wire ? decodeGatewayWire(path, payload) as typeof payload : payload;
   }
   openPrices(symbols: readonly string[], signal: AbortSignal) {
@@ -62,17 +71,36 @@ export class AlpacaRuntimeHistoricalProvider {
     if (!/^[A-Z][A-Z0-9.-]{0,14}$/.test(symbol)) throw Error("Invalid stock symbol.");
     const started = this.gateway.now();
     const timeframe = { "1m": "1Min", daily: "1Day", "4h": "4Hour", "5m": "5Min" }[request.timeframe];
-    const payload = await this.gateway.get("history", new URLSearchParams({ symbol, timeframe, start: String(plan.requestStartTimestamp), end: String(plan.requestEndTimestamp) })) as { symbol: string; feed: string; adjustment: string; complete: boolean; bars: RuntimeBar[] };
+    const wantsAcceptance = request.acceptedEvidence === true && (request.timeframe === "daily" || request.timeframe === "4h");
+    if (request.sessionMode !== undefined && (request.sessionMode !== "regular" || request.timeframe !== "4h" || !wantsAcceptance)) {
+      throw Error("Regular Scanner history requires accepted four-hour evidence.");
+    }
+    const query = new URLSearchParams({ symbol, timeframe, start: String(plan.requestStartTimestamp), end: String(plan.requestEndTimestamp) });
+    if (wantsAcceptance) query.set("acceptedEvidence", "1");
+    if (request.sessionMode === "regular") query.set("sessionMode", "regular");
+    const payload = await this.gateway.get("history", query) as { symbol: string; feed: string; adjustment: string; complete: boolean; bars: RuntimeBar[]; nextPageToken?: string | null; acceptedInput?: unknown };
     if (payload.symbol !== symbol || payload.feed !== "sip" || payload.adjustment !== "split" || !payload.complete || !Array.isArray(payload.bars)) throw Error("Alpaca candle history is incomplete.");
     const bars = new Map<number, RuntimeBar>();
     for (const bar of payload.bars) {
       if (!Number.isSafeInteger(bar.time) || ![bar.open, bar.high, bar.low, bar.close, bar.volume].every(Number.isFinite) || bar.low <= 0 || bar.high < Math.max(bar.open, bar.close) || bar.low > Math.min(bar.open, bar.close) || bar.volume < 0) throw Error("Invalid Alpaca candle data.");
       if (bar.time * 1000 >= plan.requestStartTimestamp && bar.time * 1000 <= plan.requestEndTimestamp) bars.set(bar.time, bar);
     }
-    return { provider: "alpaca" as const, symbol, timeframe: request.timeframe, requestedLookbackBars: request.lookbackBars,
+    const receivedAtMs = this.gateway.now();
+    const series = { provider: "alpaca" as const, symbol, timeframe: request.timeframe, requestedLookbackBars: request.lookbackBars,
       candles: [...bars.values()].sort((a, b) => a.time - b.time).map(bar => ({ timestamp: bar.time * 1000, open: bar.open, high: bar.high, low: bar.low, close: bar.close, volume: bar.volume })),
-      fetchStartTimestamp: started, fetchEndTimestamp: this.gateway.now(), requestedStartTimestamp: plan.requestStartTimestamp, requestedEndTimestamp: plan.requestEndTimestamp,
+      fetchStartTimestamp: started, fetchEndTimestamp: receivedAtMs, requestedStartTimestamp: plan.requestStartTimestamp, requestedEndTimestamp: plan.requestEndTimestamp,
       sessionMetadataAvailable: request.timeframe !== "daily", providerMetadata: { source: "alpaca_sip_vps", adjustment: "split" } };
+    const unchanged = bars.size === payload.bars.length && payload.bars.every((bar, index) =>
+      bar.time * 1000 >= plan.requestStartTimestamp && bar.time * 1000 <= plan.requestEndTimestamp &&
+      (index === 0 || bar.time > payload.bars[index - 1]!.time));
+    const accepted = wantsAcceptance && unchanged && payload.nextPageToken === null
+      ? admitAcceptedChartInput(payload.acceptedInput, { symbol, frame: request.timeframe as "daily" | "4h", requestEndMs: plan.requestEndTimestamp, receivedAtMs })
+      : undefined;
+    if (request.sessionMode === "regular" && (!accepted || accepted.sessionMode !== "regular" ||
+        accepted.datasetId !== SCANNER_LEVELS_REGULAR_DATASET)) {
+      throw Error("Qualifying regular four-hour evidence is unavailable.");
+    }
+    return accepted ? bindAcceptedChartInput(series, accepted) : series;
   }
 }
 

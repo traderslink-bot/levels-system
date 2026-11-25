@@ -3,6 +3,7 @@ import {
   formatLevelLadderMessage,
   formatLevelSnapshotMessage,
 } from "../alerts/alert-router.js";
+import { inheritAcceptedInputOrigins } from "../market-data/accepted-input-origins.js";
 import type {
   AlertPayload,
   LevelSnapshotDisplayZone,
@@ -370,7 +371,7 @@ function buildLevelMapLevel(
     formatWatchlistStrengthLabel(zone.strengthLabel),
     sourceLabel,
   ].filter((value): value is string => Boolean(value));
-  return {
+  return inheritAcceptedInputOrigins({
     side,
     price: zone.representativePrice,
     ...(typeof zone.lowPrice === "number" ? { lowPrice: zone.lowPrice } : {}),
@@ -392,7 +393,7 @@ function buildLevelMapLevel(
     roleFlipFromSide: options.roleFlipFromSide ?? null,
     roleFlipState: options.roleFlipState ?? "original",
     label: `${formatPrice(zone.representativePrice)} (${parts.join(", ")})`,
-  };
+  }, zone);
 }
 
 function isStructuralLevelMapLevel(level: LiveWatchlistLevelMapLevel): boolean {
