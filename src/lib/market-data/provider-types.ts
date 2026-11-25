@@ -10,6 +10,10 @@ export type HistoricalFetchRequest = {
   lookbackBars: number;
   endTimeMs?: number;
   preferredProvider?: CandleProviderName;
+  /** Optional metadata for the standalone Generator; does not change candle selection. */
+  acceptedEvidence?: boolean;
+  /** Explicit accepted Scanner context only; ordinary native history omits it. */
+  sessionMode?: "regular";
 };
 
 export type HistoricalFetchPlan = {

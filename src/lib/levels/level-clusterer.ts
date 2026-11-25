@@ -2,6 +2,7 @@
 // Hotfix for final phase 1 clustering refinement with controlled second-pass merges.
 
 import type { CandleTimeframe } from "../market-data/candle-types.js";
+import { inheritAcceptedInputOrigins } from "../market-data/accepted-input-origins.js";
 import type { LevelEngineConfig } from "./level-config.js";
 import {
   aggregateRawCandidateMarketDataProvenance,
@@ -171,7 +172,7 @@ function buildZoneFromGroup(
   const notes = unique(group.flatMap((item) => item.notes));
   const representativeCandidate = pickRepresentativeCandidate(group, kind);
 
-  return {
+  return inheritAcceptedInputOrigins({
     id: `${symbol}-${kind}-zone-${index + 1}`,
     symbol,
     kind,
@@ -226,7 +227,7 @@ function buildZoneFromGroup(
     isExtension: false,
     freshness: zoneFreshness(Math.max(...group.map((item) => item.lastTimestamp)), referenceTimestamp),
     notes,
-  };
+  }, ...group);
 }
 
 function shouldMergeGroupsByCenter(
@@ -351,7 +352,7 @@ function secondPassMergeZones(
 
     if (closeEnough && !tooWideIfMerged) {
       const representativeZone = preferZoneRepresentative(next, current) ? next : current;
-      current = {
+      current = inheritAcceptedInputOrigins({
         ...current,
         zoneLow: Number(Math.min(current.zoneLow, next.zoneLow).toFixed(4)),
         zoneHigh: Number(Math.max(current.zoneHigh, next.zoneHigh).toFixed(4)),
@@ -415,7 +416,7 @@ function secondPassMergeZones(
         timeframeBias: dominantTimeframe(
           unique([...current.timeframeSources, ...next.timeframeSources]),
         ),
-      };
+      }, current, next);
     } else {
       merged.push(current);
       current = next;

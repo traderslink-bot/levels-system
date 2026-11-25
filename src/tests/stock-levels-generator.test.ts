@@ -38,7 +38,7 @@ test("Generator passes an older same-session trade to the unchanged historical p
   } });
   const result = await generator.generate(" elog ");
   assert.ok(result.map);
-  assert.deepEqual(requests, [{ symbol: "ELOG", referencePriceOverride: 1.7, calculationProfile: "dashboard_eodhd_daily_4h" }]);
+  assert.deepEqual(requests, [{ symbol: "ELOG", referencePriceOverride: 1.7, calculationProfile: "dashboard_eodhd_daily_4h", acceptedEvidence: true }]);
   assert.equal(result.map.referencePriceAsOf, tradedAt);
   assert.equal(result.map.referencePriceBasis, "last_trade");
   assert.equal(result.map.calculatedAt, observedAt + 70_000);
@@ -96,4 +96,29 @@ test("Generator coalesces concurrent requests and resolves price afresh on subse
   await generator.generate("ELOG");
   assert.equal(calculations, 2);
   assert.equal(fixture.requests(), 2);
+});
+
+test("native and explicit evidence requests never share in-flight results; unknown profiles do no work", async (t) => {
+  const fixture = setup(t);
+  const profiles: string[] = [];
+  const generator = createStockLevelsGenerator({ generateExistingWatchlistLevels: async (request) => {
+    profiles.push(request.calculationProfile);
+    return { output: output() };
+  } });
+  const [native, strict, coalesced] = await Promise.all([
+    generator.generate("ELOG"), generator.generate("ELOG", "scanner-regular-4h-v1"),
+    generator.generate("elog", "scanner-regular-4h-v1"),
+  ]);
+  assert.ok(native.map);
+  assert.equal(strict.map, undefined);
+  assert.equal(strict.code, "market_data_unavailable");
+  assert.deepEqual(coalesced, strict);
+  assert.deepEqual(profiles, ["dashboard_eodhd_daily_4h", "scanner-regular-4h-v1"]);
+  assert.equal(fixture.requests(), 2);
+  for (const unknown of [null, "native", {}, 1, false]) {
+    assert.equal((await generator.generate("ELOG", unknown)).map, undefined);
+  }
+  assert.equal(fixture.requests(), 2);
+  await generator.generate("ELOG", "scanner-regular-4h-v1");
+  assert.equal(profiles.length, 3);
 });
