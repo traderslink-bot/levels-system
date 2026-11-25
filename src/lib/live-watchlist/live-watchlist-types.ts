@@ -419,6 +419,7 @@ export type LiveWatchlistLevelMapLevel = {
   sourceEvidenceCount?: number;
   sourceLabel?: string | null;
   marketDataProvenance?: LevelSnapshotDisplayZone["marketDataProvenance"];
+  evidenceStatus?: "detected_structure" | "historically_tested" | "synthetic_planning";
   roleFlipFromSide?: "support" | "resistance" | null;
   roleFlipState?: "original" | "testing" | "confirmed";
   label: string;

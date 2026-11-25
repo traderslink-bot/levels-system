@@ -2,6 +2,7 @@
 // Core level engine types plus the next-layer level strength scoring contracts.
 
 import type { Candle, CandleTimeframe } from "../market-data/candle-types.js";
+import type { AcceptedInputOriginCarrier } from "../market-data/accepted-input-origins.js";
 
 export type LevelType = "support" | "resistance";
 export type LevelKind = LevelType;
@@ -37,7 +38,7 @@ export type LevelMarketDataProvenance = {
   lastConfirmedAt?: number;
 };
 
-export type RawLevelCandidate = {
+export type RawLevelCandidate = AcceptedInputOriginCarrier & {
   id: string;
   symbol: string;
   price: number;
@@ -62,7 +63,7 @@ export type RawLevelCandidate = {
 
 export type LevelDataFreshness = "fresh" | "aging" | "stale";
 
-export type FinalLevelZone = {
+export type FinalLevelZone = AcceptedInputOriginCarrier & {
   id: string;
   symbol: string;
   kind: LevelKind;

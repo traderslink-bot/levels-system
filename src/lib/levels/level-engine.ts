@@ -372,6 +372,7 @@ export class LevelEngine {
           timeframe,
           candles: series.candles,
           swings,
+          inputOrigins: series,
         }),
       );
     }

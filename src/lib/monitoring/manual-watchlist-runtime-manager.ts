@@ -1,4 +1,5 @@
 import { countReviewDelivery, emptyDeliveryCounts, latestSuccessfulAnalysis } from "./watchlist-operations-summary.js";
+import { inheritAcceptedInputOrigins } from "../market-data/accepted-input-origins.js";
 import { WatchlistBreakoutLifecycle, omitFollowupBreakout, publishedBreakoutPrice, type CrossedBreakout } from "../ai/watchlist-breakout-lifecycle.js";
 import { WatchlistNotesPublication } from "../alerts/watchlist-notes-publication.js";
 import { applyDiscordOwnerText, discordTextParts, formatWatchlistDiscordHeading } from "../alerts/watchlist-discord-owner-text.js";
@@ -2237,7 +2238,7 @@ function buildSnapshotDisplayZones(
   _currentPrice: number,
   side: "support" | "resistance",
 ): LevelSnapshotDisplayZone[] {
-  return sortSnapshotZones(zones, side).map((zone) => ({
+  return sortSnapshotZones(zones, side).map((zone) => inheritAcceptedInputOrigins({
     representativePrice: zone.representativePrice,
     lowPrice: zone.zoneLow,
     highPrice: zone.zoneHigh,
@@ -2255,7 +2256,7 @@ function buildSnapshotDisplayZones(
     ...(zone.marketDataProvenance
       ? { marketDataProvenance: { ...zone.marketDataProvenance } }
       : {}),
-  }));
+  }, ...(zone.isExtension ? [] : [zone])));
 }
 
 /**
@@ -8160,16 +8161,27 @@ export class ManualWatchlistRuntimeManager {
   async generateLevelsWithWatchlistConfiguration(input: {
     symbol: string;
     referencePriceOverride: number | undefined;
-    calculationProfile?: "watchlist" | "dashboard_eodhd_daily_4h";
+    calculationProfile?: "watchlist" | "dashboard_eodhd_daily_4h" | "scanner-regular-4h-v1";
+    acceptedEvidence?: boolean;
     historicalFetchService?: Pick<CandleFetchService, "fetchCandles" | "getProviderName">;
   }) {
-    const dashboardHistoricalOnly = input.calculationProfile === "dashboard_eodhd_daily_4h";
+    const scannerEvidence = input.calculationProfile === "scanner-regular-4h-v1";
+    const dashboardHistoricalOnly = scannerEvidence || input.calculationProfile === "dashboard_eodhd_daily_4h";
+    if (scannerEvidence && (input.historicalFetchService ?? this.options.candleFetchService).getProviderName() !== "alpaca") {
+      throw new Error("Scanner evidence requires the selected Alpaca source.");
+    }
+    const historicalRequests = this.buildLevelSeedHistoricalRequests(
+      input.symbol,
+      input.historicalFetchService ?? this.options.candleFetchService,
+    );
+    if (scannerEvidence || dashboardHistoricalOnly && input.acceptedEvidence === true) {
+      historicalRequests.daily = { ...historicalRequests.daily, acceptedEvidence: true };
+      historicalRequests["4h"] = { ...historicalRequests["4h"], acceptedEvidence: true,
+        ...(scannerEvidence ? { sessionMode: "regular" as const } : {}) };
+    }
     return this.levelEngine.generateLevelsWithCandleSeries({
       symbol: input.symbol,
-      historicalRequests: this.buildLevelSeedHistoricalRequests(
-        input.symbol,
-        input.historicalFetchService ?? this.options.candleFetchService,
-      ),
+      historicalRequests,
       referencePriceOverride: input.referencePriceOverride,
       ...(input.historicalFetchService ? { historicalFetchService: input.historicalFetchService } : {}),
       ...(dashboardHistoricalOnly ? { includeFiveMinute: false } : {}),
