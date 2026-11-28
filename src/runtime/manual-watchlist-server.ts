@@ -108,6 +108,7 @@ import { MANUAL_WATCHLIST_PAGE } from "./manual-watchlist-page.js";
 import { TRADE_PLAN_REVIEW_PAGE } from "./trade-plan-review-page.js";
 import { AI_CLEAN_READ_PAGE } from "./ai-clean-read-page.js";
 import { createStockLevelsGenerator } from "./stock-levels-generator.js";
+import { generateWithCurrentAlpacaHistory } from "./corrected-levels-history.js";
 import {
   appendTradePlanReviewNote,
   buildTradePlanReviewPayload,
@@ -785,9 +786,11 @@ async function main(): Promise<void> {
   const aiCleanReadService = legacyOpenAiFeaturesEnabled
     ? createOpenAICleanReadServiceFromEnv()
     : null;
+  let projectWatchlistPath = (patch: LiveWatchlistPublishedPatch) => patch;
   let authorizeWatchlistPublication: (patch: LiveWatchlistPublishedPatch) => boolean = () => false;
   const liveWatchlistPublisher = createLiveWatchlistPublisherFromEnv(process.env, {
     authorizePublication: (patch) => authorizeWatchlistPublication(patch),
+    projectPotentialPath: patch => projectWatchlistPath(patch),
   });
   const dailyWatchlistRecapService = createDailyWatchlistRecapServiceFromEnv();
   const reviewedDailyWatchlistRecapPoster = createReviewedDailyWatchlistRecapPosterFromEnv(
@@ -883,6 +886,7 @@ async function main(): Promise<void> {
         })
       : null;
   const manager = new ManualWatchlistRuntimeManager({
+    correctionHistory: rawCandleService,
     overnightLivePricesEnabled: () => liveProviderName === "alpaca",
     realtimeTickerPrices: () => liveProviderName === "alpaca",
     tradersLinkAiReadReviewStore: new TradersLinkAiReadReviewStore(join(durableDataDirectory, "ai-read-owner-reviews")),
@@ -950,15 +954,20 @@ async function main(): Promise<void> {
         }
       : null,
   });
+  projectWatchlistPath = patch => manager.projectCurrentPotentialPath(patch);
   authorizeWatchlistPublication = (patch) => manager.isWatchlistPublicationApproved(patch);
   const stockLevelsGenerator = createStockLevelsGenerator({
     generateExistingWatchlistLevels: (request) => {
       if (!dashboardEodhdHistoricalCandleService) {
         throw new Error("Historical levels are unavailable.");
       }
-      return manager.generateLevelsWithWatchlistConfiguration({
-        ...request,
-        historicalFetchService: dashboardEodhdHistoricalCandleService,
+      return generateWithCurrentAlpacaHistory({
+        symbol: request.symbol,
+        history: dashboardEodhdHistoricalCandleService,
+        generate: history => manager.generateLevelsWithWatchlistConfiguration({
+          ...request,
+          historicalFetchService: history,
+        }),
       });
     },
   });
@@ -967,7 +976,10 @@ async function main(): Promise<void> {
     createPrivateWatchlistGenerationAdapter({
       generateLevels: (request) => {
         if (!dashboardEodhdHistoricalCandleService) throw new Error("Historical levels unavailable.");
-        return manager.generateLevelsWithWatchlistConfiguration({ ...request, historicalFetchService: dashboardEodhdHistoricalCandleService });
+        return generateWithCurrentAlpacaHistory({
+          symbol: request.symbol, history: dashboardEodhdHistoricalCandleService,
+          generate: history => manager.generateLevelsWithWatchlistConfiguration({ ...request, historicalFetchService: history }),
+        });
       },
       candles: sameDayCandleService,
       settings: tradersLinkAiReadService,

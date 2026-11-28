@@ -58,3 +58,5 @@ historical prices and Full Ladder formatting remain unchanged.
 The original broader Generator Full Ladder consolidation proposal is separate
 and remains unimplemented. No production/account save or notification is part
 of this local comparison.
+
+Current corrected-trade display and release dependencies are documented in [Current Watchlist Potential Path trade corrections](watchlist-current-potential-path-corrections.md).

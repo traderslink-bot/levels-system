@@ -5,7 +5,7 @@ export const GATEWAY_WIRE_ROUTES = {
   "vwap-seed": "weighted-reference", "accepted-input": "accepted-input", "analyzer-splits": "capital-adjustments",
   "chart-overnight-history": "extended-candles", history: "candle-window", quotes: "market-state",
   overnight: "extended-price", bars: "recent-candles", stream: "chart-updates",
-  "scanner-stream": "scanner-updates", prices: "price-updates", halts: "trading-pauses",
+  "scanner-stream": "scanner-updates", "trade-revisions": "trade-revisions", prices: "price-updates", halts: "trading-pauses",
 } as const;
 export type GatewayOperation = keyof typeof GATEWAY_WIRE_ROUTES;
 export function gatewayWirePath(operation: GatewayOperation): string {
@@ -50,6 +50,9 @@ const market = record({feed:["coverage",scalar],connected:["online",scalar],at:[
 const seed = record({events:["capitalEvents",events],complete:["finished",scalar],request:["selection",request],basisDate:["basisDay",scalar],anchorKey:["referenceDay",scalar],start:["from",scalar],volume:["shares",scalar],sums:["totals",sums],moments:["distribution",moments]});
 const priceFrame = record({protocolVersion:["revision",scalar],feed:["coverage",scalar],connected:["online",scalar],kind:["change",scalar],emittedAt:["emitted",scalar],prices:["values",dictionary(simple({price:"value",providerObservedAt:"observed",receiptAt:"received"}))]});
 const schemas: Record<GatewayOperation, Spec> = {
+  "trade-revisions":record({feed:["coverage",scalar],generation:["generation",scalar],symbols:["instruments",dictionary(record({
+    minutes:["at",array(scalar)],pending:["pending",scalar],revision:["revision",scalar],
+  }))]}),
   health:simple({ready:"ready",feed:"coverage"}),"scanner-listings":record({excluded:["excluded",array(scalar)]}),calendar,
   "accepted-input":acceptedInput, "vwap-seed":seed,"analyzer-splits":events,"chart-overnight-history":history,history,quotes:market,
   overnight:record({feed:["coverage",scalar],symbol:["ticker",scalar],trade:["lastPrint",trade]}),bars:history,

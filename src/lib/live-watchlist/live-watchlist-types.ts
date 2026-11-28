@@ -57,6 +57,7 @@ export type LiveWatchlistCardContent = {
 };
 
 export type LiveWatchlistCardPatch = {
+  pathCorrection?: { stamp: number; held: boolean };
   symbol: string;
   status?: LiveWatchlistStatus;
   updatedAt: number;
@@ -90,6 +91,7 @@ export type LiveWatchlistHealthPatch = {
 };
 
 export type LiveWatchlistTickerDataPatch = {
+  pathCorrection?: { stamp: number; held: boolean };
   type: "tickerData";
   symbol: string;
   status?: LiveWatchlistStatus;
@@ -372,6 +374,7 @@ export type LiveWatchlistPublisher = {
 };
 
 export type LiveWatchlistHttpPublisherOptions = {
+  projectPotentialPath?: (patch: LiveWatchlistPublishedPatch) => LiveWatchlistPublishedPatch;
   authorizePublication?: (patch: LiveWatchlistPublishedPatch) => boolean;
   ingestUrl: string;
   token: string;

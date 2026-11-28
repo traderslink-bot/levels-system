@@ -45,6 +45,9 @@ import { closedMarketAnalysisWindow } from "../ai/traderslink-ai-read-market-con
 import { hasNewerLiveOvernightPrice, watchlistPriceFeedStatus } from "./watchlist-price-feed-status.js";
 import { LevelEngine } from "../levels/level-engine.js";
 import { resolveLevelRuntimeSettings } from "../levels/level-runtime-mode.js";
+import { WatchlistPotentialPathCorrections } from "./watchlist-potential-path-corrections.js";
+import { readAlpacaRuntimeTradeRevisions } from "../market-data/alpaca-runtime-providers.js";
+import { generateWithCurrentAlpacaHistory } from "../../runtime/corrected-levels-history.js";
 import type { FinalLevelZone, LevelEngineOutput } from "../levels/level-types.js";
 import { buildSpecialLevelCandidates } from "../levels/special-level-builder.js";
 import { decideLevelRefresh } from "../levels/level-refresh-policy.js";
@@ -89,6 +92,7 @@ import {
   buildLiveWatchlistAlertPatch,
   buildLiveWatchlistLevelsUnavailablePatch,
   buildLiveWatchlistSnapshotPatch,
+  buildLiveWatchlistPotentialPathPresentation,
   buildLiveWatchlistPullbackReadPatch,
   buildLiveWatchlistStatusPatch,
   buildLiveWatchlistTechnicalContextPatch,
@@ -268,6 +272,7 @@ export type ManualWatchlistRuntimeManagerOptions = {
   overnightLivePricesEnabled?: () => boolean;
   realtimeTickerPrices?: () => boolean;
   candleFetchService: CandleFetchService;
+  correctionHistory?: CandleFetchService;
   startupCachedCandleFetchService?: CandleFetchService | null;
   levelStore: LevelStore;
   monitor: WatchlistMonitor;
@@ -3137,6 +3142,8 @@ export class ManualWatchlistRuntimeManager {
   private readonly marketStructureStoryMemoryPath: string | null;
   private readonly marketStructureStandalonePostMode: MarketStructureStandalonePostMode;
   private readonly liveWatchlistPublisher: LiveWatchlistPublisher | null;
+  private readonly pathCorrections?: WatchlistPotentialPathCorrections<LevelEngineOutput>;
+  private pathCorrectionTimer?: NodeJS.Timeout;
   private readonly levelProvenanceMode: LiveWatchlistLevelProvenanceMode;
   private readonly startupCacheWarmingSymbols = new Set<string>();
   private readonly startupCacheRestoredAt = new Map<string, number>();
@@ -3322,9 +3329,59 @@ export class ManualWatchlistRuntimeManager {
     this.marketStructureStandalonePostMode = resolveMarketStructureStandalonePostMode(
       options.marketStructureStandalonePostMode,
     );
+    const history = options.correctionHistory;
+    if (history) this.pathCorrections = new WatchlistPotentialPathCorrections({
+      now: () => options.now?.() ?? Date.now(),
+      enabled: () => history.getProviderName() === "alpaca",
+      active: () => this.watchlistStore.getActiveEntries().filter(e =>
+        this.isWatchlistPublicationApproved({ symbol: e.symbol, cards: {} })).map(e => e.symbol),
+      identity: symbol => {
+        const entry = this.watchlistStore.getEntry(symbol);
+        if (!entry || entry.watchlistGroup === "private" || (!entry.active && entry.lifecycle !== "activating")) return undefined;
+        return JSON.stringify([entry.activatedAt, entry.publicationReview?.cycleId, this.activationEpochs.get(symbol)]);
+      },
+      basis: symbol => JSON.stringify([options.levelStore.getLevels(symbol)?.generatedAt,
+        Math.floor((options.now?.() ?? Date.now()) / 300_000)]),
+      read: readAlpacaRuntimeTradeRevisions,
+      rebuild: (symbol, cutoff, revision) => generateWithCurrentAlpacaHistory({
+        symbol, history, now: () => cutoff,
+        readRevisions: async scope => {
+          const reply = await readAlpacaRuntimeTradeRevisions(scope);
+          if ((reply.symbols[symbol]?.revision ?? null) !== revision) throw Error("Potential Path revision changed.");
+          return reply;
+        },
+        generate: async historicalFetchService => {
+          const { output, seriesMap } = await this.generateLevelsWithWatchlistConfiguration({
+            symbol, historicalFetchService, referencePriceOverride: undefined,
+          });
+          if (output.metadata.coverage !== "full" || Object.values(seriesMap).some(frame =>
+            frame.provider !== "alpaca" || frame.providerMetadata?.adjustment !== "split")) {
+            throw Error("Corrected Potential Path history is incomplete.");
+          }
+          return output;
+        },
+      }),
+      render: (symbol, output, patch) => {
+        const price = "latestPrice" in patch ? patch.latestPrice : this.resolveLevelSeedReferencePrice(symbol) ?? output.metadata.referencePrice;
+        if (!price || !("updatedAt" in patch)) return null;
+        return buildLiveWatchlistPotentialPathPresentation(buildLevelSnapshotPayloadFromEngineOutput({
+          symbol, currentPrice: price, timestamp: patch.updatedAt, output,
+        }));
+      },
+      publish: async symbol => {
+        if (!this.liveWatchlistPublisher || !this.isWatchlistPublicationApproved({ symbol, cards: {} })) return;
+        const updatedAt = options.now?.() ?? Date.now();
+        const view = options.levelStore.getLevels(symbol)
+          ? buildLiveWatchlistPotentialPathPresentation(this.buildLevelSnapshotPayload(symbol, updatedAt)) : null;
+        const patch = this.projectCurrentPotentialPath({ symbol, updatedAt, levelMap: view?.levelMap ?? null,
+          cards: { fullLadder: view?.fullLadderCard ?? null, nearestSupportResistance: view?.nearestSupportResistanceCard ?? null } });
+        if ("cards" in patch && (patch.pathCorrection?.held || patch.levelMap)) await this.liveWatchlistPublisher.publish(patch);
+      },
+    });
     this.liveWatchlistPublisher =
       options.liveWatchlistPublisher === undefined
         ? createLiveWatchlistPublisherFromEnv(process.env, {
+            projectPotentialPath: patch => this.projectCurrentPotentialPath(patch),
             authorizePublication: (patch) => this.isWatchlistPublicationApproved(patch),
           })
         : options.liveWatchlistPublisher;
@@ -3535,6 +3592,10 @@ export class ManualWatchlistRuntimeManager {
     return Boolean(
       this.options.tradersLinkAiReadService && this.liveWatchlistPublisher,
     );
+  }
+
+  projectCurrentPotentialPath(patch: LiveWatchlistPublishedPatch) {
+    return this.pathCorrections?.project(patch) ?? patch;
   }
 
   isWatchlistPublicationApproved(patch: WatchlistPublicationCheck): boolean {
@@ -11971,6 +12032,13 @@ export class ManualWatchlistRuntimeManager {
         if (entry.publicationReview?.required) await this.refreshPublishedCompanyInfo(entry.symbol);
       }
     })();
+    if (this.pathCorrections && this.liveWatchlistPublisher) {
+      const poll = () => { void this.pathCorrections!.poll().catch(error =>
+        console.warn("[PotentialPath] Revision check failed", error instanceof Error ? error.name : "error")); };
+      poll();
+      this.pathCorrectionTimer = setInterval(poll, 30_000);
+      this.pathCorrectionTimer.unref();
+    }
     this.startActivationWatchdog();
     this.approvedDiscordRetryTimer = setInterval(() => void this.retryApprovedDiscordDeliveries(), 30_000);
     this.approvedDiscordRetryTimer.unref();
@@ -12112,6 +12180,8 @@ export class ManualWatchlistRuntimeManager {
   }
 
   async stop(): Promise<void> {
+    clearInterval(this.pathCorrectionTimer);
+    this.pathCorrections?.reset();
     for (const symbol of this.activationEpochs.keys()) this.nextActivationEpoch(symbol);
     this.stopPullbackReadIntradayPolling();
     this.stopHaltConfirmationPolling();

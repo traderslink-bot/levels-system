@@ -2,6 +2,8 @@ import { gatewayWireEnabled, gatewayWireUrl, gatewayWireSubscription, decodeGate
 import { consumeWatchlistPriceStream } from "./watchlist-alpaca-price-stream.js";
 import { admitAcceptedChartInput, bindAcceptedChartInput } from "./accepted-chart-input.js";
 import { SCANNER_LEVELS_REGULAR_DATASET } from "./stock-levels-evidence-profile.js";
+import { runtimeTradeRevisionQuery, parseRuntimeTradeRevisions, type RuntimeTradeRevisionRequest } from "./runtime-trade-revisions.js";
+export type { RuntimeTradeRevisionRequest, RuntimeTradeRevision, RuntimeTradeRevisions } from "./runtime-trade-revisions.js";
 
 /** Portable adapters for the separately hosted levels/Watchlist runtime.
  * Only a private VPS gateway token is used here; no Alpaca broker key.
@@ -31,7 +33,8 @@ class RuntimeGateway {
     const url = this.wire ? gatewayWireUrl(this.base, path, query) : new URL(path, this.base);
     if (!this.wire) url.search = query.toString();
     const timeout = AbortSignal.timeout(120_000);
-    const response = await this.fetcher(url, { headers: { Authorization: `Bearer ${this.token}` }, signal: signal ? AbortSignal.any([signal, timeout]) : timeout, redirect: "error" });
+    const response = await this.fetcher(url, { headers: { Authorization: `Bearer ${this.token}` }, signal: signal ? AbortSignal.any([signal, timeout]) : timeout, redirect: "error",
+      ...(path === "trade-revisions" ? { cache: "no-store" as const } : {}) });
     if (!response.ok) throw Error("Alpaca VPS market data is unavailable.");
     const payload = await response.json();
     if (this.wire && path === "history" && payload?.data && typeof payload.data === "object" &&
@@ -48,6 +51,12 @@ class RuntimeGateway {
       Authorization: `Bearer ${this.token}`, "Content-Type": "application/json", Accept: "text/event-stream",
     }, body: JSON.stringify(this.wire ? gatewayWireSubscription({ symbols }) : { symbols }), signal, redirect: "error", cache: "no-store" });
   }
+}
+
+export async function readAlpacaRuntimeTradeRevisions(request: RuntimeTradeRevisionRequest, options: AdapterOptions = {}) {
+  const gateway = new RuntimeGateway(options);
+  const query = runtimeTradeRevisionQuery(request, gateway.now());
+  return parseRuntimeTradeRevisions(await gateway.get("trade-revisions", query), request);
 }
 
 export async function readAlpacaRuntimeReferencePrice(symbol: string, options: AdapterOptions = {}): Promise<{price:number;asOf:number;source:"alpaca"} | null> {

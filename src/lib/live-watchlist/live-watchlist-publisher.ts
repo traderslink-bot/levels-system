@@ -2194,7 +2194,7 @@ export class LiveWatchlistHttpPublisher implements LiveWatchlistPublisher {
             Authorization: `Bearer ${this.options.token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(patch),
+          body: JSON.stringify(this.options.projectPotentialPath?.(patch) ?? patch),
         });
         if (!response.ok) {
           throw new Error(`Live watchlist ingest failed with ${response.status}.`);
@@ -2217,7 +2217,7 @@ export class LiveWatchlistHttpPublisher implements LiveWatchlistPublisher {
 
 export function createLiveWatchlistPublisherFromEnv(
   env: NodeJS.ProcessEnv = process.env,
-  controls: Pick<LiveWatchlistHttpPublisherOptions, "authorizePublication"> = {},
+  controls: Pick<LiveWatchlistHttpPublisherOptions, "authorizePublication" | "projectPotentialPath"> = {},
 ): LiveWatchlistPublisher | null {
   if (env.MANUAL_WATCHLIST_SHADOW_MODE?.trim() === "1") {
     console.log(
